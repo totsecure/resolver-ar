@@ -15,6 +15,7 @@ import dns from 'node:dns';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
+import * as pathResolver from 'path';
 
 import { fichaDetalle } from '../lib/ficha.js';
 import { asegurarPool, sembrarPool, elegirDelPool, randomAfip } from '../scripts/pool.js';
@@ -22,6 +23,7 @@ import {
   buscarPorPrefijo, ambiguedades, buscarPorCuit, basico,
   formatearCuit, cuitsPorDni,
 } from '../lib/padron.js';
+import { armarBloque, generarLote, seleccionarTitulares, parsearCards } from '../lib/lote.js';
 
 /* Preferir IPv4: en esta red el AAAA de Telegram a veces cuelga. */
 dns.setDefaultResultOrder('ipv4first');
@@ -36,6 +38,7 @@ const HELP = [
   '<b>resolver-ar</b>',
   'Mandame un DNI de 7 u 8 digitos y te devuelvo la ficha.',
   '',
+  '/lote - genera un lote de tarjetas (usa items del padron)',
   '/nombre &lt;texto&gt; - buscar por apellido o nombre',
   '/cuit &lt;cuit&gt; - consulta inversa por CUIT',
   '/basico &lt;dni&gt; - apellido, nombre, DNI, CUIT, CUIL, sexo, nacionalidad',
@@ -186,6 +189,18 @@ function enviar(chatId, texto, extra = {}) {
   });
 }
 
+async function enviarDocumento(chatId, texto, nombreArchivo, metodo) {
+  return api(metodo, {
+    chat_id: chatId,
+    document: {
+      source: 'file',
+      filename: nombreArchivo,
+      mimeType: 'text/plain',
+    },
+    caption: texto,
+  });
+}
+
 function editar(chatId, messageId, texto, extra = {}) {
   return api('editMessageText', {
     chat_id: chatId,
@@ -331,6 +346,81 @@ async function procesarUpdate(update, db) {
       }
       log(`chat=${chatId} /random${afip ? ' afip' : ''} dni=${dni}`);
       await responderFicha(chatId, dni);
+      return;
+    }
+    if (p.cmd === 'lote') {
+      const textoEntrada = p.args.join(' ').trim() || '';
+      
+      if (!textoEntrada) {
+        await enviar(chatId, 'Uso: /lote &lt;numero|MM|YY|CVV o nombre.txt&gt; o adjuntar nombre.txt');
+        return;
+      }
+      
+      // Verificar si es un archivo
+      if (textoEntrada.endsWith('.txt')) {
+        const rutaArchivo = pathResolver.join(RAIZ, 'datos', textoEntrada);
+        try {
+          const contenido = fs.readFileSync(rutaArchivo, 'utf8');
+          const lista = parsearCards(contenido);
+          
+          if (lista.length === 0) {
+            await enviar(chatId, 'No se encontraron tarjetas válidas en el archivo.');
+            return;
+          }
+          
+          // Generar nombre de archivo
+          const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+          const nombreArchivo = `lote-${fecha}.txt`;
+          
+          // Generar el lote
+          const titulares = seleccionarTitulares(db, { cantidad: lista.length, saltar: 0 });
+          const textoLote = generarLote(lista, { desde: 1, titulares });
+          
+          if (!textoLote) {
+            await enviar(chatId, 'No se pudo generar el lote.');
+            return;
+          }
+          
+          if (lista.length <= 10) {
+            await enviar(chatId, `<pre>${textoLote}</pre>`);
+          }
+          await enviarDocumento(chatId, `Genere ${lista.length} tarjetas`, nombreArchivo, 'sendDocument');
+          
+          log(`chat=${chatId} /lote archivo=${textoEntrada} cantidad=${lista.length}`);
+          return;
+        } catch (e) {
+          await enviar(chatId, `Error al leer el archivo: ${e.message}`);
+          return;
+        }
+      }
+      
+      // Procesar texto crudo
+      const lista = parsearCards(textoEntrada);
+      
+      if (lista.length === 0) {
+        await enviar(chatId, 'No se encontraron tarjetas válidas. Usá formato: numero|MM|YY|CVV o numeros separados por ;');
+        return;
+      }
+      
+      // Generar nombre de archivo
+      const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const nombreArchivo = `lote-${fecha}.txt`;
+      
+      // Generar el lote (paginación para lotes grandes)
+      const titulares = seleccionarTitulares(db, { cantidad: lista.length, saltar: 0 });
+      const textoLote = generarLote(lista, { desde: 1, titulares });
+      
+      if (!textoLote) {
+        await enviar(chatId, 'No se pudo generar el lote.');
+        return;
+      }
+      
+      if (lista.length <= 10) {
+        await enviar(chatId, `<pre>${textoLote}</pre>`);
+      }
+      await enviarDocumento(chatId, `Genere ${lista.length} tarjetas`, nombreArchivo, 'sendDocument');
+      
+      log(`chat=${chatId} /lote texto cantidad=${lista.length}`);
       return;
     }
     if (p.cmd === 'nombre') {
