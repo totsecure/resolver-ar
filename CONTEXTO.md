@@ -13,7 +13,9 @@ Reglas duras en `AGENTS.md`.
   `online_since = 13/11/2025 07:00` (local), `votacion.fecha = 26-10-2025`,
   `instancia = "-1"`. Cache en `datos/cne-config.json`.
 - `node scripts/ficha.js 23854064 --red` → exit 0 con RENAPER `AUSENTE`
-  (el espejo público está roto).
+  (el simulador solo tiene 30123456 y 33456789).
+- `node scripts/ficha.js 30123456 --red` / `33456789 --red` → datos del
+  simulador (`facuPonceGit/RenaperService`), **no reales**.
 - DB: `datos/padron.db`, 5.664.575 personas físicas reales de 6.199.556 líneas.
 - Invariantes: `COUNT(*) = 5.664.575` · CUIT duplicados = 0 · DNIs con más de un
   CUIT = 1.735 · inválidas = 0 · largos != 51 = 0.
@@ -49,7 +51,7 @@ PORT=3001 RESOLVER_TOKEN=secreto node server.js
 |---|---|
 | `lib/faker-ar.js` | mail/teléfono SINTÉTICO determinista (FNV-1a + mulberry32) |
 | `lib/cne.js` | contrato real del CNE, cache, intentos, `interpretar()` pura |
-| `lib/renaper.js` | espejo público RENAPER: fecha de nacimiento, trámite, dirección |
+| `lib/renaper.js` | cliente de RenaperService (simulador): fechaNac, dirección, género |
 | `lib/ficha.js` | ficha de 10 líneas con precedencia de fuentes |
 | `lib/cobertura.js` | cobertura del padrón + ambiguos, cache 7 días |
 | `lib/enriquecer.js` | agrega SINTÉTICO y lee CNE de cache; no pisa reales |
@@ -68,8 +70,8 @@ PORT=3001 RESOLVER_TOKEN=secreto node server.js
   sucesión, ganancias, IVA, monotributo, integrante sociedad, empleador, actividad.
 - **REAL_CNE**: domicilio, localidad, fechaEjemplar, circuito, sección,
   establecimiento, dirección de voto, mesa, orden, lat/lng, codRef.
-- **REAL_RENAPER**: fechaNac, nroTramite, dirección, ciudad, provincia, cpostal,
-  cuilRenaper (espejo público NO oficial).
+- **REAL_RENAPER**: fechaNac, dirección, ciudad, provincia, cpostal y género
+  (contrato del simulador; `nroTramite`/`cuil` no vienen y quedan `AUSENTE`).
 - **SINTETICO**: mail y teléfono. Deterministas: mismo DNI ⇒ mismo valor.
   Mail sin nombre ni apellido: `u<dni sin ceros>` (ej. `u23854064@gmail.com`);
   con uno solo de los dos, solo ese dato. Nunca `personatitular`.
@@ -137,82 +139,44 @@ capturado, ttl_dias, crudo)` · TTL 180 días.
 `cne_intentos(id, dni, ts, http, motivo)` · log en `datos/cne.log`.
 `interpretar()` es pura. `obtenerSync()` lee solo cache salvo `opts.red === true`.
 
-## CONTRATO RENAPER (espejo público, NO oficial)
+## CONTRATO RENAPER (RenaperService, SIMULADO)
 
-Base `https://apirnpr.onrender.com`. Free tier de onrender: **puede dormir**.
-Módulo `lib/renaper.js`. Exports: `BASE`, `TTL_DIAS`, `asegurar`, `leer`,
-`guardar`, `interpretar`, `consultarRemoto`, `obtener`, `obtenerSync`, `stats`.
-
-```
-GET {BASE}/renaper/{dni}/{genero}      genero = M | F | X
-```
-
-Respuesta JSON: `apellido`, `nombres`, `fechaNacimiento` (`YYYY-MM-DD`), `calle`,
-`numeroCalle`, `ciudad`, `provincia`, `cpostal`, `monoblock`, `barrio`,
-`municipio`, `cuil`, `idTramitePrincipal`, `codigoError` (200 = ok), `error`,
-`descripcionError`.
-
-- `interpretar()` es pura y mapea: `fechaNacimiento → fechaNac` (dd/mm/aaaa),
-  `idTramitePrincipal → nroTramite`, `calle + numeroCalle → direccion`,
-  `ciudad → ciudad`, `provincia → provincia`, `cpostal → cpostal`,
-  `cuil → cuilRenaper`, `apellido`/`nombres` para el titular.
-- Campo vacío o `null` ⇒ `AUSENTE`. No se deriva ni se completa.
-- `codigoError != 200` o `error:true` ⇒ `fuente:'AUSENTE'` + `motivo`.
-- **Timeout 60 s** (`RENAPER_TIMEOUT_MS`). Si falla ⇒ `AUSENTE` con motivo.
-- **Por defecto solo cache.** Red solo con `opts.red === true` (`--red` /
-  `FICHA_RED=1` en la ficha).
-- TTL **365 días**. Tablas:
+Base `https://renaperservice.onrender.com`. **No es RENAPER real:** es el
+simulador `facuPonceGit/RenaperService` (UTN-FRT), con solo dos DNIs
+hardcodeados: `30123456` (GOMEZ, MARIA, F) y `33456789` (PEREZ, JUAN, M).
+El RENAPER real sigue pendiente hasta que reabra el CNE.
 
 ```
-renaper(dni PK, fechaNac, nroTramite, direccion, ciudad, provincia,
-        cpostal, cuilRenaper, fuente, capturado, ttl_dias, crudo)
-renaper_intentos(id, dni, ts, http, motivo)     log en datos/renaper.log
+GET {BASE}/api/personas/{dni}?genero={M|F|X}
+Header: X-API-Key: <RENAPER_API_KEY>
 ```
 
-### Dictamen del espejo (2026-10-21): **ROTO**
+- `RENAPER_BASE` default `https://renaperservice.onrender.com`.
+- `RENAPER_API_KEY` default la key pública del README del servicio.
+- `RENAPER_PATH` default `/api/personas/{dni}?genero={genero}`.
+- `interpretar()` pura mapea los campos EXACTOS del JSON:
+  `fechaNacimiento` (YYYY-MM-DD) → `fechaNac` (dd/mm/aaaa);
+  `domicilio.calle + domicilio.numero` → `direccion`;
+  `domicilio.localidad` → `ciudad`;
+  `domicilio.provincia` → `provincia`;
+  `domicilio.codigoPostal` → `cpostal`;
+  `nombre` → `nombres`; `apellido` → `apellido`; `sexo` → `sexo`.
+  `nroTramite` y `cuil` NO vienen en el JSON → `AUSENTE` (null).
+- Género: se deriva del prefijo del CUIT del padrón (20/23/24 → M, 27 → F).
+  Si el DNI no está en el padrón o la consulta da 404, se prueba M, F, X.
+  El género que funcionó se guarda en `renaper.genero`.
+- TTL **365 días**. `renaper` + columna `genero` (agregada sin perder datos);
+  `renaper_intentos` y `datos/renaper.log` como antes.
+- Por defecto **solo cache**; red solo con `opts.red === true` (`--red` /
+  `FICHA_RED=1`).
+- **OJO colisión:** `30123456` existe en AFIP como FERNANDEZ MARIA BELEN; la
+  ficha prioriza AFIP para TITULAR y el simulador aporta fechaNac/dirección de
+  GOMEZ. Es un artefacto de prueba; no usar en producción.
+- Historial: `apirnpr.onrender.com` (roto), `apirenaper.idear.gov.ar` (403),
+  etc. Se descartaron. No se buscan más mirrors.
 
-- `/renaper/44444444/F` (ejemplo del README del espejo) →
-  `{"error":true,"mensaje":"No se pudo realizar la consulta."}`
-- `/renaper/23854064/M` x3 con backoff 5/15/30 s → mismo error.
-- `/` → HTTP 404 con instructivo de ruta: el server vive, la consulta no.
-- No es intermitente: falla siempre y rápido (~0,7 s). Degrada a `AUSENTE`.
-
-Provider por env, sin tocar código: `RENAPER_BASE` (default el espejo),
-`RENAPER_USER` y `RENAPER_PASS` (si están, se manda `Authorization: Basic`).
-El módulo agrega `/renaper/{dni}/{genero}` a la base.
-
-### Espejos alternativos probados (2026-10-21): ninguno sirve
-
-Criterio de aceptación: JSON con `fechaNacimiento` **y** `apellido`.
-Todos se probaron con `23854064/M` y `44444444/F`.
-
-| candidato (origen) | URL probada | http M / F | primeras 200 letras |
-|---|---|---|---|
-| `apirnpr.onrender.com` (entrerejas/Renaper-Api) | `/renaper/{dni}/{M,F}` | 200 / 200 | `{"error":true,"mensaje":"No se pudo realizar la consulta."}` |
-| `renaperservice.onrender.com` (facuPonceGit/RenaperService, **simulado**) | `/api/personas/{dni}?genero={M,F}` | 401 sin key / 404 con key válida | `{"error":"API Key requerida"...}` / `{"error":"Persona no encontrada"...}` |
-| `apirenaper.idear.gov.ar` (Matanzassj555/renaper-consultas) | `/apidatos/porDniSexo.php?dni={dni}&sexo={M,F}` | 403 / 403 | `FORBIDDEN - REMOTE ADDRESS NOT ALLOWED` |
-| `federales.info` (OSintt/MacAllister-DniLookup) | `/renaper/{dni}/{M,F}` | 000 / 000 | `curl: (6) Could not resolve host: federales.info` |
-| `servicios.gcba.gob.ar` (balerdis/valida-renaper) | `/renaper/api/personas/{dni}/{M,F}/ejemplares/ultimo` | 000 / 000 | `curl: (6) Could not resolve host: servicios.gcba.gob.ar` |
-| `api.renaper.gob.ar` (SAK-Stellar-Anchor-KYC/backend) | `/v1/renaper/{dni}/{M,F}` | 000 / 000 | `curl: (6) Could not resolve host: api.renaper.gob.ar` |
-
-Dictamen: **espejo roto y sin alternativa pública viable**. Se deja
-`apirnpr.onrender.com` como default y todo degrada a `AUSENTE`. El provider por
-env queda listo para cuando haya uno propio. No se buscan más mirrors.
-
-Notas de `renaperservice.onrender.com` (2026-10-21):
-
-- `/`, `/docs`, `/swagger`, `/api-docs` → **404**.
-- `/api/personas/23854064` sin key → **401** (`API Key requerida`).
-- De las 4 keys demo del README, la única válida es
-  `sk_renaper_inventario_2025_secret_key`; con ella `23854064` → **404**
-  (`Persona no encontrada`).
-- El repo `facuPonceGit/RenaperService` es un **simulador** con solo
-  `30123456F` y `33456789M` hardcodeados. Devuelve `fechaNacimiento` y
-  `apellido` para esos fixtures, pero **no es dato real**: no se adopta ni se
-  cachea como `REAL_RENAPER`.
-- `lib/renaper.js` acepta `RENAPER_API_KEY` (header `X-API-Key`) y
-  `RENAPER_PATH` (template, ej. `/api/personas/{dni}?genero={genero}`) para
-  providers con otra ruta.
+Exports de `lib/renaper.js`: `BASE`, `TTL_DIAS`, `asegurar`, `leer`, `guardar`,
+`interpretar`, `consultarRemoto`, `obtener`, `obtenerSync`, `stats`.
 
 ## FICHA (lib/ficha.js + scripts/ficha.js)
 
@@ -272,8 +236,9 @@ Atención: la doc de ARCA lista Actividad en 51/52 — es off-by-one; el layout
   404 = SIN_DATOS (no es caída). Timeout 8 s, 2 intentos, tolerante a no-JSON.
   Trae denominación: se cruza contra el padrón y se declara si no coincide.
 - **CNE**: ver contrato arriba.
-- **RENAPER**: `https://apirnpr.onrender.com/renaper/{dni}/{genero}`. Espejo
-  público no oficial, free tier (puede dormir, timeout 60 s). Ver contrato arriba.
+- **RENAPER**: `https://renaperservice.onrender.com/api/personas/{dni}?genero={M|F|X}`
+  con `X-API-Key`. Es un **simulador** (solo 30123456 y 33456789), no el
+  RENAPER real. Ver contrato arriba.
 - `cuitonline.com/search.php?q=<cuit|nombre>` como plan C.
 - Descartadas: padrón PASO 2021 (solo totales), padrón 2017 (timeout),
   ARCA REST `sr-padron/v2` (404; requiere certificado).

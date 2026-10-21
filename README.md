@@ -65,7 +65,7 @@ curl 'http://localhost:3001/stats?token=secreto'
 |---|---|---|
 | **AFIP** | **REAL, offline** | `datos/padron.db`: 5.664.575 personas físicas. Apellido, nombre, DNI, CUIT, CUIL y situación impositiva reales. |
 | **CNE** | **CERRADO (`mode=end`)** | `config/web.json` HTTP 200; `online_since` 13/11/2025 07:00; `votacion.fecha` 26-10-2025; captcha HTTP 503. `DISTRITOS` con los 27 nombres. |
-| **RENAPER** | **ESPEJO ROTO** | `apirnpr.onrender.com` devuelve `{"error":true,"mensaje":"No se pudo realizar la consulta."}`. 6 candidatos probados, ninguno sirve. Degrada a `AUSENTE`. |
+| **RENAPER** | **SIMULADO** | `renaperservice.onrender.com` (2 DNIs: `30123456` GOMEZ/MARIA, `33456789` PEREZ/JUAN). Contrato tomado del servicio; **datos NO reales**. El RENAPER real sigue pendiente hasta que reabra el CNE. |
 | **BCRA** | best-effort | Flapea; 404 = sin datos (no es caída). |
 | **mail / teléfono** | **SINTÉTICO** | Deterministas por DNI (FNV-1a). Sin nombre ni apellido: `u<dni>` (ej. `u23854064@gmail.com`). |
 

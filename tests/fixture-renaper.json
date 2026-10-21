@@ -1,18 +1,1 @@
-{
-  "apellido": "GOMEZ",
-  "nombres": "MARIA ELENA",
-  "fechaNacimiento": "1985-03-17",
-  "calle": "AV SAN MARTIN",
-  "numeroCalle": "1234",
-  "ciudad": "LA PLATA",
-  "provincia": "BUENOS AIRES",
-  "cpostal": "1900",
-  "monoblock": "",
-  "barrio": "",
-  "municipio": "LA PLATA",
-  "cuil": "27123456784",
-  "idTramitePrincipal": "12345678",
-  "codigoError": 200,
-  "error": false,
-  "descripcionError": ""
-}
+{"dni":"30123456","nombre":"MARIA","apellido":"GOMEZ","fechaNacimiento":"1985-05-15","lugarNacimiento":"BUENOS AIRES","sexo":"F","nacionalidad":"ARGENTINA","estadoCivil":"CASADA","domicilio":{"calle":"AV. CORRIENTES","numero":"1234","piso":"3","departamento":"A","codigoPostal":"C1043","localidad":"CABA","provincia":"BUENOS AIRES"}}

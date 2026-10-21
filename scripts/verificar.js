@@ -270,13 +270,15 @@ const tests = [
     const fixture = JSON.parse(fs.readFileSync(RUTA_FIXTURE_RENAPER, 'utf8'));
     const d = renaper.interpretar(fixture);
     assert(d.fuente === 'REAL_RENAPER', 'fuente=' + d.fuente);
-    assert(d.fechaNac === '17/03/1985', 'fechaNac=' + JSON.stringify(d.fechaNac));
-    assert(d.nroTramite === '12345678', 'nroTramite=' + JSON.stringify(d.nroTramite));
-    assert(d.direccion === 'AV SAN MARTIN 1234', 'direccion=' + JSON.stringify(d.direccion));
-    assert(d.ciudad === 'LA PLATA', 'ciudad=' + JSON.stringify(d.ciudad));
+    assert(d.apellido === 'GOMEZ' && d.nombres === 'MARIA', 'apellido/nombres no mapeados');
+    assert(d.fechaNac === '15/05/1985', 'fechaNac=' + JSON.stringify(d.fechaNac));
+    /* El servicio no devuelve nroTramite: debe quedar AUSENTE, no inventarse. */
+    assert(d.nroTramite === null, 'nroTramite=' + JSON.stringify(d.nroTramite));
+    assert(d.direccion === 'AV. CORRIENTES 1234', 'direccion=' + JSON.stringify(d.direccion));
+    assert(d.ciudad === 'CABA', 'ciudad=' + JSON.stringify(d.ciudad));
     assert(d.provincia === 'BUENOS AIRES', 'provincia=' + JSON.stringify(d.provincia));
-    assert(d.cpostal === '1900', 'cpostal=' + JSON.stringify(d.cpostal));
-    assert(d.cuilRenaper === '27123456784', 'cuilRenaper=' + JSON.stringify(d.cuilRenaper));
+    assert(d.cpostal === 'C1043', 'cpostal=' + JSON.stringify(d.cpostal));
+    assert(d.cuilRenaper === null, 'cuilRenaper=' + JSON.stringify(d.cuilRenaper));
 
     const conError = renaper.interpretar({ codigoError: 200, error: true, descripcionError: 'sin datos' });
     assert(conError.fuente === 'AUSENTE' && conError.motivo === 'sin datos', 'no degrado a AUSENTE');

@@ -6,3 +6,6 @@ node_modules/
 .env
 .DS_Store
 varios/
+proxy/node_modules/
+proxy/.wrangler/
+proxy/.dev.vars

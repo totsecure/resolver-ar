@@ -50,40 +50,35 @@ Si `tesseract` no está: `open /tmp/cne-captcha.jpg`, mirar el código a mano y
 usar el `token` que imprimió el paso 2. Si `config` muestra algún distrito con
 `estado = 0`, usar ese id en el paso 4 en lugar de 3.
 
-## 2. RENAPER — espejo roto, esperando provider
+## 2. RENAPER — contrato del SIMULADOR; el real sigue pendiente
 
-**Qué espera a quién:** el espejo público `apirnpr.onrender.com` responde
-`{"error":true,"mensaje":"No se pudo realizar la consulta."}` a todo, incluido
-el ejemplo del README (`44444444/F`). El server vive; su backend no.
+**Ahora:** `lib/renaper.js` usa `https://renaperservice.onrender.com` con
+`GET /api/personas/{dni}?genero={M|F|X}` y header `X-API-Key`. Es un
+**SERVICIO SIMULADO** (`facuPonceGit/RenaperService`, UTN-FRT): solo tiene
+hardcodeados `30123456` (GOMEZ, MARIA, F) y `33456789` (PEREZ, JUAN, M).
+**No es RENAPER real.**
 
-Se probaron 6 candidatos (detalle completo en `CONTEXTO.md`):
+El RENAPER real sigue pendiente **hasta que reabra el CNE** (padrón electoral).
 
-```text
-apirnpr.onrender.com            200  {"error":true,...}          (el default actual)
-renaperservice.onrender.com     401  sin key; 404 con key válida (simulado, sin 23854064)
-apirenaper.idear.gov.ar         403  FORBIDDEN - REMOTE ADDRESS NOT ALLOWED
-federales.info                  000  DNS no resuelve
-servicios.gcba.gob.ar           000  DNS no resuelve
-api.renaper.gob.ar              000  DNS no resuelve
-```
-
-`renaperservice` es un **simulador** (`facuPonceGit/RenaperService`) con solo
-`30123456F` y `33456789M` hardcodeados. La única key demo válida es
-`sk_renaper_inventario_2025_secret_key`; con ella `23854064` da 404. No se usa
-como fuente real ni se cachea.
-
-**Dictamen: espejo roto y sin alternativa pública viable.** No se buscan más
-mirrors. La ficha degrada a `AUSENTE` (`-`).
-
-**Cómo activarlo sin tocar código** (provider propio con la misma ruta
-`/renaper/{dni}/{genero}`):
+- Key pública default: `RENAPER_API_KEY=sk_renaper_inventario_2025_secret_key`.
+- Género: se deriva del prefijo del CUIT del padrón (20/23/24 → M, 27 → F).
+  Si el DNI no está o la consulta da 404, se prueba M, F, X y se guarda el que
+  funcionó en `renaper.genero`.
+- `fechaNacimiento`, `domicilio.calle/numero/localidad/provincia/codigoPostal`
+  se mapean tal cual. `nroTramite` y `cuil` no vienen: quedan `AUSENTE`.
+- **OJO colisión:** `30123456` existe en AFIP como FERNANDEZ MARIA BELEN; la
+  ficha prioriza AFIP para TITULAR y el simulador aporta fechaNac/dirección de
+  GOMEZ. Es un artefacto de prueba; no usar en producción.
+- `23854064` no existe en el simulador: 404 y ficha AUSENTE.
 
 ```bash
-export RENAPER_BASE="https://mi-provider.example"
-export RENAPER_USER="usuario"      # opcional, basic auth
-export RENAPER_PASS="clave"        # opcional, basic auth
-node scripts/ficha.js 23854064 --red
+node scripts/ficha.js 30123456 --red
+node scripts/ficha.js 33456789 --red
+node scripts/verificar.js   # 18 OK / 0 FAIL, offline
 ```
+
+El RENAPER real se activa cuando el CNE reabra; hasta entonces esto valida el
+contrato y los tests offline.
 
 ## 3. Túnel — activo con ngrok (dominio fijo)
 

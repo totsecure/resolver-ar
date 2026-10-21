@@ -31,8 +31,8 @@ node scripts/ficha.js <dni> [genero] [--red] [--fuentes]
    - `REAL_AFIP`: apellido, nombre, DNI, CUIT, situación impositiva (padrón ARCA/AFIP).
    - `REAL_CNE`: domicilio, localidad, fecha de ejemplar, circuito, sección,
      establecimiento, dirección de voto, mesa, orden, lat/lng, codRef (padrón CNE).
-   - `REAL_RENAPER`: fecha de nacimiento, nro de trámite, dirección, ciudad,
-     provincia, CP, CUIL del espejo público de RENAPER (NO oficial).
+   - `REAL_RENAPER`: fecha de nacimiento, dirección, ciudad, provincia, CP y
+     género del servicio RenaperService (SIMULADO; datos no reales).
    - `DERIVADO`: sexo por prefijo de CUIT (20/27/23/24), CUIL candidato cuando el
      DNI no está, y `PAIS Argentina` en la ficha.
    - `SINTETICO`: mail y teléfono (lib/faker-ar.js).
@@ -173,40 +173,44 @@ TTL 180 días. Log de intentos en `datos/cne.log`. `interpretar()` es pura (sin
 red, sin DB). `obtenerSync()` lee **solo cache** salvo `opts.red === true` (y
 aun así requiere captcha resuelto).
 
-## Contrato RENAPER (espejo público, NO oficial)
+## Contrato RENAPER (RenaperService, SIMULADO)
 
-Base: `https://apirnpr.onrender.com` (free tier de onrender: puede dormir).
+Base: `https://renaperservice.onrender.com`. **No es RENAPER real**: es el
+simulador `facuPonceGit/RenaperService` (UTN-FRT), con solo `30123456`
+(GOMEZ, MARIA, F) y `33456789` (PEREZ, JUAN, M). El RENAPER real sigue
+pendiente hasta que reabra el CNE.
 
 ```
-GET {BASE}/renaper/{dni}/{genero}      genero = M | F | X
+GET {BASE}/api/personas/{dni}?genero={M|F|X}
+Header: X-API-Key: <RENAPER_API_KEY>
 ```
 
-Respuesta JSON: `apellido`, `nombres`, `fechaNacimiento` (`YYYY-MM-DD`), `calle`,
-`numeroCalle`, `ciudad`, `provincia`, `cpostal`, `monoblock`, `barrio`,
-`municipio`, `cuil`, `idTramitePrincipal`, `codigoError` (200 = ok), `error`
-(bool), `descripcionError`.
-
-- Fuente declarada: **`REAL_RENAPER`**. Si un campo viene vacío o `null`, es
-  `AUSENTE`: no se completa ni se deriva.
-- `interpretar()` (pura) mapea:
-  `fechaNacimiento → fechaNac` (dd/mm/aaaa) · `idTramitePrincipal → nroTramite`
-  · `calle + numeroCalle → direccion` · `ciudad → ciudad` · `provincia →
-  provincia` · `cpostal → cpostal` · `cuil → cuilRenaper`.
-- `codigoError != 200` o `error:true` ⇒ `fuente:'AUSENTE'` + `motivo`.
-- **Timeout 60 s** (`RENAPER_TIMEOUT_MS`). Cualquier fallo ⇒ `AUSENTE` con
-  motivo; las funciones nunca lanzan.
-- Por defecto **solo cache**. La red se habilita con `opts.red === true` (en la
-  ficha: `--red` o `FICHA_RED=1`).
-- Provider por env: `RENAPER_BASE` (default el espejo), `RENAPER_USER` y
-  `RENAPER_PASS` (si están, se manda `Authorization: Basic`), `RENAPER_API_KEY`
-  (header `X-API-Key`) y `RENAPER_PATH` (template; default
-  `/renaper/{dni}/{genero}`). El módulo agrega el path a la base.
-- Cache: tabla `renaper` con TTL **365 días**; intentos en `renaper_intentos` y
-  `datos/renaper.log`.
+- Fuente declarada: **`REAL_RENAPER`** (contrato del servicio; los datos del
+  simulador son ficticios, no presentarlos como reales).
+- `interpretar()` (pura) mapea los campos EXACTOS:
+  `fechaNacimiento` → `fechaNac` (dd/mm/aaaa);
+  `domicilio.calle + domicilio.numero` → `direccion`;
+  `domicilio.localidad` → `ciudad`;
+  `domicilio.provincia` → `provincia`;
+  `domicilio.codigoPostal` → `cpostal`;
+  `nombre` → `nombres`; `apellido` → `apellido`.
+  `nroTramite` y `cuil` no vienen: `AUSENTE` (null).
+- Género: derivado del CUIT del padrón (20/23/24 → M, 27 → F). Si el DNI no
+  está o da 404, se prueba M, F, X; el que funciona se guarda en
+  `renaper.genero`.
+- **Timeout 60 s** (`RENAPER_TIMEOUT_MS`). Cualquier fallo ⇒ `AUSENTE`.
+- Por defecto **solo cache**. Red con `opts.red === true` (`--red` /
+  `FICHA_RED=1`).
+- Provider por env: `RENAPER_BASE` (default el simulador), `RENAPER_API_KEY`
+  (header `X-API-Key`, default la key pública), `RENAPER_PATH` (default
+  `/api/personas/{dni}?genero={genero}`), `RENAPER_USER`/`RENAPER_PASS`
+  (basic auth opcional).
+- Cache: tabla `renaper` (TTL 365 d) + columna `genero`; intentos en
+  `renaper_intentos` y `datos/renaper.log`.
 
 ```sql
 renaper(dni PK, fechaNac, nroTramite, direccion, ciudad, provincia,
-        cpostal, cuilRenaper, fuente, capturado, ttl_dias, crudo)
+        cpostal, cuilRenaper, fuente, capturado, ttl_dias, crudo, genero)
 renaper_intentos(id, dni, ts, http, motivo)
 ```
 
