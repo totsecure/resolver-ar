@@ -1,0 +1,8 @@
+# Caddy — reverse proxy con HTTPS automático (Let's Encrypt).
+# Reemplazar resolver.example.com por el dominio real y apuntar el DNS al server.
+# Caddy saca y renueva el certificado solo.
+
+resolver.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:3001
+}

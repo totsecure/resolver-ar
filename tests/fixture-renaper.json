@@ -1,0 +1,18 @@
+{
+  "apellido": "GOMEZ",
+  "nombres": "MARIA ELENA",
+  "fechaNacimiento": "1985-03-17",
+  "calle": "AV SAN MARTIN",
+  "numeroCalle": "1234",
+  "ciudad": "LA PLATA",
+  "provincia": "BUENOS AIRES",
+  "cpostal": "1900",
+  "monoblock": "",
+  "barrio": "",
+  "municipio": "LA PLATA",
+  "cuil": "27123456784",
+  "idTramitePrincipal": "12345678",
+  "codigoError": 200,
+  "error": false,
+  "descripcionError": ""
+}

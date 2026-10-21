@@ -1,0 +1,7 @@
+datos/
+node_modules/
+*.bak
+*.log
+*.roto*
+.env
+.DS_Store
