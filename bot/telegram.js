@@ -18,6 +18,10 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { fichaDetalle } from '../lib/ficha.js';
 import { asegurarPool, sembrarPool, elegirDelPool, randomAfip } from '../scripts/pool.js';
+import {
+  buscarPorPrefijo, ambiguedades, buscarPorCuit, basico,
+  formatearCuit, cuitsPorDni,
+} from '../lib/padron.js';
 
 /* Preferir IPv4: en esta red el AAAA de Telegram a veces cuelga. */
 dns.setDefaultResultOrder('ipv4first');
@@ -32,11 +36,31 @@ const HELP = [
   '<b>resolver-ar</b>',
   'Mandame un DNI de 7 u 8 digitos y te devuelvo la ficha.',
   '',
+  '/nombre &lt;texto&gt; - buscar por apellido o nombre',
+  '/cuit &lt;cuit&gt; - consulta inversa por CUIT',
+  '/basico &lt;dni&gt; - apellido, nombre, DNI, CUIT, CUIL, sexo, nacionalidad',
+  '/ambig - DNIs con mas de un CUIT',
   '/random - DNI del pool',
   '/random afip - DNI al azar del padron',
   '/refresh &lt;dni&gt; - vuelve a consultar RENAPER',
   '/help - esta ayuda',
 ].join('\n');
+
+const busquedas = new Map();
+let seqBusqueda = 0;
+
+function tokenBusqueda(texto) {
+  const token = String(++seqBusqueda);
+  busquedas.set(token, { texto });
+  if (busquedas.size > 200) busquedas.delete(busquedas.keys().next().value);
+  return token;
+}
+
+function permitido(chatId) {
+  const lista = (process.env.TELEGRAM_ALLOW || '')
+    .split(',').map((s) => s.trim()).filter(Boolean);
+  return !lista.length || lista.includes(String(chatId));
+}
 
 function cargarEnv() {
   try {
@@ -149,15 +173,27 @@ async function api(metodo, params, timeoutMs = 15000, intentos = 3) {
 
 let POLL_TIMEOUT = 50;
 function getUpdates(offset) {
-  return api('getUpdates', { offset, timeout: POLL_TIMEOUT, allowed_updates: ['message'] }, (POLL_TIMEOUT + 10) * 1000);
+  return api('getUpdates', { offset, timeout: POLL_TIMEOUT, allowed_updates: ['message', 'callback_query'] }, (POLL_TIMEOUT + 10) * 1000);
 }
 
-function enviar(chatId, texto) {
+function enviar(chatId, texto, extra = {}) {
   return api('sendMessage', {
     chat_id: chatId,
     text: texto,
     parse_mode: 'HTML',
     disable_web_page_preview: true,
+    ...extra,
+  });
+}
+
+function editar(chatId, messageId, texto, extra = {}) {
+  return api('editMessageText', {
+    chat_id: chatId,
+    message_id: messageId,
+    text: texto,
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+    ...extra,
   });
 }
 
@@ -166,14 +202,109 @@ async function responderFicha(chatId, dni, opts = {}) {
   await enviar(chatId, '<pre>' + escapeHtml(texto) + '</pre>');
 }
 
+function formatearCrudo(p) {
+  return [
+    `APELLIDO ${p.apellido ?? '-'}`,
+    `NOMBRE ${p.nombre ?? '-'}`,
+    `DENOMINACION ${p.denominacion ?? '-'}`,
+    `DNI ${p.dni ?? '-'}`,
+    `CUIT ${p.cuit ? formatearCuit(p.cuit) : '-'}`,
+    `GANANCIAS ${p.ganancias ?? '-'}`,
+    `IVA ${p.iva ?? '-'}`,
+    `MONOTRIBUTO ${p.monotributo ?? '-'}`,
+    `INTEGRANTE_SOC ${p.integrante_soc ?? '-'}`,
+    `EMPLEADOR ${p.empleador ?? '-'}`,
+    `ACTIVIDAD ${p.actividad ?? '-'}`,
+  ].join('\n');
+}
+
+function renderNombre(db, texto, offset, token) {
+  const { filas, haySiguiente, prefijo } = buscarPorPrefijo(db, texto, offset, 10);
+  if (!filas.length) {
+    return { texto: `Sin resultados para <b>${escapeHtml(prefijo || texto)}</b>.` };
+  }
+  const nCuits = cuitsPorDni(db, filas.map((f) => f.dni));
+  const lineas = filas.map((f) => {
+    const star = (nCuits.get(f.dni) || 0) > 1 ? ' *' : '';
+    return `${f.apellido ?? '-'} ${f.nombre ?? '-'} — DNI ${f.dni} — CUIT ${formatearCuit(f.cuit)}${star}`;
+  });
+  const cab = `Resultados para ${prefijo} (desde ${offset + 1})`;
+  const botones = [];
+  if (offset > 0) {
+    botones.push({ text: '◀ Anterior', callback_data: `nombre|${token}|${Math.max(0, offset - 10)}` });
+  }
+  if (haySiguiente) {
+    botones.push({ text: 'Siguiente ▶', callback_data: `nombre|${token}|${offset + 10}` });
+  }
+  return {
+    texto: '<pre>' + escapeHtml(cab + '\n' + lineas.join('\n')) + '</pre>',
+    reply_markup: botones.length ? { inline_keyboard: [botones] } : undefined,
+  };
+}
+
+function renderAmbig(db, offset) {
+  const { filas, haySiguiente } = ambiguedades(db, offset, 10);
+  if (!filas.length) return { texto: 'Sin DNIs ambiguos.' };
+  const bloques = filas.map(({ dni, personas }) => {
+    const lineas = personas.map((p) =>
+      `  CUIT ${formatearCuit(p.cuit)} — ${p.apellido ?? '-'} ${p.nombre ?? '-'}`);
+    return `DNI ${dni}\n${lineas.join('\n')}`;
+  });
+  const cab = `DNIs con mas de un CUIT (desde ${offset + 1})`;
+  const botones = [];
+  if (offset > 0) botones.push({ text: '◀ Anterior', callback_data: `ambig|${Math.max(0, offset - 10)}` });
+  if (haySiguiente) botones.push({ text: 'Siguiente ▶', callback_data: `ambig|${offset + 10}` });
+  return {
+    texto: '<pre>' + escapeHtml(cab + '\n\n' + bloques.join('\n\n')) + '</pre>',
+    reply_markup: botones.length ? { inline_keyboard: [botones] } : undefined,
+  };
+}
+
+async function procesarCallback(cq, db) {
+  const chatId = cq?.message?.chat?.id;
+  if (!chatId || !permitido(chatId)) {
+    await api('answerCallbackQuery', { callback_query_id: cq.id }).catch(() => {});
+    return;
+  }
+  const partes = String(cq.data || '').split('|');
+  let render = null;
+
+  if (partes[0] === 'nombre') {
+    const token = partes[1];
+    const offset = Math.max(0, Number(partes[2]) || 0);
+    const b = busquedas.get(token);
+    if (!b) {
+      await api('answerCallbackQuery', {
+        callback_query_id: cq.id,
+        text: 'Busqueda expirada. Repeti /nombre.',
+      }).catch(() => {});
+      return;
+    }
+    render = renderNombre(db, b.texto, offset, token);
+  } else if (partes[0] === 'ambig') {
+    render = renderAmbig(db, Math.max(0, Number(partes[1]) || 0));
+  } else {
+    await api('answerCallbackQuery', { callback_query_id: cq.id }).catch(() => {});
+    return;
+  }
+
+  await api('answerCallbackQuery', { callback_query_id: cq.id }).catch(() => {});
+  await editar(chatId, cq.message.message_id, render.texto, {
+    reply_markup: render.reply_markup || { inline_keyboard: [] },
+  });
+}
+
 async function procesarUpdate(update, db) {
+  if (update?.callback_query) {
+    await procesarCallback(update.callback_query, db);
+    return;
+  }
+
   const msg = update?.message;
   if (!msg || typeof msg.text !== 'string') return;
 
   const chatId = msg.chat?.id;
-  const permitidos = (process.env.TELEGRAM_ALLOW || '')
-    .split(',').map((s) => s.trim()).filter(Boolean);
-  if (permitidos.length && !permitidos.includes(String(chatId))) {
+  if (!permitido(chatId)) {
     log(`chat=${chatId} ignorado (fuera de TELEGRAM_ALLOW)`);
     return;
   }
@@ -200,6 +331,64 @@ async function procesarUpdate(update, db) {
       }
       log(`chat=${chatId} /random${afip ? ' afip' : ''} dni=${dni}`);
       await responderFicha(chatId, dni);
+      return;
+    }
+    if (p.cmd === 'nombre') {
+      const texto = p.args.join(' ').trim();
+      if (!texto) {
+        await enviar(chatId, 'Uso: /nombre &lt;texto&gt;');
+        return;
+      }
+      const token = tokenBusqueda(texto);
+      const r = renderNombre(db, texto, 0, token);
+      log(`chat=${chatId} /nombre texto=${texto}`);
+      await enviar(chatId, r.texto, r.reply_markup ? { reply_markup: r.reply_markup } : {});
+      return;
+    }
+    if (p.cmd === 'cuit') {
+      const cuit = String(p.args[0] || '').replace(/\D/g, '');
+      if (cuit.length !== 11) {
+        await enviar(chatId, 'Uso: /cuit &lt;11 digitos&gt;');
+        return;
+      }
+      const fila = buscarPorCuit(db, cuit);
+      log(`chat=${chatId} /cuit cuit=${cuit} encontrado=${Boolean(fila)}`);
+      if (!fila) {
+        await enviar(chatId, 'CUIT no encontrado.');
+        return;
+      }
+      if (fila.dni) {
+        const { texto } = await fichaDetalle(fila.dni, { red: false });
+        await enviar(chatId, '<pre>' + escapeHtml(texto) + '</pre>');
+      } else {
+        await enviar(chatId, '<pre>' + escapeHtml(formatearCrudo(fila)) + '</pre>');
+      }
+      return;
+    }
+    if (p.cmd === 'basico') {
+      const dni = normalizarDni(p.args.join(' '));
+      if (!dni) {
+        await enviar(chatId, 'Uso: /basico &lt;dni&gt;');
+        return;
+      }
+      const b = basico(db, dni);
+      const lineas = [
+        `APELLIDO ${b?.apellido ?? '-'}`,
+        `NOMBRE ${b?.nombre ?? '-'}`,
+        `DNI ${dni}`,
+        `CUIT ${b?.cuit ? formatearCuit(b.cuit) : '-'}`,
+        `CUIL ${b?.cuil ? formatearCuit(b.cuil) : '-'}`,
+        `SEXO ${b?.sexo ?? '-'}`,
+        `NACIONALIDAD ${b?.nacionalidad ?? '-'}`,
+      ];
+      log(`chat=${chatId} /basico dni=${dni} encontrado=${Boolean(b?.cuit)}`);
+      await enviar(chatId, '<pre>' + escapeHtml(lineas.join('\n')) + '</pre>');
+      return;
+    }
+    if (p.cmd === 'ambig') {
+      const r = renderAmbig(db, 0);
+      log(`chat=${chatId} /ambig`);
+      await enviar(chatId, r.texto, r.reply_markup ? { reply_markup: r.reply_markup } : {});
       return;
     }
     if (p.cmd === 'refresh') {
@@ -239,6 +428,7 @@ async function iniciar() {
 
   const db = new DatabaseSync(RUTA_DB);
   db.exec('PRAGMA busy_timeout = 5000');
+  db.exec('PRAGMA case_sensitive_like = ON');
   asegurarPool(db);
   sembrarPool(db);
 

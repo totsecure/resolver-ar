@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* verificar.js — tests OFFLINE de resolver-ar (21).
+/* verificar.js — tests OFFLINE de resolver-ar (24).
  *
  * No usa red: el endpoint del CNE esta caido (HAProxy sin backends -> captcha 503)
  * y RENAPER es un free tier que puede dormir.
@@ -21,6 +21,9 @@ import { calcular } from '../lib/cobertura.js';
 import { ficha, fichaDetalle } from '../lib/ficha.js';
 import { normalizarDni, parsearMensaje } from '../bot/telegram.js';
 import { asegurarPool, sembrarPool, elegirDelPool } from './pool.js';
+import {
+  normalizarTexto, buscarPorPrefijo, ambiguedades, buscarPorCuit, personasPorDni,
+} from '../lib/padron.js';
 
 const RAIZ = path.join(import.meta.dirname, '..');
 const RUTA_DB = path.join(RAIZ, 'datos', 'padron.db');
@@ -400,6 +403,48 @@ const tests = [
       assert(dni && /^\d{8}$/.test(dni), 'DNI de pool invalido: ' + dni);
       const fila = db.prepare('SELECT 1 x FROM pool_random WHERE dni = ?').get(dni);
       assert(Boolean(fila), 'el DNI ' + dni + ' no esta en pool_random');
+    } finally {
+      db.close();
+    }
+  }],
+
+  ['normaliza texto de busqueda (mayusculas, sin acentos)', () => {
+    assert(normalizarTexto('Pérez') === 'PEREZ', 'Pérez: ' + normalizarTexto('Pérez'));
+    assert(normalizarTexto('  JosÉ   María ') === 'JOSE MARIA', 'Jose Maria: ' + normalizarTexto('  JosÉ   María '));
+    assert(normalizarTexto('MUÑOZ') === 'MUNOZ', 'MUÑOZ: ' + normalizarTexto('MUÑOZ'));
+    assert(normalizarTexto('PEREZ-JUAN') === 'PEREZ JUAN', 'guion: ' + normalizarTexto('PEREZ-JUAN'));
+  }],
+
+  ['paginacion de /nombre y /ambig', () => {
+    const db = new DatabaseSync(RUTA_DB);
+    try {
+      const p1 = buscarPorPrefijo(db, 'PEREZ', 0, 10);
+      assert(p1.filas.length > 0 && p1.filas.length <= 10, 'pagina 1: ' + p1.filas.length);
+      assert(typeof p1.haySiguiente === 'boolean', 'haySiguiente no es boolean');
+      if (p1.haySiguiente) {
+        const p2 = buscarPorPrefijo(db, 'PEREZ', 10, 10);
+        assert(p2.filas.length > 0, 'pagina 2 vacia');
+        const cuits1 = new Set(p1.filas.map((f) => f.cuit));
+        assert(!p2.filas.some((f) => cuits1.has(f.cuit)), 'paginas solapadas');
+      }
+      const a = ambiguedades(db, 0, 10);
+      assert(a.filas.length === 10 && a.haySiguiente === true, 'ambig pagina 1 invalida');
+      assert(a.filas.every((x) => x.personas.length > 1), 'ambig con un solo CUIT');
+    } finally {
+      db.close();
+    }
+  }],
+
+  ['/cuit devuelve el mismo registro que la consulta por DNI', () => {
+    const db = new DatabaseSync(RUTA_DB);
+    try {
+      const porCuit = buscarPorCuit(db, '20000033481');
+      const porDni = personasPorDni(db, '3348')[0];
+      assert(porCuit && porDni, 'no encontrado por cuit o dni');
+      assert(porCuit.cuit === porDni.cuit, 'CUIT distinto');
+      assert(porCuit.dni === porDni.dni, 'DNI distinto');
+      assert(porCuit.apellido === porDni.apellido, 'apellido distinto');
+      assert(porCuit.nombre === porDni.nombre, 'nombre distinto');
     } finally {
       db.close();
     }
