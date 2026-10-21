@@ -72,6 +72,28 @@ curl 'http://localhost:3001/stats?token=secreto'
 Detalle de candidatos RENAPER y comandos pendientes: `CONTEXTO.md` y
 `PENDIENTES.md`. Reglas de desarrollo: `AGENTS.md`.
 
+## Túnel público (Pinggy, SSH sobre 443)
+
+Cloudflare Tunnel queda descartado en esta red: bloquea TCP/UDP 7844.
+Se usa **Pinggy**, que solo necesita SSH sobre 443 y no requiere cuenta.
+
+```bash
+bash scripts/tunel.sh
+# imprime URL=https://<random>.pinggy-free.link
+# guarda la URL en datos/tunel.url y verifica /health
+
+curl -s "$(cat datos/tunel.url)/health?token=resolver2026"
+curl -s "$(cat datos/tunel.url)/ficha/3348?token=resolver2026"
+
+# keepalive: reconexión automática cada 60 s
+nohup bash scripts/keepalive.sh >> datos/keepalive.log 2>&1 &
+```
+
+- `scripts/tunel.sh` mantiene un loop SSH con reconexión automática y actualiza
+  `datos/tunel.url` en cada reconexión.
+- El free tier de Pinggy expira a los 60 min; al reconectar cambia la URL.
+- Token del server: `resolver2026`.
+
 ## Deploy
 
 La DB **no** va en la imagen Docker: se monta por volumen.

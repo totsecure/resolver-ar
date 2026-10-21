@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # keepalive.sh — cada 60s chequea server local y tunel; si alguno no responde,
 # vuelve a ejecutar scripts/tunel.sh.
+# (Pinggy SSH sobre 443; tunel.sh reconecta solo.)
 #
 # Arranque:
 #   nohup bash scripts/keepalive.sh >> datos/keepalive.log 2>&1 &

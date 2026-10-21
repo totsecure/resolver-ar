@@ -85,7 +85,27 @@ export RENAPER_PASS="clave"        # opcional, basic auth
 node scripts/ficha.js 23854064 --red
 ```
 
-## 3. Deploy — listo, esperando dominio y secretos
+## 3. Túnel — activo con Pinggy (SSH 443)
+
+Cloudflare Tunnel quedó descartado: esta red bloquea **TCP/UDP 7844**, que es
+el puerto del edge de Cloudflare. Pinggy funciona solo con **SSH sobre 443** y
+sin cuenta.
+
+```bash
+cd /Users/bunker/resolver
+bash scripts/tunel.sh
+cat datos/tunel.url
+curl -s "$(cat datos/tunel.url)/health?token=resolver2026"
+```
+
+- URL vigente: `datos/tunel.url` (cambia en cada reconexión).
+- `scripts/tunel.sh` deja un loop SSH que reconecta solo cada 5 s.
+- El free tier de Pinggy expira a los 60 min; el loop renueva la URL.
+- Keepalive:
+  `nohup bash scripts/keepalive.sh >> datos/keepalive.log 2>&1 &`
+- **Cloudflare no se usa más.**
+
+## 4. Deploy — listo, esperando dominio y secretos
 
 **Qué espera a quién:** los archivos de `deploy/` están listos. Falta que un
 humano defina el dominio real en `deploy/Caddyfile`, cargue
@@ -108,7 +128,7 @@ caddy reload --config deploy/Caddyfile
 Variables (`deploy/.env.example`): `PORT=3001`, `RESOLVER_TOKEN=`,
 `RESOLVER_DB=datos/padron.db`, `TZ=America/Argentina/Buenos_Aires`.
 
-## 4. Fixture de test (no es una persona real)
+## 5. Fixture de test (no es una persona real)
 
 El test 18 inyecta en la tabla `renaper` el DNI `87654321` con
 `fechaNac=05/08/1979`, `nroTramite=9876543` y `direccion=AV TEST 123`.

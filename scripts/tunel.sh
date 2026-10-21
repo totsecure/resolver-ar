@@ -1,76 +1,108 @@
 #!/usr/bin/env bash
-# tunel.sh — publica el server local con Cloudflare Quick Tunnel.
-# Deja: datos/tunel.url, datos/server.log, datos/tunel.log
+# tunel.sh — publica el server local con Pinggy (SSH sobre 443, sin cuenta).
+#
+# Topologia:  Internet -> https://<random>.pinggy... -> ssh :443 -> localhost:3001
+# El loop de SSH reconecta solo y actualiza datos/tunel.url en cada reconexion.
+#
+# Uso:
+#   bash scripts/tunel.sh            # asegura server, arranca el loop, verifica y sale
+#   bash scripts/tunel.sh --loop     # solo el loop de reconexion (lo lanza el anterior)
 set -uo pipefail
 
 RAIZ="/Users/bunker/resolver"
 TOKEN="resolver2026"
 PUERTO="3001"
+PINGGY_HOST="free@a.pinggy.io"
+SSH_OPTS=(
+  -T
+  -p 443
+  -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null
+  -o ExitOnForwardFailure=yes
+  -o ServerAliveInterval=30
+  -o ServerAliveCountMax=3
+  -R0:localhost:3001
+)
 
 cd "$RAIZ" || { echo "ERROR: no existe $RAIZ"; exit 1; }
 mkdir -p datos
 
+# ---------------------------------------------------------------------------
+# Modo loop: reconecta el SSH para siempre y guarda la URL vigente.
+# ---------------------------------------------------------------------------
+if [ "${1:-}" = "--loop" ]; then
+  echo "== tunel loop $(date '+%Y-%m-%d %H:%M:%S') =="
+  while true; do
+    ssh "${SSH_OPTS[@]}" "$PINGGY_HOST" 2>&1 | while IFS= read -r linea; do
+      printf '%s\n' "$linea" >> datos/tunel.log
+      URL_LINEA=$(printf '%s\n' "$linea" | grep -oE 'https://[A-Za-z0-9._-]+\.(pinggy\.net|pinggy-free\.link|pinggy\.link)' | head -1 || true)
+      if [ -n "$URL_LINEA" ]; then
+        printf '%s\n' "$URL_LINEA" > datos/tunel.url
+      fi
+    done
+    echo "[loop] ssh cerro $(date '+%Y-%m-%d %H:%M:%S'), reconectando en 5s..." >> datos/tunel.log
+    sleep 5
+  done
+fi
+
+# ---------------------------------------------------------------------------
+# Modo normal: server + loop + verificacion.
+# ---------------------------------------------------------------------------
 echo "== tunel.sh $(date '+%Y-%m-%d %H:%M:%S') =="
 
-echo "[1/5] matando procesos previos..."
-pkill -f cloudflared >/dev/null 2>&1 || true
-pkill -f "node server.js" >/dev/null 2>&1 || true
-# Red de seguridad: si algo quedo escuchando en el puerto, liberarlo.
-lsof -ti "tcp:${PUERTO}" 2>/dev/null | xargs kill >/dev/null 2>&1 || true
+echo "[1/4] chequeando server local..."
+CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:${PUERTO}/health" 2>/dev/null || true)
+if [ -z "$CODE" ] || [ "$CODE" = "000" ]; then
+  echo "  server no responde, arrancando con RESOLVER_TOKEN=${TOKEN}..."
+  RESOLVER_TOKEN="$TOKEN" nohup node server.js >> datos/server.log 2>&1 &
+  SERVER_OK=0
+  for _ in $(seq 1 15); do
+    CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://localhost:${PUERTO}/health" 2>/dev/null || true)
+    if [ -n "$CODE" ] && [ "$CODE" != "000" ]; then SERVER_OK=1; break; fi
+    sleep 1
+  done
+  if [ "$SERVER_OK" -ne 1 ]; then
+    echo "  ERROR: el server no respondio en 15s. Ver datos/server.log"
+    tail -20 datos/server.log 2>/dev/null || true
+    exit 1
+  fi
+  echo "  server OK (http=${CODE})"
+else
+  echo "  server ya responde (http=${CODE}); no se reinicia"
+fi
+
+echo "[2/4] cerrando tuneles previos..."
+if [ -f datos/tunel.pid ]; then
+  kill "$(cat datos/tunel.pid)" 2>/dev/null || true
+fi
+pkill -f 'a\.pinggy\.io' >/dev/null 2>&1 || true
+pkill -f 'cloudflared' >/dev/null 2>&1 || true
 sleep 1
 
-echo "[2/5] arrancando server en :${PUERTO}..."
-RESOLVER_TOKEN="$TOKEN" nohup node server.js >> datos/server.log 2>&1 &
-SERVER_PID=$!
-echo "  server pid=$SERVER_PID"
-
-SERVER_OK=0
-CODE="000"
-for _ in $(seq 1 15); do
-  CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://localhost:${PUERTO}/health" 2>/dev/null || true)
-  if [ -n "$CODE" ] && [ "$CODE" != "000" ]; then SERVER_OK=1; break; fi
-  sleep 1
-done
-if [ "$SERVER_OK" -ne 1 ]; then
-  echo "ERROR: el server no respondio en 15s. Ultimas lineas de datos/server.log:"
-  tail -20 datos/server.log 2>/dev/null || true
-  exit 1
-fi
-echo "  server OK (health http=${CODE}; 401 sin token es lo esperado)"
-
-echo "[3/5] arrancando cloudflared..."
-# Se trunca para no levantar una URL vieja de una corrida anterior.
+echo "[3/4] arrancando loop SSH sobre 443..."
 : > datos/tunel.log
-nohup cloudflared tunnel --url "http://localhost:${PUERTO}" >> datos/tunel.log 2>&1 &
-TUNEL_PID=$!
-echo "  cloudflared pid=$TUNEL_PID"
+rm -f datos/tunel.url
+nohup bash "$0" --loop >> datos/tunel.log 2>&1 &
+echo $! > datos/tunel.pid
+echo "  loop pid=$(cat datos/tunel.pid)"
 
 URL=""
 for _ in $(seq 1 45); do
-  if grep -q 'failed to request quick Tunnel' datos/tunel.log 2>/dev/null; then
-    echo "ERROR: Cloudflare no pudo crear el quick tunnel (¿red bloqueando el puerto 7844?)."
-    grep -E 'failed to request quick Tunnel|Port 7844|blocked|unreachable' datos/tunel.log | tail -5
-    kill "$TUNEL_PID" 2>/dev/null || true
-    rm -f datos/tunel.url
-    exit 1
-  fi
-  URL=$(perl -pe 's/\e\[[0-9;]*[A-Za-z]//g' datos/tunel.log 2>/dev/null \
-    | grep -oE 'https://[-a-z0-9]+\.trycloudflare\.com' \
-    | grep -v '^https://api\.trycloudflare\.com$' | tail -1 || true)
+  URL=$(cat datos/tunel.url 2>/dev/null || true)
   [ -n "$URL" ] && break
   sleep 1
 done
 if [ -z "$URL" ]; then
-  echo "ERROR: no aparecio una URL *.trycloudflare.com en 45s. Ultimas lineas:"
+  echo "  ERROR: Pinggy no entrego URL en 45s. Ultimas lineas:"
   tail -30 datos/tunel.log 2>/dev/null || true
-  kill "$TUNEL_PID" 2>/dev/null || true
+  kill "$(cat datos/tunel.pid)" 2>/dev/null || true
+  pkill -f 'a\.pinggy\.io' >/dev/null 2>&1 || true
   rm -f datos/tunel.url
   exit 1
 fi
-printf '%s\n' "$URL" > datos/tunel.url
-echo "[4/5] URL: $URL"
+echo "  URL: $URL"
 
-echo "[5/5] verificando health publico..."
+echo "[4/4] verificando health publico..."
 JSON=""
 PUBLICO_OK=0
 for _ in $(seq 1 30); do
@@ -81,10 +113,11 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 if [ "$PUBLICO_OK" -ne 1 ]; then
-  echo "ERROR: la URL publica no respondio /health en 30s (sin conector al edge)."
-  echo "Ultimas lineas de datos/tunel.log:"
+  echo "  ERROR: la URL publica no respondio /health en 30s."
+  echo "  Ultimas lineas de datos/tunel.log:"
   tail -20 datos/tunel.log 2>/dev/null || true
-  kill "$TUNEL_PID" 2>/dev/null || true
+  kill "$(cat datos/tunel.pid)" 2>/dev/null || true
+  pkill -f 'a\.pinggy\.io' >/dev/null 2>&1 || true
   rm -f datos/tunel.url
   exit 1
 fi
@@ -95,3 +128,4 @@ echo "LISTO"
 echo "URL=$URL"
 echo "TOKEN=$TOKEN"
 echo "VERIFICAR: curl -s \"${URL}/health?token=${TOKEN}\""
+echo "FICHA:     curl -s \"${URL}/ficha/3348?token=${TOKEN}\""
