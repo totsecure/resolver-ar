@@ -72,27 +72,29 @@ curl 'http://localhost:3001/stats?token=secreto'
 Detalle de candidatos RENAPER y comandos pendientes: `CONTEXTO.md` y
 `PENDIENTES.md`. Reglas de desarrollo: `AGENTS.md`.
 
-## Túnel público (Pinggy, SSH sobre 443)
+## Túnel público (ngrok, dominio fijo)
 
-Cloudflare Tunnel queda descartado en esta red: bloquea TCP/UDP 7844.
-Se usa **Pinggy**, que solo necesita SSH sobre 443 y no requiere cuenta.
+El server se publica con **ngrok** en `https://action-early-pants.ngrok-free.dev`.
+ngrok reconecta solo; `keepalive.sh` lo vigila.
 
 ```bash
 bash scripts/tunel.sh
-# imprime URL=https://<random>.pinggy-free.link
-# guarda la URL en datos/tunel.url y verifica /health
+# guarda e imprime https://action-early-pants.ngrok-free.dev
 
-curl -s "$(cat datos/tunel.url)/health?token=resolver2026"
-curl -s "$(cat datos/tunel.url)/ficha/3348?token=resolver2026"
+curl -s "https://action-early-pants.ngrok-free.dev/health?token=resolver2026"
+curl -s "https://action-early-pants.ngrok-free.dev/ficha/3348?token=resolver2026"
 
-# keepalive: reconexión automática cada 60 s
+# keepalive: chequea cada 60 s y relanza tunel.sh si falla
 nohup bash scripts/keepalive.sh >> datos/keepalive.log 2>&1 &
 ```
 
-- `scripts/tunel.sh` mantiene un loop SSH con reconexión automática y actualiza
-  `datos/tunel.url` en cada reconexión.
-- El free tier de Pinggy expira a los 60 min; al reconectar cambia la URL.
-- Token del server: `resolver2026`.
+- `scripts/tunel.sh` mata el ngrok previo, arranca
+  `ngrok http 3001 --url=https://action-early-pants.ngrok-free.dev`, espera el
+  health público y guarda la URL en `datos/tunel.url`.
+- El `authtoken` de ngrok se configura una vez con
+  `ngrok config add-authtoken <token>`.
+- Si se abre en un navegador, ngrok free puede mostrar una página de aviso;
+  los endpoints con `curl`/token funcionan directo.
 
 ## Deploy
 

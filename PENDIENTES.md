@@ -85,25 +85,22 @@ export RENAPER_PASS="clave"        # opcional, basic auth
 node scripts/ficha.js 23854064 --red
 ```
 
-## 3. Túnel — activo con Pinggy (SSH 443)
+## 3. Túnel — activo con ngrok (dominio fijo)
 
-Cloudflare Tunnel quedó descartado: esta red bloquea **TCP/UDP 7844**, que es
-el puerto del edge de Cloudflare. Pinggy funciona solo con **SSH sobre 443** y
-sin cuenta.
+`https://action-early-pants.ngrok-free.dev` → `localhost:3001`.
 
 ```bash
 cd /Users/bunker/resolver
 bash scripts/tunel.sh
 cat datos/tunel.url
-curl -s "$(cat datos/tunel.url)/health?token=resolver2026"
+curl -s "https://action-early-pants.ngrok-free.dev/health?token=resolver2026"
 ```
 
-- URL vigente: `datos/tunel.url` (cambia en cada reconexión).
-- `scripts/tunel.sh` deja un loop SSH que reconecta solo cada 5 s.
-- El free tier de Pinggy expira a los 60 min; el loop renueva la URL.
+- URL fija: `datos/tunel.url`.
+- `scripts/tunel.sh` reinicia el agente ngrok y verifica 200 en 30 s.
 - Keepalive:
   `nohup bash scripts/keepalive.sh >> datos/keepalive.log 2>&1 &`
-- **Cloudflare no se usa más.**
+- Requiere `ngrok config add-authtoken <token>` una vez (ya configurado).
 
 ## 4. Deploy — listo, esperando dominio y secretos
 
