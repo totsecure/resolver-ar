@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* verificar.js — tests OFFLINE de resolver-ar (27).
+/* verificar.js — tests OFFLINE de resolver-ar (28).
  *
  * No usa red: el endpoint del CNE esta caido (HAProxy sin backends -> captcha 503)
  * y RENAPER es un free tier que puede dormir.
@@ -400,6 +400,13 @@ const tests = [
     assert(cabeceras[0] === 'TARJETA #51', 'primera cabecera: ' + cabeceras[0]);
     assert(cabeceras[1] === 'TARJETA #52', 'segunda cabecera: ' + cabeceras[1]);
     assert(cabeceras[2] === 'TARJETA #53', 'tercera cabecera: ' + cabeceras[2]);
+  }],
+
+  ['lote: orden precalculado conserva los 3 primeros DNIs', () => {
+    const texto = generarLote(CARDS_LOTE, { desde: 1, saltar: 0 });
+    const dnis = (texto.match(/^DNI (\d{8})$/gm) || []).map((l) => l.slice(4));
+    assert(dnis.length === 3, 'DNIs=' + dnis.length);
+    assert(dnis.join(',') === '30756789,39466006,06219380', 'primeros DNIs: ' + dnis.join(','));
   }],
 
   ['lote: saltar=100 no repite DNIs contra saltar=0', () => {

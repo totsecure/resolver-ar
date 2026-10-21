@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
@@ -12,6 +13,7 @@ import { armarBloque, generarLote, parsearCards, seleccionarTitulares } from './
 const VERSION = '1.0.0';
 const PUERTO = Number(process.env.PORT || 3001);
 const RUTA_DB = process.env.RESOLVER_DB || path.join(import.meta.dirname, 'datos', 'padron.db');
+const RUTA_LOG = path.join(import.meta.dirname, 'datos', 'server.log');
 /* Si RESOLVER_TOKEN está vacío => modo dev, sin auth. */
 const TOKEN = process.env.RESOLVER_TOKEN || '';
 
@@ -41,6 +43,24 @@ function soloLectura(req, res, next) {
     error: 'no autorizado',
     detalle: 'usar Authorization: Bearer <token> o ?token=<token>',
   });
+}
+
+/* Mide la respuesta, publica X-Ms y registra en datos/server.log si supera 100 ms. */
+function medirTiempo(req, res, next) {
+  const inicio = process.hrtime.bigint();
+  const enviarOriginal = res.send.bind(res);
+
+  res.send = (cuerpo) => {
+    const ms = Number(process.hrtime.bigint() - inicio) / 1e6;
+    res.set('X-Ms', ms.toFixed(1));
+    if (ms > 100) {
+      const linea = `${new Date().toISOString()} ${req.method} ${req.path} ${ms.toFixed(1)}ms status=${res.statusCode}\n`;
+      try { fs.appendFileSync(RUTA_LOG, linea); } catch (_) {}
+    }
+    return enviarOriginal(cuerpo);
+  };
+
+  next();
 }
 
 /* ------------------------------ helpers ------------------------------- */
@@ -97,7 +117,7 @@ app.get('/ficha/:dni', soloLectura, async (q, s) => {
   }
 });
 
-app.get('/lote', soloLectura, (q, s) => {
+app.get('/lote', medirTiempo, soloLectura, (q, s) => {
   try {
     if (q.query.cards === undefined || String(q.query.cards).trim() === '') {
       return s.status(400).type('text/plain').send('ERROR: falta cards\n');
@@ -121,7 +141,7 @@ app.get('/lote', soloLectura, (q, s) => {
   }
 });
 
-app.get('/titulares', soloLectura, (q, s) => {
+app.get('/titulares', medirTiempo, soloLectura, (q, s) => {
   try {
     const n = Number.parseInt(q.query.n, 10);
     const saltar = Number.parseInt(q.query.saltar, 10);
