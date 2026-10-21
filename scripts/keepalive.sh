@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # keepalive.sh — cada 60s chequea server local y tunel; si alguno no responde,
-# vuelve a ejecutar scripts/tunel.sh.
+# vuelve a ejecutar scripts/tunel.sh. Tambien relanza el bot si se murio.
 # (ngrok con dominio fijo; tunel.sh reinicia el agente.)
 #
 # Arranque:
@@ -42,6 +42,11 @@ while true; do
   if [ -z "$LOCAL" ] || [ "$LOCAL" = "000" ] || [ "$PUBLICO" != "200" ]; then
     echo "$TS relanzando scripts/tunel.sh"
     bash scripts/tunel.sh >> datos/tunel.log 2>&1
+  fi
+
+  if ! pgrep -f 'node bot/telegram.js' >/dev/null 2>&1; then
+    echo "$TS bot caido, relanzando scripts/bot.sh"
+    bash scripts/bot.sh >> datos/bot.log 2>&1
   fi
 
   sleep "$INTERVALO"

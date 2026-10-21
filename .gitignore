@@ -9,3 +9,6 @@ varios/
 proxy/node_modules/
 proxy/.wrangler/
 proxy/.dev.vars
+datos/bot.env
+datos/bot-offset.json
+datos/bot.log

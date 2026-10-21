@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* verificar.js — tests OFFLINE de resolver-ar (18).
+/* verificar.js — tests OFFLINE de resolver-ar (21).
  *
  * No usa red: el endpoint del CNE esta caido (HAProxy sin backends -> captcha 503)
  * y RENAPER es un free tier que puede dormir.
@@ -19,6 +19,8 @@ import * as renaper from '../lib/renaper.js';
 import { enriquecerPersona } from '../lib/enriquecer.js';
 import { calcular } from '../lib/cobertura.js';
 import { ficha, fichaDetalle } from '../lib/ficha.js';
+import { normalizarDni, parsearMensaje } from '../bot/telegram.js';
+import { asegurarPool, sembrarPool, elegirDelPool } from './pool.js';
 
 const RAIZ = path.join(import.meta.dirname, '..');
 const RUTA_DB = path.join(RAIZ, 'datos', 'padron.db');
@@ -359,6 +361,48 @@ const tests = [
     assert(fuentes.TITULAR === 'AUSENTE', 'TITULAR fuente=' + fuentes.TITULAR);
     assert(fuentes['NRO TRAMITE'] === 'REAL_RENAPER', 'NRO TRAMITE fuente=' + fuentes['NRO TRAMITE']);
     assert(fuentes['FECHA NAC'] === 'REAL_RENAPER', 'FECHA NAC fuente=' + fuentes['FECHA NAC']);
+  }],
+
+  ['normaliza DNI con puntos, espacios, 7/8 y basura', () => {
+    assert(normalizarDni('30.123.456') === '30123456', 'puntos: ' + normalizarDni('30.123.456'));
+    assert(normalizarDni('30 123 456') === '30123456', 'espacios: ' + normalizarDni('30 123 456'));
+    assert(normalizarDni('3012345') === '03012345', '7 digitos: ' + normalizarDni('3012345'));
+    assert(normalizarDni('30123456') === '30123456', '8 digitos: ' + normalizarDni('30123456'));
+    assert(normalizarDni('DNI: 30.123.456') === '30123456', 'texto con DNI: ' + normalizarDni('DNI: 30.123.456'));
+    assert(normalizarDni('basura') === null, 'basura devolvio ' + normalizarDni('basura'));
+    assert(normalizarDni('123') === null, '123 devolvio ' + normalizarDni('123'));
+    assert(normalizarDni('21/10/2026') === null, 'fecha devolvio ' + normalizarDni('21/10/2026'));
+  }],
+
+  ['rutea comandos y DNI', () => {
+    const start = parsearMensaje('/start@resolver_bot');
+    assert(start.tipo === 'comando' && start.cmd === 'start', 'start: ' + JSON.stringify(start));
+    const random = parsearMensaje('/random afip');
+    assert(random.tipo === 'comando' && random.cmd === 'random' && random.args[0] === 'afip',
+      'random afip: ' + JSON.stringify(random));
+    const refresh = parsearMensaje('/refresh 30.123.456');
+    assert(refresh.tipo === 'comando' && refresh.cmd === 'refresh' && refresh.args[0] === '30.123.456',
+      'refresh: ' + JSON.stringify(refresh));
+    const help = parsearMensaje('/help');
+    assert(help.tipo === 'comando' && help.cmd === 'help', 'help: ' + JSON.stringify(help));
+    const dni = parsearMensaje('hola 30.123.456');
+    assert(dni.tipo === 'dni' && dni.dni === '30123456', 'dni en texto: ' + JSON.stringify(dni));
+    const texto = parsearMensaje('hola');
+    assert(texto.tipo === 'texto', 'texto: ' + JSON.stringify(texto));
+  }],
+
+  ['/random devuelve un DNI que esta en el pool', () => {
+    const db = new DatabaseSync(RUTA_DB);
+    try {
+      asegurarPool(db);
+      sembrarPool(db);
+      const dni = elegirDelPool(db);
+      assert(dni && /^\d{8}$/.test(dni), 'DNI de pool invalido: ' + dni);
+      const fila = db.prepare('SELECT 1 x FROM pool_random WHERE dni = ?').get(dni);
+      assert(Boolean(fila), 'el DNI ' + dni + ' no esta en pool_random');
+    } finally {
+      db.close();
+    }
   }],
 ];
 
