@@ -189,7 +189,7 @@ Todos se probaron con `23854064/M` y `44444444/F`.
 | candidato (origen) | URL probada | http M / F | primeras 200 letras |
 |---|---|---|---|
 | `apirnpr.onrender.com` (entrerejas/Renaper-Api) | `/renaper/{dni}/{M,F}` | 200 / 200 | `{"error":true,"mensaje":"No se pudo realizar la consulta."}` |
-| `renaperservice.onrender.com` (facuPonceGit/RenaperService, **simulado**) | `/api/personas/{dni}?genero={M,F}` | 401 / 401 | `{"error":"API Key requerida","message":"Incluya el header X-API-Key"}` |
+| `renaperservice.onrender.com` (facuPonceGit/RenaperService, **simulado**) | `/api/personas/{dni}?genero={M,F}` | 401 sin key / 404 con key válida | `{"error":"API Key requerida"...}` / `{"error":"Persona no encontrada"...}` |
 | `apirenaper.idear.gov.ar` (Matanzassj555/renaper-consultas) | `/apidatos/porDniSexo.php?dni={dni}&sexo={M,F}` | 403 / 403 | `FORBIDDEN - REMOTE ADDRESS NOT ALLOWED` |
 | `federales.info` (OSintt/MacAllister-DniLookup) | `/renaper/{dni}/{M,F}` | 000 / 000 | `curl: (6) Could not resolve host: federales.info` |
 | `servicios.gcba.gob.ar` (balerdis/valida-renaper) | `/renaper/api/personas/{dni}/{M,F}/ejemplares/ultimo` | 000 / 000 | `curl: (6) Could not resolve host: servicios.gcba.gob.ar` |
@@ -198,6 +198,21 @@ Todos se probaron con `23854064/M` y `44444444/F`.
 Dictamen: **espejo roto y sin alternativa pública viable**. Se deja
 `apirnpr.onrender.com` como default y todo degrada a `AUSENTE`. El provider por
 env queda listo para cuando haya uno propio. No se buscan más mirrors.
+
+Notas de `renaperservice.onrender.com` (2026-10-21):
+
+- `/`, `/docs`, `/swagger`, `/api-docs` → **404**.
+- `/api/personas/23854064` sin key → **401** (`API Key requerida`).
+- De las 4 keys demo del README, la única válida es
+  `sk_renaper_inventario_2025_secret_key`; con ella `23854064` → **404**
+  (`Persona no encontrada`).
+- El repo `facuPonceGit/RenaperService` es un **simulador** con solo
+  `30123456F` y `33456789M` hardcodeados. Devuelve `fechaNacimiento` y
+  `apellido` para esos fixtures, pero **no es dato real**: no se adopta ni se
+  cachea como `REAL_RENAPER`.
+- `lib/renaper.js` acepta `RENAPER_API_KEY` (header `X-API-Key`) y
+  `RENAPER_PATH` (template, ej. `/api/personas/{dni}?genero={genero}`) para
+  providers con otra ruta.
 
 ## FICHA (lib/ficha.js + scripts/ficha.js)
 

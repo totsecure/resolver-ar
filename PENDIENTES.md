@@ -60,12 +60,17 @@ Se probaron 6 candidatos (detalle completo en `CONTEXTO.md`):
 
 ```text
 apirnpr.onrender.com            200  {"error":true,...}          (el default actual)
-renaperservice.onrender.com     401  {"error":"API Key requerida"...} (simulado)
+renaperservice.onrender.com     401  sin key; 404 con key válida (simulado, sin 23854064)
 apirenaper.idear.gov.ar         403  FORBIDDEN - REMOTE ADDRESS NOT ALLOWED
 federales.info                  000  DNS no resuelve
 servicios.gcba.gob.ar           000  DNS no resuelve
 api.renaper.gob.ar              000  DNS no resuelve
 ```
+
+`renaperservice` es un **simulador** (`facuPonceGit/RenaperService`) con solo
+`30123456F` y `33456789M` hardcodeados. La única key demo válida es
+`sk_renaper_inventario_2025_secret_key`; con ella `23854064` da 404. No se usa
+como fuente real ni se cachea.
 
 **Dictamen: espejo roto y sin alternativa pública viable.** No se buscan más
 mirrors. La ficha degrada a `AUSENTE` (`-`).

@@ -198,8 +198,9 @@ Respuesta JSON: `apellido`, `nombres`, `fechaNacimiento` (`YYYY-MM-DD`), `calle`
 - Por defecto **solo cache**. La red se habilita con `opts.red === true` (en la
   ficha: `--red` o `FICHA_RED=1`).
 - Provider por env: `RENAPER_BASE` (default el espejo), `RENAPER_USER` y
-  `RENAPER_PASS` (si están, se manda `Authorization: Basic`). El módulo agrega
-  `/renaper/{dni}/{genero}` a la base.
+  `RENAPER_PASS` (si están, se manda `Authorization: Basic`), `RENAPER_API_KEY`
+  (header `X-API-Key`) y `RENAPER_PATH` (template; default
+  `/renaper/{dni}/{genero}`). El módulo agrega el path a la base.
 - Cache: tabla `renaper` con TTL **365 días**; intentos en `renaper_intentos` y
   `datos/renaper.log`.
 

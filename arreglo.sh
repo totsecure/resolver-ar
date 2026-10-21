@@ -1,1 +1,0 @@
-pbpaste > ~/resolver/arreglo.sh && bash ~/resolver/arreglo.sh 2>&1 | tee /tmp/arreglo.log
