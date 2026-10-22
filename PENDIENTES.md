@@ -113,7 +113,7 @@ node scripts/verificar.js   # 29 OK / 0 FAIL, offline
 cd /Users/bunker/resolver
 bash scripts/tunel.sh
 cat datos/tunel.url
-curl -s "https://resolver-api.correonube.workers.dev/health?token=resolver2026"
+curl -s "https://resolver-api.correonube.workers.dev/health?token=$RESOLVER_TOKEN"
 ```
 
 - URL fija: `datos/tunel.url`.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* verificar.js — tests OFFLINE de resolver-ar (29).
+/* verificar.js — tests OFFLINE de resolver-ar (30).
  *
  * No usa red: el endpoint del CNE esta caido (HAProxy sin backends -> captcha 503)
  * y RENAPER es un free tier que puede dormir.
@@ -489,6 +489,21 @@ const tests = [
     assert(dni.tipo === 'dni' && dni.dni === '30123456', 'dni en texto: ' + JSON.stringify(dni));
     const texto = parsearMensaje('hola');
     assert(texto.tipo === 'texto', 'texto: ' + JSON.stringify(texto));
+  }],
+
+  ['detecta lote sin /lote (regresión del estado perdido por keepalive)', () => {
+    const lineas = Array.from({ length: 26 }, (_, i) =>
+      `41111111111111${String(i).padStart(2, '0')}|12|28|123`);
+    const lote = parsearMensaje(lineas.join('\n'));
+    assert(lote.tipo === 'lote', '26 lineas de tarjetas sin /lote: ' + JSON.stringify(lote));
+    assert(parsearMensaje('4111111111111111|12|28|123').tipo === 'lote',
+      'una linea canonica debe ser lote');
+    assert(parsearMensaje('4111111111111111\n5456123412341234').tipo === 'lote',
+      'dos lineas con numeros de 13-19 deben ser lote');
+    assert(parsearMensaje('4111111111111111').tipo === 'texto',
+      'una sola linea suelta no es lote');
+    assert(parsearMensaje('30123456').tipo === 'dni', 'un DNI sigue siendo DNI');
+    assert(parsearMensaje('hola').tipo === 'texto', 'texto suelto no es DNI ni lote');
   }],
 
   ['/random devuelve un DNI que esta en el pool', () => {

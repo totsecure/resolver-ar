@@ -42,7 +42,7 @@ node scripts/cne.js probe                  config + captcha reales
 node scripts/ficha.js <dni> [genero] [--red] [--fuentes]
                                             ficha de 10 lineas + fuentes
 PORT=3001 RESOLVER_TOKEN=secreto node server.js
-                                            API con auth (token vacio = dev)
+                                            API con auth obligatoria (sin token no arranca)
 ```
 
 ## MÓDULOS
@@ -245,10 +245,11 @@ Atención: la doc de ARCA lista Actividad en 51/52 — es off-by-one; el layout
 
 ## API Y DEPLOY
 
-- `server.js` mantiene `/texto/:dni` y `/persona/:dni`. Nuevos, de solo lectura:
-  `GET /health` · `GET /ficha/:dni?genero=M` · `GET /stats` · `GET /informe/:dni`.
+- `server.js` mantiene `/texto/:dni` y `/persona/:dni`, ambos con auth. De solo
+  lectura: `GET /health` · `GET /ficha/:dni?genero=M` · `GET /stats` ·
+  `GET /informe/:dni`.
 - Auth: `Authorization: Bearer <RESOLVER_TOKEN>` o `?token=<RESOLVER_TOKEN>`.
-  Si `RESOLVER_TOKEN` está vacío, no se exige token (modo dev). Sin token: 401.
+  Sin `RESOLVER_TOKEN` el server no arranca. No hay modo dev. Sin token: 401.
 - `deploy/Dockerfile`: `node:24-alpine`, `npm ci --omit=dev`, `EXPOSE 3001`,
   `CMD ["node","server.js"]`. La DB va por volumen en `/app/datos`.
 - `deploy/Caddyfile`: reverse proxy a `127.0.0.1:3001` con HTTPS automático.
@@ -256,7 +257,8 @@ Atención: la doc de ARCA lista Actividad en 51/52 — es off-by-one; el layout
   `WorkingDirectory=/opt/resolver`, `EnvironmentFile=/etc/resolver.env`.
 - `deploy/deploy.sh`: git pull + `npm ci --omit=dev` + `systemctl restart`
   (idempotente; crea usuario `resolver` y el env file si faltan).
-- `deploy/.env.example`: `PORT`, `RESOLVER_TOKEN`, `RESOLVER_DB`, `TZ`.
+- `deploy/.env.example`: `PORT`, `RESOLVER_TOKEN`, `NGROK_USER`, `NGROK_PASS`,
+  `RESOLVER_DB`, `TZ`.
 
 ## Estado de fuentes
 

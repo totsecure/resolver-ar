@@ -29,7 +29,12 @@ if [ -f datos/server.env ]; then
   set +a
 fi
 PUERTO="${PORT:-3001}"
-TOKEN="${RESOLVER_TOKEN:-resolver2026}"
+if [ -z "${RESOLVER_TOKEN:-}" ]; then
+  echo "ERROR: falta RESOLVER_TOKEN en datos/server.env"
+  exit 1
+fi
+TOKEN="$RESOLVER_TOKEN"
+BASIC="${NGROK_USER:-}:${NGROK_PASS:-}"
 
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') $*"
@@ -58,7 +63,7 @@ while true; do
   PUBLICO="000"
   if [ -n "$URL" ]; then
     PUBLICO=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
-      -H 'ngrok-skip-browser-warning: 1' \
+      -u "$BASIC" -H 'ngrok-skip-browser-warning: 1' \
       "${URL}/health?token=${TOKEN}" 2>/dev/null || true)
     PUBLICO="${PUBLICO:-000}"
   fi

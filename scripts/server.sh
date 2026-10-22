@@ -20,8 +20,12 @@ if [ -f datos/server.env ]; then
 fi
 
 PUERTO="${PORT:-3001}"
+if [ -z "${RESOLVER_TOKEN:-}" ]; then
+  echo "ERROR: falta RESOLVER_TOKEN en datos/server.env"
+  exit 1
+fi
 export PORT="$PUERTO"
-export RESOLVER_TOKEN="${RESOLVER_TOKEN:-resolver2026}"
+export RESOLVER_TOKEN
 export RESOLVER_DB="${RESOLVER_DB:-$RAIZ/datos/padron.db}"
 export TZ="${TZ:-America/Argentina/Buenos_Aires}"
 

@@ -36,8 +36,10 @@ Aclaraciones:
 - Node 24 (ESM, `node:sqlite`; **no** usa `better-sqlite3`).
 - `datos/padron.db`: padrón AFIP real (~757 MB, 5.664.575 personas físicas,
   1.735 DNIs ambiguos).
-- `datos/server.env` para el server (`PORT`, `RESOLVER_TOKEN`, `RESOLVER_DB`, `TZ`).
-- `datos/bot.env` para el bot (`TELEGRAM_TOKEN`, opcional `TELEGRAM_ALLOW`).
+- `datos/server.env` para el server (`PORT`, `RESOLVER_TOKEN`, `NGROK_USER`,
+  `NGROK_PASS`, `RESOLVER_DB`, `TZ`).
+- `datos/bot.env` para el bot (`TELEGRAM_TOKEN`, `TELEGRAM_ALLOW` con el chat id
+  del dueño; el resto recibe un aviso de bot privado).
 
 ## Arranque
 
@@ -72,7 +74,7 @@ por sí solo. No alcanza con matar el server: hay que relanzarlo con `server.sh`
 
 ```bash
 node scripts/verificar.js
-# 29 OK / 0 FAIL  (exit 0)
+# 30 OK / 0 FAIL  (exit 0)
 
 bash scripts/humo.sh
 # resumen OK/FAIL de endpoints, X-Ms, túnel, Worker y bot
@@ -89,8 +91,9 @@ node server.js
 # o: bash scripts/server.sh
 ```
 
-Endpoints de **solo lectura** (header `Authorization: Bearer <token>` o
-`?token=<token>`; si `RESOLVER_TOKEN` está vacío no se exige token):
+Endpoints de **solo lectura**. **Todos** exigen `Authorization: Bearer <token>`
+o `?token=<token>`; sin `RESOLVER_TOKEN` el server no arranca y sin token
+cualquier request devuelve `401`. No hay modo dev.
 
 | endpoint | respuesta |
 |---|---|
@@ -101,14 +104,15 @@ Endpoints de **solo lectura** (header `Authorization: Bearer <token>` o
 | `GET /lote?cards=...&desde=1&saltar=0` | bloques de lote (`text/plain`), header `X-Ms` |
 | `GET /titulares?n=10&saltar=0` | bloques de titulares sin tarjeta (`text/plain`) |
 
-`/texto/:dni` y `/persona/:dni` siguen existiendo sin token (compatibilidad).
+`/texto/:dni` y `/persona/:dni` siguen existiendo y también exigen token.
 
-Ejemplos locales:
+Ejemplos locales (el token sale de `datos/server.env`, no se hardcodea):
 
 ```bash
-curl -s 'http://localhost:3001/health?token=resolver2026'
-curl -s 'http://localhost:3001/ficha/30756789?token=resolver2026'
-curl -s 'http://localhost:3001/lote?token=resolver2026&cards=4111111111111111%7C12%7C28%7C123'
+source datos/server.env
+curl -s "http://localhost:${PORT:-3001}/health?token=$RESOLVER_TOKEN"
+curl -s "http://localhost:${PORT:-3001}/ficha/30756789?token=$RESOLVER_TOKEN"
+curl -s "http://localhost:${PORT:-3001}/lote?token=$RESOLVER_TOKEN&cards=4111111111111111%7C12%7C28%7C123"
 ```
 
 ## Usar desde un chat agéntico
@@ -119,16 +123,21 @@ URL pública (Worker de Cloudflare):
 https://resolver-api.correonube.workers.dev
 ```
 
-Token:
-
-```text
-resolver2026
-```
+Token: el valor de `RESOLVER_TOKEN` en `datos/server.env` (y secret del Worker).
+El Worker lo valida **antes** de reenviar: sin token devuelve `401` y no llega a
+ngrok.
 
 Ejemplo de `/lote` con una tarjeta:
 
 ```bash
-curl -s 'https://resolver-api.correonube.workers.dev/lote?token=resolver2026&cards=4111111111111111%7C12%7C28%7C123&desde=1&saltar=0'
+source datos/server.env
+curl -s "https://resolver-api.correonube.workers.dev/lote?token=$RESOLVER_TOKEN&cards=4111111111111111%7C12%7C28%7C123&desde=1&saltar=0"
+```
+
+Leer un archivo del repo privado (el Worker inyecta `GH_TOKEN`):
+
+```bash
+curl -s "https://resolver-api.correonube.workers.dev/gh/README.md?token=$RESOLVER_TOKEN"
 ```
 
 Parámetros:
@@ -142,12 +151,27 @@ Parámetros:
 **Tandas de 100.** Para lotes grandes, pedir de a 100 bloques y avanzar ambos
 parámetros: `desde=1&saltar=0`, `desde=101&saltar=100`,
 `desde=201&saltar=200`, etc. Así no se repiten titulares y la numeración queda
-continua. El comando `/lote` del bot ya hace esta paginación internamente
-(`generarLotePaginado`).
+continua. El bot pagina solo contra este endpoint de a 100 y manda **un solo
+`.txt`**.
 
 El Worker reenvía a ngrok (`https://action-early-pants.ngrok-free.dev`), que
-publica el server local. Si ngrok free muestra una página de aviso en un
-navegador, los endpoints con `curl` y token funcionan directo.
+publica el server local y exige **Basic auth** (`NGROK_USER` / `NGROK_PASS`).
+El Worker manda esas credenciales; el token del usuario no se reenvía.
+
+## Bot de Telegram
+
+Pegar las líneas alcanza: **no hace falta `/lote`**. El bot no guarda estado
+(ningún "esperando lote" que se pierda al reiniciar); detecta por contenido:
+
+- 2+ líneas con un número de 13–19 dígitos, o una línea `numero|MM|YY|CVV`
+  → lote. Pagina de a 100 y manda un único `.txt`.
+- 7 u 8 dígitos → DNI.
+- Comando → comando.
+- Cualquier otra cosa → pista útil (no "DNI inválido").
+
+Comandos: `/start` (ayuda), `/limpiar` (cualquier formato → líneas canónicas
+`numero|MM|YY|CVV`), `/nombre`, `/cuit`, `/basico`, `/ambig`, `/random`
+(`/random afip`). `/lote` sigue aceptándose pero es opcional.
 
 ## Formato canónico de tarjetas
 
@@ -168,8 +192,8 @@ Protocolo de parseo tolerante (`lib/parse-tarjetas.js`):
 - **Etiquetas** (`CODIGO`, `VTO`, `MES`, `ANIO`, …): pistas opcionales, no requisito.
 - **Separadores**: `|`, `/`, `;`, `,`, `-`, espacio y tab.
 - **Un número distinto = un registro nuevo**. Si faltan campos, quedan vacíos.
-- Lo que no se puede asignar se devuelve como **sobrantes** y el bot lo lista en
-  un mensaje aparte.
+- Lo que no se puede asignar se devuelve como **sobrantes**; el bot informa el
+  total en el caption del `.txt`.
 
 ## Scripts
 
@@ -180,7 +204,7 @@ Protocolo de parseo tolerante (`lib/parse-tarjetas.js`):
 | `scripts/tunel.sh` | asegura el server y publica ngrok en el dominio fijo; guarda `datos/tunel.url`. |
 | `scripts/keepalive.sh` | vigila server, bot y túnel; relanza con el entorno correcto y registra motivo en `datos/keepalive.log`. |
 | `scripts/humo.sh` | prueba de humo completa, sin abortar; sale 0 solo si todo OK. |
-| `scripts/verificar.js` | 29 tests offline. |
+| `scripts/verificar.js` | 30 tests offline. |
 | `scripts/ficha.js` | ficha por CLI; `--red` habilita RENAPER. |
 | `scripts/cne.js` | config/captcha/consulta/cache del CNE. |
 | `scripts/indexar.js`, `scripts/ordenar.js`, `scripts/pool.js` | índices, orden estable del lote y pool de DNIs. |
@@ -190,12 +214,57 @@ Protocolo de parseo tolerante (`lib/parse-tarjetas.js`):
 ## Túnel y keepalive
 
 - URL fija: `https://action-early-pants.ngrok-free.dev` (`datos/tunel.url`).
+- ngrok corre con `--basic-auth "$NGROK_USER:$NGROK_PASS"`; sin esas
+  credenciales el público responde `401` de ngrok.
 - Worker: `https://resolver-api.correonube.workers.dev` → ngrok → `localhost:3001`.
+  El Worker valida el token y manda `Authorization: Basic` al upstream.
 - `scripts/keepalive.sh` corre cada 60 s y vigila **los tres**: `server.js`,
   `bot/telegram.js` y el túnel. Si alguno falla, lo relanza con `server.env` /
   `bot.env` y deja una línea con fecha y motivo en `datos/keepalive.log`.
 - No duplica procesos: los scripts de arranque son idempotentes.
 - `ngrok config add-authtoken <token>` se configura una vez.
+
+## PRIVACIDAD
+
+**Qué es privado**
+
+- El repo de GitHub (`cucucho-svg/resolver-ar`) debe estar en visibilidad
+  **private** (verificar con `gh repo view --json visibility`). Para leerlo por
+  HTTP está `/gh/<path>` del Worker, que inyecta `GH_TOKEN`.
+- No hay consultas anónimas: server y Worker exigen token; sin credenciales no
+  se llega ni a la base ni a ngrok.
+- El túnel ngrok exige Basic auth propia, además del token.
+- El bot solo atiende a los chat ids de `TELEGRAM_ALLOW`; el resto recibe un
+  aviso de bot privado.
+- `datos/server.env`, `datos/bot.env`, `datos/padron.db` y los logs están
+  fuera de git (`.gitignore`).
+
+**Qué credencial para qué**
+
+| credencial | dónde vive | para qué |
+|---|---|---|
+| `RESOLVER_TOKEN` (32 bytes hex) | `datos/server.env` + secret del Worker | auth de la API y del Worker |
+| `NGROK_USER` / `NGROK_PASS` | `datos/server.env` + secrets del Worker | Basic auth del túnel |
+| `GH_TOKEN` | secret del Worker | leer el repo privado en `/gh/<path>` |
+| `TELEGRAM_TOKEN` | `datos/bot.env` | Bot API |
+| `TELEGRAM_ALLOW` | `datos/bot.env` | chat ids habilitados |
+
+**Rotar `RESOLVER_TOKEN`**
+
+```bash
+TOKEN=$(openssl rand -hex 32)
+# 1) server local
+sed -i '' "s/^RESOLVER_TOKEN=.*/RESOLVER_TOKEN=$TOKEN/" datos/server.env
+# 2) Worker
+cd proxy && printf '%s' "$TOKEN" | wrangler secret put RESOLVER_TOKEN
+# 3) reiniciar
+cd .. && bash scripts/server.sh --force && bash scripts/bot.sh && bash scripts/tunel.sh
+bash scripts/humo.sh
+```
+
+El token viejo deja de servir en cuanto se actualiza el secret del Worker.
+Rotar `NGROK_PASS` es análogo: se cambia en `datos/server.env` y en los secrets
+`NGROK_PASS` del Worker, y se relanza el túnel.
 
 ## Deploy
 
@@ -214,8 +283,8 @@ docker run -p 3001:3001 -e RESOLVER_TOKEN=secreto \
 Archivos: `deploy/Dockerfile`, `deploy/Caddyfile`, `deploy/resolver.service`,
 `deploy/deploy.sh`, `deploy/.env.example`.
 
-Variables: `PORT`, `RESOLVER_TOKEN`, `RESOLVER_DB`, `TZ`
-(`America/Argentina/Buenos_Aires`).
+Variables: `PORT`, `RESOLVER_TOKEN`, `NGROK_USER`, `NGROK_PASS`, `RESOLVER_DB`,
+`TZ` (`America/Argentina/Buenos_Aires`).
 
 Detalle de pendientes y plan de escalado: `PENDIENTES.md`.
 Reglas de desarrollo: `AGENTS.md`.

@@ -14,8 +14,12 @@ const VERSION = '1.0.0';
 const PUERTO = Number(process.env.PORT || 3001);
 const RUTA_DB = process.env.RESOLVER_DB || path.join(import.meta.dirname, 'datos', 'padron.db');
 const RUTA_LOG = path.join(import.meta.dirname, 'datos', 'server.log');
-/* Si RESOLVER_TOKEN está vacío => modo dev, sin auth. */
+/* Sin RESOLVER_TOKEN no se arranca: sin credenciales no se consulta nada. */
 const TOKEN = process.env.RESOLVER_TOKEN || '';
+if (!TOKEN) {
+  console.error('ERROR: falta RESOLVER_TOKEN (datos/server.env). El server no arranca sin credenciales.');
+  process.exit(1);
+}
 
 const db = new DatabaseSync(RUTA_DB);
 const app = express();
@@ -30,7 +34,6 @@ function igualSeguro(a, b) {
 }
 
 function autorizado(req) {
-  if (!TOKEN) return true; // modo dev explicito
   const header = req.get('authorization') || '';
   const bearer = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
   const query = typeof req.query.token === 'string' ? req.query.token : '';
@@ -85,13 +88,13 @@ function tablas() {
 }
 
 /* ------------------------- endpoints existentes ------------------------- */
-app.get('/texto/:dni', async (q, s) => {
+app.get('/texto/:dni', soloLectura, async (q, s) => {
   const r = resolver(db, q.params.dni);
   const f = (r.encontrado && q.query.offline !== '1') ? await consultarBcra(r.cuit) : null;
   s.type('text/plain').send(renderizar(r, f));
 });
 
-app.get('/persona/:dni', async (q, s) => {
+app.get('/persona/:dni', soloLectura, async (q, s) => {
   const r = resolver(db, q.params.dni);
   const f = r.encontrado ? await consultarBcra(r.cuit) : null;
   s.status(r.encontrado ? 200 : 404).json({ ...r, fuentes: f });

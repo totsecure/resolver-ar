@@ -21,7 +21,16 @@ if [ -f datos/server.env ]; then
   set +a
 fi
 PUERTO="${PORT:-3001}"
-TOKEN="${RESOLVER_TOKEN:-resolver2026}"
+if [ -z "${RESOLVER_TOKEN:-}" ]; then
+  echo "ERROR: falta RESOLVER_TOKEN en datos/server.env"
+  exit 1
+fi
+if [ -z "${NGROK_USER:-}" ] || [ -z "${NGROK_PASS:-}" ]; then
+  echo "ERROR: faltan NGROK_USER/NGROK_PASS en datos/server.env"
+  exit 1
+fi
+TOKEN="$RESOLVER_TOKEN"
+BASIC="${NGROK_USER}:${NGROK_PASS}"
 
 echo "== tunel.sh $(date '+%Y-%m-%d %H:%M:%S') =="
 
@@ -45,7 +54,7 @@ sleep 1
 
 echo "[3/4] arrancando ngrok..."
 : > datos/tunel.log
-nohup ngrok http "$PUERTO" --url="$URL" >> datos/tunel.log 2>&1 &
+nohup ngrok http "$PUERTO" --url="$URL" --basic-auth="$BASIC" >> datos/tunel.log 2>&1 &
 NGROK_PID=$!
 echo "$NGROK_PID" > datos/tunel.pid
 echo "  ngrok pid=$NGROK_PID"
@@ -55,7 +64,7 @@ JSON=""
 PUBLICO_OK=0
 FIN=$((SECONDS + 30))
 while [ "$SECONDS" -lt "$FIN" ]; do
-  JSON=$(curl -s --max-time 3 -H 'ngrok-skip-browser-warning: 1' \
+  JSON=$(curl -s --max-time 3 -u "$BASIC" -H 'ngrok-skip-browser-warning: 1' \
     "${URL}/health?token=${TOKEN}" 2>/dev/null || true)
   case "$JSON" in
     *'"ok":true'*) PUBLICO_OK=1; break ;;
@@ -80,6 +89,7 @@ echo "$JSON"
 echo ""
 echo "LISTO"
 echo "URL=$URL"
-echo "TOKEN=$TOKEN"
-echo "VERIFICAR: curl -s \"${URL}/health?token=${TOKEN}\""
-echo "FICHA:     curl -s \"${URL}/ficha/3348?token=${TOKEN}\""
+echo "TOKEN=...${TOKEN: -6}"
+echo "BASIC_AUTH=$NGROK_USER:***"
+echo "VERIFICAR: curl -s -u \"\$NGROK_USER:\$NGROK_PASS\" \"${URL}/health?token=\$RESOLVER_TOKEN\""
+echo "FICHA:     curl -s -u \"\$NGROK_USER:\$NGROK_PASS\" \"${URL}/ficha/3348?token=\$RESOLVER_TOKEN\""

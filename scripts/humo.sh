@@ -5,7 +5,9 @@
 #   bash scripts/humo.sh
 #
 # Chequea: /health, /stats, /ficha/30756789, /lote (1 tarjeta),
-# /titulares?n=2, X-Ms y <200 ms en /lote, tunel publico, Worker y bot (getMe).
+# /titulares?n=2, X-Ms y <200 ms en /lote, tunel publico, Worker y bot (getMe),
+# 401 sin token (local y Worker) y /gh/README.md (repo privado).
+# El token y las credenciales de ngrok salen de datos/server.env.
 set -uo pipefail
 
 RAIZ="/Users/bunker/resolver"
@@ -25,7 +27,12 @@ if [ -f datos/server.env ]; then
   set +a
 fi
 PUERTO="${PORT:-3001}"
-TOKEN="${RESOLVER_TOKEN:-resolver2026}"
+if [ -z "${RESOLVER_TOKEN:-}" ]; then
+  echo "ERROR: falta RESOLVER_TOKEN en datos/server.env"
+  exit 1
+fi
+TOKEN="$RESOLVER_TOKEN"
+BASIC="${NGROK_USER:-}:${NGROK_PASS:-}"
 BASE="http://localhost:${PUERTO}"
 
 OK=0
@@ -98,13 +105,13 @@ else
   fail "/lote X-Ms" "http=${STATUS:-000} x-ms=${XMS:-'-'} tiempo=${TIEMPO:-'-'}s (limite 0.2s)"
 fi
 
-# 7) tunel publico (ngrok)
+# 7) tunel publico (ngrok con basic auth)
 URL=$(cat datos/tunel.url 2>/dev/null || true)
 if [ -z "$URL" ]; then
   fail "tunel publico" "falta datos/tunel.url"
 else
   CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 15 \
-    -H 'ngrok-skip-browser-warning: 1' "${URL}/health?token=${TOKEN}" 2>/dev/null || true)
+    -u "$BASIC" -H 'ngrok-skip-browser-warning: 1' "${URL}/health?token=${TOKEN}" 2>/dev/null || true)
   if [ "$CODE" = "200" ] && grep -q '"ok":true' "$TMP"; then
     ok "tunel publico" "http=200 $URL"
   else
@@ -118,6 +125,20 @@ if [ "$CODE" = "200" ] && grep -q '"ok":true' "$TMP"; then
   ok "Worker publico" "$WORKER_URL"
 else
   fail "Worker publico" "http=${CODE:-000} $WORKER_URL $(head -c 160 "$TMP")"
+fi
+
+# 8b) sin token: local y Worker deben dar 401 (el Worker no llega a ngrok)
+CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${BASE}/health" 2>/dev/null || true)
+[ "$CODE" = "401" ] && ok "local sin token" "http=401" || fail "local sin token" "http=${CODE:-000}"
+CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${WORKER_URL}/health" 2>/dev/null || true)
+[ "$CODE" = "401" ] && ok "Worker sin token" "http=401" || fail "Worker sin token" "http=${CODE:-000}"
+
+# 8c) /gh/README.md por el Worker (repo privado con GH_TOKEN)
+CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 15 "${WORKER_URL}/gh/README.md?token=${TOKEN}" 2>/dev/null || true)
+if [ "$CODE" = "200" ] && grep -q '^# resolver-ar' "$TMP"; then
+  ok "/gh/README.md" "http=200"
+else
+  fail "/gh/README.md" "http=${CODE:-000} $(head -c 160 "$TMP")"
 fi
 
 # 9) bot vivo (getMe + proceso)

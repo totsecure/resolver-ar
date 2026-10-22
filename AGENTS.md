@@ -265,14 +265,16 @@ Precedencia por campo (la primera fuente con dato):
 | `GET /informe/:dni` | informe completo (`text/plain`) |
 
 Auth: `Authorization: Bearer <RESOLVER_TOKEN>` o `?token=<RESOLVER_TOKEN>`.
-Si `RESOLVER_TOKEN` está vacío no se exige token (modo dev); si está seteado y
-falta o no coincide, responde `401`.
+Sin `RESOLVER_TOKEN` el server no arranca; con token configurado y credencial
+faltante o incorrecta responde `401`. No hay modo dev. `/texto` y `/persona`
+también exigen token.
 
 Deploy (`deploy/`): `Dockerfile` (node:24-alpine, `npm ci --omit=dev`, EXPOSE
 3001), `Caddyfile` (HTTPS automático), `resolver.service` (systemd,
 `Restart=always`, `WorkingDirectory=/opt/resolver`,
 `EnvironmentFile=/etc/resolver.env`), `deploy.sh` (git pull + npm ci + restart,
-idempotente) y `.env.example` (`PORT`, `RESOLVER_TOKEN`, `RESOLVER_DB`, `TZ`).
+idempotente) y `.env.example` (`PORT`, `RESOLVER_TOKEN`, `NGROK_USER`,
+`NGROK_PASS`, `RESOLVER_DB`, `TZ`).
 
 ## Cobertura
 

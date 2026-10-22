@@ -3,11 +3,15 @@
  * Long polling con getUpdates (timeout 50), offset persistido en
  * datos/bot-offset.json. Sin dependencias: fetch global de Node 24.
  *
- * Comandos: /start, /help, /random, /random afip, /refresh <dni>.
- * Cualquier mensaje con 7 u 8 digitos (aunque tenga puntos/espacios) es un DNI.
+ * SIN ESTADO: no hay "esperando lote" ni banderas en memoria. El tipo de
+ * mensaje se detecta por su contenido:
+ *   - 2+ lineas con un numero de 13-19 digitos, o una linea numero|MM|YY|CVV
+ *     => lote (con o sin /lote previo)
+ *   - 7 u 8 digitos => DNI
+ *   - comando => comando
  *
- * Respuesta: las 10 lineas de lib/ficha.js dentro de <pre>, parse_mode HTML.
- * Importa lib/ficha.js directo (no HTTP) y usa red=true.
+ * El lote se delega al endpoint HTTP /lote del server local (cascara fina):
+ * se pagina de a 100 bloques y se manda UN solo .txt.
  */
 
 import fs from 'node:fs';
@@ -22,7 +26,6 @@ import {
   buscarPorPrefijo, ambiguedades, buscarPorCuit, basico,
   formatearCuit, cuitsPorDni,
 } from '../lib/padron.js';
-import { generarLotePaginado } from '../lib/lote.js';
 import { parsearTarjetas } from '../lib/parse-tarjetas.js';
 
 /* Preferir IPv4: en esta red el AAAA de Telegram a veces cuelga. */
@@ -30,27 +33,35 @@ dns.setDefaultResultOrder('ipv4first');
 
 const RAIZ = path.join(import.meta.dirname, '..');
 const RUTA_ENV = path.join(RAIZ, 'datos', 'bot.env');
+const RUTA_ENV_SERVER = path.join(RAIZ, 'datos', 'server.env');
 const RUTA_OFFSET = path.join(RAIZ, 'datos', 'bot-offset.json');
 const RUTA_LOG = path.join(RAIZ, 'datos', 'bot.log');
 const RUTA_DB = process.env.RESOLVER_DB || path.join(RAIZ, 'datos', 'padron.db');
 
 const HELP = [
   '<b>resolver-ar</b>',
-  'Mandame un DNI de 7 u 8 digitos y te devuelvo la ficha.',
+  'Pegá las líneas de tarjetas tal cual (<code>numero|MM|YY|CVV</code>), una por',
+  'línea o en un .txt. No hace falta /lote: te devuelvo un solo .txt.',
+  'También podés mandar un DNI de 7 u 8 dígitos.',
   '',
-  '/lote - arma bloques desde lineas numero|MM|YY|CVV (o un .txt)',
+  '/limpiar &lt;texto&gt; - pegar cualquier formato y devolver las líneas canónicas',
   '/nombre &lt;texto&gt; - buscar por apellido o nombre',
   '/cuit &lt;cuit&gt; - consulta inversa por CUIT',
   '/basico &lt;dni&gt; - apellido, nombre, DNI, CUIT, CUIL, sexo, nacionalidad',
-  '/ambig - DNIs con mas de un CUIT',
+  '/ambig - DNIs con más de un CUIT',
   '/random - DNI del pool',
-  '/random afip - DNI al azar del padron',
-  '/refresh &lt;dni&gt; - vuelve a consultar RENAPER',
-  '/help - esta ayuda',
+  '/random afip - DNI al azar del padrón',
+].join('\n');
+
+const PISTA = [
+  'No encontré ni un DNI (7 u 8 dígitos) ni líneas de tarjetas.',
+  '',
+  'Pegá las líneas tal cual, por ejemplo:',
+  '<code>4111111111111111|12|28|123</code>',
+  'o mandá un .txt. También vale /start para ver los comandos.',
 ].join('\n');
 
 const busquedas = new Map();
-const lotesPendientes = new Set();
 let seqBusqueda = 0;
 
 function tokenBusqueda(texto) {
@@ -60,21 +71,24 @@ function tokenBusqueda(texto) {
   return token;
 }
 
+/* Lista blanca explicita: vacia => nadie. El dueño va en datos/bot.env. */
 function permitido(chatId) {
   const lista = (process.env.TELEGRAM_ALLOW || '')
     .split(',').map((s) => s.trim()).filter(Boolean);
-  return !lista.length || lista.includes(String(chatId));
+  return lista.includes(String(chatId));
 }
 
 function cargarEnv() {
-  try {
-    const txt = fs.readFileSync(RUTA_ENV, 'utf8');
-    for (const linea of txt.split(/\r?\n/)) {
-      const m = linea.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-      if (!m) continue;
-      if (!process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
-    }
-  } catch (_) {}
+  for (const ruta of [RUTA_ENV_SERVER, RUTA_ENV]) {
+    try {
+      const txt = fs.readFileSync(ruta, 'utf8');
+      for (const linea of txt.split(/\r?\n/)) {
+        const m = linea.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+        if (!m) continue;
+        if (!process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+      }
+    } catch (_) {}
+  }
 }
 
 function log(msg) {
@@ -109,7 +123,28 @@ export function normalizarDni(texto) {
   return null;
 }
 
-/** Ruteo puro de un mensaje: comando, DNI o texto. */
+/** Numeros de 13 a 19 digitos de una linea (tolera grupos 4-4-4-4). */
+function numerosDeLinea(linea) {
+  const grupos = String(linea ?? '').match(/\d(?:[ -]?\d){12,18}/g) || [];
+  return grupos
+    .map((g) => g.replace(/\D/g, ''))
+    .filter((d) => d.length >= 13 && d.length <= 19);
+}
+
+/**
+ * Detecta un lote por contenido, sin estado:
+ *   - una linea numero|MM|YY|CVV, o
+ *   - 2+ lineas con un numero de 13 a 19 digitos.
+ */
+export function detectarLote(texto) {
+  const lineas = String(texto ?? '').split(/\r?\n/).filter((l) => l.trim());
+  if (!lineas.length) return false;
+  const canonica = /^\s*\d(?:[ -]?\d){12,18}\s*\|\s*\d{1,2}\s*\|\s*\d{2,4}\s*\|\s*\d{3,4}\s*$/;
+  if (lineas.some((l) => canonica.test(l))) return true;
+  return lineas.filter((l) => numerosDeLinea(l).length > 0).length >= 2;
+}
+
+/** Ruteo puro de un mensaje: comando, lote, DNI o texto. */
 export function parsearMensaje(texto) {
   const s = String(texto ?? '').trim();
   if (s.startsWith('/')) {
@@ -117,9 +152,15 @@ export function parsearMensaje(texto) {
     const cmd = raw.slice(1).split('@')[0].toLowerCase();
     return { tipo: 'comando', cmd, args };
   }
+  if (detectarLote(s)) return { tipo: 'lote' };
   const dni = normalizarDni(s);
   if (dni) return { tipo: 'dni', dni };
   return { tipo: 'texto' };
+}
+
+/** Payload crudo de un comando, conservando saltos de linea. */
+function payloadComando(texto) {
+  return String(texto ?? '').replace(/^\/[A-Za-z0-9_]+(?:@\w+)?\s*/, '');
 }
 
 function leerOffset() {
@@ -270,35 +311,57 @@ function sobrantesUnicos(lista) {
   return out;
 }
 
-async function responderLote(chatId, entrada, origen = 'texto') {
+/* Una pagina del endpoint /lote (hasta 100 bloques). */
+async function pedirLote(tarjetas, desde, saltar) {
+  if (!process.env.RESOLVER_TOKEN) throw new Error('falta RESOLVER_TOKEN (datos/server.env)');
+  const q = new URLSearchParams({
+    token: process.env.RESOLVER_TOKEN,
+    cards: tarjetas.map((t) => t.numero + '|' + t.mes + '|' + t.anio + '|' + t.codigo).join(';'),
+    desde: String(desde),
+    saltar: String(saltar),
+  });
+  const base = process.env.RESOLVER_URL || `http://localhost:${process.env.PORT || 3001}`;
+  const r = await fetch(`${base}/lote?${q}`);
+  if (!r.ok) throw new Error(`/lote http=${r.status}`);
+  return (await r.text()).trimEnd();
+}
+
+export async function responderLote(chatId, entrada, origen = 'texto') {
   const { tarjetas, sobrantes } = parsearTarjetas(entrada);
-  log(`chat=${chatId} /lote origen=${origen} tarjetas=${tarjetas.length} sobrantes=${sobrantes.length}`);
+  log(`chat=${chatId} lote origen=${origen} tarjetas=${tarjetas.length} sobrantes=${sobrantes.length}`);
 
   if (!tarjetas.length) {
-    await enviar(chatId, 'No encontre numeros de tarjeta. Formato: <code>numero|MM|YY|CVV</code>, uno por linea o separados por coma.');
-    const lista = sobrantesUnicos(sobrantes);
-    if (lista.length) await enviarPrePartes(chatId, lista.join('\n'), `Sobrantes (${lista.length}):`);
+    await enviar(chatId, PISTA);
     return;
   }
 
-  /* Paginas de 100 titulares con saltar incremental: no se repiten. */
-  const cuerpo = generarLotePaginado(tarjetas, { desde: 1, saltar: 0, pagina: 100 });
+  /* Pagina sola de a 100 bloques contra /lote y manda UN solo .txt. */
+  const partes = [];
+  for (let i = 0; i < tarjetas.length; i += 100) {
+    partes.push(await pedirLote(tarjetas.slice(i, i + 100), 1 + i, i));
+  }
+  const cuerpo = partes.filter(Boolean).join('\n\n');
   if (!cuerpo) {
     await enviar(chatId, 'No se pudo generar el lote.');
     return;
   }
 
-  const nombreArchivo = `lote-${fechaArchivo()}.txt`;
-  await enviarDocumento(chatId, nombreArchivo, cuerpo, `Lote: ${tarjetas.length} bloque(s)`);
-
-  if (tarjetas.length <= 10) {
-    await enviarPrePartes(chatId, cuerpo);
-  }
-
   const lista = sobrantesUnicos(sobrantes);
-  if (lista.length) {
-    await enviarPrePartes(chatId, lista.join('\n'), `Sobrantes (${lista.length}):`);
+  const caption = `Lote: ${tarjetas.length} bloque(s)`
+    + (lista.length ? ` · ${lista.length} sobrante(s)` : '');
+  await enviarDocumento(chatId, `lote-${fechaArchivo()}.txt`, cuerpo + '\n', caption);
+}
+
+/* /limpiar: cualquier formato -> lineas canonicas numero|MM|YY|CVV. */
+async function responderLimpiar(chatId, entrada) {
+  const { tarjetas } = parsearTarjetas(entrada);
+  if (!tarjetas.length) {
+    await enviar(chatId, PISTA);
+    return;
   }
+  const lineas = tarjetas.map((t) => `${t.numero}|${t.mes}|${t.anio}|${t.codigo}`);
+  log(`chat=${chatId} limpiar tarjetas=${tarjetas.length}`);
+  await enviarPrePartes(chatId, lineas.join('\n'));
 }
 
 function editar(chatId, messageId, texto, extra = {}) {
@@ -378,7 +441,12 @@ function renderAmbig(db, offset) {
 async function procesarCallback(cq, db) {
   const chatId = cq?.message?.chat?.id;
   if (!chatId || !permitido(chatId)) {
-    await api('answerCallbackQuery', { callback_query_id: cq.id }).catch(() => {});
+    await api('answerCallbackQuery', {
+      callback_query_id: cq.id,
+      text: 'Bot privado.',
+      show_alert: false,
+    }).catch(() => {});
+    if (chatId) await avisarPrivado(chatId);
     return;
   }
   const partes = String(cq.data || '').split('|');
@@ -411,15 +479,10 @@ async function procesarCallback(cq, db) {
 
 async function procesarDocumento(msg) {
   const chatId = msg.chat?.id;
-  if (!permitido(chatId)) {
-    log(`chat=${chatId} documento ignorado (fuera de TELEGRAM_ALLOW)`);
-    return;
-  }
-
   const doc = msg.document;
   const nombre = String(doc?.file_name || '');
   const mime = String(doc?.mime_type || '');
-  if (!/\.txt$/i.test(nombre) && mime !== 'text/plain') {
+  if (!/\.(txt|csv)$/i.test(nombre) && mime !== 'text/plain') {
     await enviar(chatId, 'Mandame un archivo <b>.txt</b> con las lineas de tarjetas.');
     return;
   }
@@ -428,17 +491,21 @@ async function procesarDocumento(msg) {
     return;
   }
 
-  lotesPendientes.delete(String(chatId));
   try {
     const contenido = await descargarDocumento(doc.file_id);
     await responderLote(chatId, contenido, 'documento');
   } catch (e) {
     log(`chat=${chatId} ERROR documento: ${e?.message || e}`);
-    await enviar(chatId, 'No pude descargar el archivo.');
+    await enviar(chatId, 'No pude procesar el archivo.');
   }
 }
 
-async function procesarUpdate(update, db) {
+async function avisarPrivado(chatId) {
+  log(`chat=${chatId} rechazado (fuera de TELEGRAM_ALLOW)`);
+  await enviar(chatId, 'Este bot es privado. Pedile acceso al dueño.').catch(() => {});
+}
+
+export async function procesarUpdate(update, db) {
   if (update?.callback_query) {
     await procesarCallback(update.callback_query, db);
     return;
@@ -449,7 +516,7 @@ async function procesarUpdate(update, db) {
 
   const chatId = msg.chat?.id;
   if (!permitido(chatId)) {
-    log(`chat=${chatId} ignorado (fuera de TELEGRAM_ALLOW)`);
+    await avisarPrivado(chatId);
     return;
   }
 
@@ -462,14 +529,9 @@ async function procesarUpdate(update, db) {
   const p = parsearMensaje(msg.text);
 
   if (p.tipo === 'comando') {
-    if (p.cmd === 'start') {
-      log(`chat=${chatId} /start`);
+    if (p.cmd === 'start' || p.cmd === 'help') {
+      log(`chat=${chatId} /${p.cmd}`);
       await enviar(chatId, `${HELP}\n\nTu chat id: <code>${chatId}</code>`);
-      return;
-    }
-    if (p.cmd === 'help') {
-      log(`chat=${chatId} /help`);
-      await enviar(chatId, HELP);
       return;
     }
     if (p.cmd === 'random') {
@@ -484,20 +546,24 @@ async function procesarUpdate(update, db) {
       return;
     }
     if (p.cmd === 'lote') {
-      const payload = String(msg.text).replace(/^\/lote(?:@\w+)?\s*/i, '').trim();
+      /* /lote sigue aceptandose, pero es opcional: sin payload no hay estado. */
+      const payload = payloadComando(msg.text).trim();
       if (!payload) {
-        lotesPendientes.add(String(chatId));
-        await enviar(chatId, [
-          'Mandame las lineas de tarjetas o un archivo <b>.txt</b>.',
-          'Formato: <code>numero|MM|YY|CVV</code>, una por linea o separadas por coma.',
-        ].join('\n'));
+        await enviar(chatId, 'No hace falta /lote: pegá las líneas directamente o mandá el .txt.');
         return;
       }
-      lotesPendientes.delete(String(chatId));
       await responderLote(chatId, payload, 'comando');
       return;
     }
-    lotesPendientes.delete(String(chatId));
+    if (p.cmd === 'limpiar') {
+      const payload = payloadComando(msg.text).trim();
+      if (!payload) {
+        await enviar(chatId, 'Pegá el contenido junto al comando: <code>/limpiar 4111...|12|28|123</code>, o mandá el .txt directo.');
+        return;
+      }
+      await responderLimpiar(chatId, payload);
+      return;
+    }
     if (p.cmd === 'nombre') {
       const texto = p.args.join(' ').trim();
       if (!texto) {
@@ -556,24 +622,13 @@ async function procesarUpdate(update, db) {
       await enviar(chatId, r.texto, r.reply_markup ? { reply_markup: r.reply_markup } : {});
       return;
     }
-    if (p.cmd === 'refresh') {
-      const dni = normalizarDni(p.args.join(' '));
-      if (!dni) {
-        log(`chat=${chatId} /refresh invalido`);
-        await enviar(chatId, 'DNI invalido.');
-        return;
-      }
-      log(`chat=${chatId} /refresh dni=${dni}`);
-      await responderFicha(chatId, dni, { forzar: true });
-      return;
-    }
     log(`chat=${chatId} comando desconocido=${p.cmd}`);
     await enviar(chatId, HELP);
     return;
   }
 
-  if (lotesPendientes.delete(String(chatId))) {
-    await responderLote(chatId, msg.text, 'pendiente');
+  if (p.tipo === 'lote') {
+    await responderLote(chatId, msg.text, 'deteccion');
     return;
   }
 
@@ -583,8 +638,8 @@ async function procesarUpdate(update, db) {
     return;
   }
 
-  log(`chat=${chatId} texto sin DNI`);
-  await enviar(chatId, 'Mandame un DNI de 7 u 8 digitos o /help');
+  log(`chat=${chatId} texto sin DNI ni lote`);
+  await enviar(chatId, PISTA);
 }
 
 async function iniciar() {
@@ -601,6 +656,10 @@ async function iniciar() {
   db.exec('PRAGMA case_sensitive_like = ON');
   asegurarPool(db);
   sembrarPool(db);
+
+  if (!(process.env.TELEGRAM_ALLOW || '').trim()) {
+    log('ERROR: falta TELEGRAM_ALLOW en datos/bot.env: el bot rechazara todos los chats');
+  }
 
   let offset = leerOffset();
   let primerPollOk = false;
