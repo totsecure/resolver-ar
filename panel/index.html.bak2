@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RESOLVER STORE</title>
+<style>
+:root{--bg:rgb(9,12,18);--panel:rgb(17,22,32);--panel2:rgb(22,28,40);--line:rgb(39,47,63);--txt:rgb(226,232,240);--dim:rgb(148,163,184);--acc:rgb(59,130,246);--ok:rgb(34,197,94);--warn:rgb(245,158,11);--bad:rgb(239,68,68)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:13.5px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9;flex-wrap:wrap}
+.logo{font-weight:800;letter-spacing:.4px}
+.logo b{color:var(--acc)}
+.tab{background:transparent;border:1px solid transparent;color:var(--dim);padding:7px 12px;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px}
+.tab:hover{color:var(--txt);border-color:var(--line)}
+.tab.on{background:var(--acc);color:rgb(255,255,255)}
+.kpis{margin-left:auto;display:flex;gap:16px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+.kpis b{color:var(--txt);font-size:13px}
+main{padding:14px 16px 60px;max-width:1500px;margin:0 auto}
+.filtros{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim);margin-bottom:4px}
+input,select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 9px;font-size:13px}
+input:focus,select:focus{outline:none;border-color:var(--acc)}
+.botones{display:flex;gap:8px;align-items:flex-end}
+button.prim{background:var(--acc);color:rgb(255,255,255);border:0;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer}
+button.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600}
+button.prim:disabled{opacity:.45;cursor:default}
+.barra{display:flex;align-items:center;gap:12px;margin:14px 0 8px}
+.barra .sel{color:var(--dim);font-size:13px}
+.barra .crecer{margin-left:auto}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
+th{background:var(--panel2);color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+tr:hover td{background:rgba(59,130,246,.06)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.bin{font-weight:700}
+.sub{color:var(--dim);font-size:11.5px}
+.badge{display:inline-block;padding:2px 6px;border-radius:5px;font-size:10.5px;font-weight:700;border:1px solid var(--line)}
+.visa{background:rgba(59,130,246,.15);color:rgb(147,197,253)}
+.master{background:rgba(239,68,68,.15);color:rgb(252,165,165)}
+.icons span{display:inline-block;width:19px;height:19px;line-height:19px;text-align:center;border-radius:5px;margin-right:3px;font-size:10px;background:var(--panel2);color:var(--dim);border:1px solid var(--line)}
+.icons span.si{color:var(--ok);border-color:rgba(34,197,94,.45)}
+.precio{font-weight:800;color:rgb(147,197,253)}
+.pag{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px;color:var(--dim)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:20}
+.modal.abierto{display:flex}
+.caja{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;width:min(460px,92vw)}
+.caja h3{margin:0 0 12px}
+.aviso{margin-top:10px;font-size:12.5px;color:var(--dim)}
+.vacio{padding:26px;text-align:center;color:var(--dim)}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">RESOLVER <b>STORE</b></div>
+  <button class="tab on" data-estado="DISPONIBLE">Market</button>
+  <button class="tab" data-estado="RESERVADA">Reservadas</button>
+  <button class="tab" data-estado="VENDIDA">Vendidas</button>
+  <button class="tab" id="btnDash">Dashboard</button>
+  <div class="kpis" id="kpis"></div>
+</header>
+<main>
+  <div class="filtros">
+    <div><label>BIN</label><input id="f_bins" placeholder="516585,545652"></div>
+    <div><label>Pais</label><select id="f_paises"></select></div>
+    <div><label>Banco</label><select id="f_bancos"></select></div>
+    <div><label>Red</label><select id="f_redes"></select></div>
+    <div><label>Tipo</label><select id="f_tipos"></select></div>
+    <div><label>Base</label><select id="f_etiquetas"></select></div>
+    <div><label>Precio min</label><input id="f_pmin" type="number"></div>
+    <div><label>Precio max</label><input id="f_pmax" type="number"></div>
+    <div><label>Buscar</label><input id="f_q" placeholder="numero, titular, banco"></div>
+    <div class="botones">
+      <button class="prim" id="btnBuscar">Buscar</button>
+      <button class="sec" id="btnLimpiar">Limpiar</button>
+    </div>
+  </div>
+  <div class="barra">
+    <span class="sel" id="sel">0 seleccionadas</span>
+    <button class="sec" id="btnSelTodos">Seleccionar todas</button>
+    <div class="crecer"></div>
+    <span class="sel" id="info"></span>
+    <button class="prim" id="btnComprar" disabled>Comprar seleccionadas</button>
+  </div>
+  <table>
+    <thead><tr>
+      <th style="width:34px"><input type="checkbox" id="chkTodos"></th>
+      <th>BIN / Banco</th><th>Red</th><th>Tipo</th><th>EXP</th>
+      <th>Pais</th><th>ZIP</th><th>Datos</th><th>Base</th>
+      <th>Refund</th><th>Saldo</th><th>Precio</th><th></th>
+    </tr></thead>
+    <tbody id="cuerpo"></tbody>
+  </table>
+  <div class="pag" id="pag"></div>
+</main>
+<div class="modal" id="modal"><div class="caja">
+  <h3 id="m_titulo">Comprar</h3>
+  <div id="m_cuerpo"></div>
+  <div class="botones" style="margin-top:14px">
+    <button class="prim" id="m_ok">Confirmar</button>
+    <button class="sec" id="m_cancelar">Cancelar</button>
+  </div>
+  <div class="aviso" id="m_aviso"></div>
+</div></div>
+<script>
+const Q=new URLSearchParams(location.search);
+const TOKEN=Q.get('token')||localStorage.getItem('tok')||'';
+if(TOKEN)localStorage.setItem('tok',TOKEN);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const moneda=n=>Number(n||0).toLocaleString('es-AR');
+const bandera=p=>{p=(p||'').toUpperCase();const m={AR:'AR',UY:'UY',CL:'CL',BR:'BR',US:'US'};return m[p]||(p||'-');};
+async function api(ruta,opts){opts=opts||{};const sep=ruta.indexOf('?')>=0?'&':'?';const r=await fetch('/panel'+ruta+sep+'token='+encodeURIComponent(TOKEN),opts);return r.json();}
+let EST='DISPONIBLE';
+let SEL=new Set();
+let DATOS={filas:[],facetas:{},kpis:{}};
+function filtros(){
+  const f={estado:EST};
+  ['bin','zip','pais','banco','tipo','nivel','marca','red','refund','q','precio_min','precio_max'].forEach(k=>{
+    const el=document.getElementById('f_'+k);
+    if(el&&el.value)f[k]=el.value.trim();
+  });
+  f.offset=0;f.limite=100;return f;
+}
+function pintarFacetas(fac){
+  const cont=$('#facetas'); if(!cont)return;
+  const F=filtros();
+  const defs=[['bin','BIN'],['zip','ZIP'],['pais','Country'],['banco','Bank'],['tipo','Type'],['nivel','Level'],['marca','Brand'],['red','Network'],['refund','Refund']];
+  let html='';
+  defs.forEach(function(d){
+    const k=d[0],label=d[1];
+    const vals=(fac&&fac[k])||[];
+    html+='<div class="fac"><b>'+esc(label)+'</b>';
+    if(!vals.length){html+='<i>-</i>';}
+    vals.slice(0,30).forEach(function(v){
+      const on=(F[k]===String(v.valor))?' on':'';
+      html+='<span class="chip'+on+'" data-f="'+k+'" data-v="'+esc(v.valor)+'">'+esc(v.valor)+' ('+v.n+')</span>';
+    });
+    html+='</div>';
+  });
+  cont.innerHTML=html;
+}
+function pintarKpis(k){
+  const cont=$('#kpis'); if(!cont)return;
+  const items=[['Total',k.total],['Disponibles',k.disponible],['Reservadas',k.reservada],['Vendidas',k.vendida],['Saldo disp',moneda(k.saldo_disponible)]];
+  cont.innerHTML=items.map(function(it){return '<div class="kpi"><i>'+it[0]+'</i><b>'+esc(it[1])+'</b></div>';}).join('');
+}
+function fila(f){
+  const on=SEL.has(f.id)?' class="sel"':'';
+  return '<tr'+on+' data-id="'+f.id+'">'
+    +'<td><input type="checkbox" '+(SEL.has(f.id)?'checked':'')+' data-chk="'+f.id+'"></td>'
+    +'<td>'+esc(f.bin||'')+'</td>'
+    +'<td><code>'+esc(f.mascara||'')+'</code></td>'
+    +'<td>'+esc(bandera(f.pais))+' '+esc(f.pais||'')+'</td>'
+    +'<td>'+esc(f.banco||'')+'</td>'
+    +'<td>'+esc(f.tipo||'')+'</td>'
+    +'<td>'+esc(f.nivel||'')+'</td>'
+    +'<td>'+esc(f.zip||'')+'</td>'
+    +'<td>'+esc(moneda(f.saldo))+'</td>'
+    +'<td>'+esc(moneda(f.precio_num))+'</td>'
+    +'<td>'+esc(f.estado)+'</td>'
+    +'</tr>';
+}
+function pintarTabla(){
+  const t=$('#tabla tbody'); if(!t)return;
+  if(!DATOS.filas.length){t.innerHTML='<tr><td colspan="11">Sin resultados</td></tr>';return;}
+  t.innerHTML=DATOS.filas.map(fila).join('');
+  const sc=$('#selcount'); if(sc)sc.textContent=SEL.size?SEL.size+' seleccionadas':'';
+}
+async function cargar(){
+  const f=filtros();
+  const qs=Object.keys(f).map(function(k){return k+'='+encodeURIComponent(f[k]);}).join('&');
+  const d=await api('/datos?'+qs);
+  DATOS=d;
+  pintarKpis(d.kpis||{});
+  pintarFacetas(d.facetas||{});
+  pintarTabla();
+}
+async function accion(acc,extra){
+  const body={accion:acc,ids:Array.from(SEL)};
+  if(extra)Object.assign(body,extra);
+  return api('/accion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+}
+async function comprar(){
+  if(!SEL.size)return alert('Nada seleccionado');
+  const r=await api('/comprar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:Array.from(SEL)})});
+  alert('Compradas: '+(r.compradas==null?'?':r.compradas));
+  SEL.clear(); cargar();
+}
+document.addEventListener('click',async function(e){
+  const chip=e.target.closest('.chip');
+  if(chip){const el=document.getElementById('f_'+chip.dataset.f); el.value=(el.value===chip.dataset.v?'':chip.dataset.v); SEL.clear(); cargar(); return;}
+  const tab=e.target.closest('.tab');
+  if(tab){document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');}); tab.classList.add('on'); EST=tab.dataset.est; SEL.clear(); cargar(); return;}
+  const chk=e.target.closest('[data-chk]');
+  if(chk){const id=Number(chk.dataset.chk); if(chk.checked)SEL.add(id); else SEL.delete(id); pintarTabla(); return;}
+  const ac=e.target.closest('[data-acc]');
+  if(ac&&SEL.size){await accion(ac.dataset.acc); SEL.clear(); cargar();}
+});
+document.addEventListener('change',function(e){
+  if(e.target.id&&e.target.id.indexOf('f_')===0){SEL.clear(); cargar();}
+});
+const bc=$('#btncomprar'); if(bc)bc.onclick=comprar;
+const bl=$('#btnlimpiar'); if(bl)bl.onclick=function(){SEL.clear(); cargar();};
+cargar();
+setInterval(function(){ if(!document.hidden) cargar(); }, 15000);
+</script>
+</body>
+</html>

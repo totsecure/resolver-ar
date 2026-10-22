@@ -352,3 +352,25 @@ app.get('/bininfo/:bin', soloLectura, async (req, res) => {
   try { res.json(await binLookup(req.params.bin, { forzar: qs(req, 'forzar') === '1' })); }
   catch (e) { res.status(500).json({ error: String(e?.message || e) }); }
 });
+
+/* ------------------------------- PANEL WEB ------------------------------- */
+import { consulta as panelConsulta, comprar as panelComprar, accion as panelAccion, pendientes as outboxPendientes, marcar as outboxMarcar, migrar as panelMigrar } from './lib/panel.js';
+
+panelMigrar();
+
+app.get('/panel/datos', soloLectura, async (req, res) => {
+  try { res.json(await panelConsulta(req.query)); } catch (e) { res.status(500).json({ error: String(e?.message || e) }); }
+});
+app.get('/panel/accion', soloLectura, envolver((req) => panelAccion({ ...req.query, refs: qs(req, 'refs') })));
+app.post('/panel/comprar', soloLectura, envolver((req) => panelComprar({
+  refs: req.body?.refs || refsDe(qs(req, 'refs')),
+  cantidad: num(req.body?.cantidad || qs(req, 'cantidad', 1), 1),
+  bin: req.body?.bin || qs(req, 'bin'),
+  comprador: req.body?.comprador || qs(req, 'comprador'),
+  formato: req.body?.formato || qs(req, 'formato'),
+  chat_id: req.body?.chat_id || qs(req, 'chat_id') || process.env.TELEGRAM_ALLOW,
+  usuario: 'panel',
+})));
+app.get('/outbox/pendientes', soloLectura, (req, res) => res.json({ pendientes: outboxPendientes(qs(req, 'n')) }));
+app.post('/outbox/marcar', soloLectura, (req, res) => res.json({ ok: outboxMarcar(req.body?.id, req.body?.error) }));
+app.use('/panel', express.static(path.join(RAIZ, 'panel'), { extensions: ['html'] }));

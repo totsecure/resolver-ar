@@ -113,7 +113,8 @@ async function cmdBin(chat, args) {
   if (!bin) { await enviar(chat, 'Uso: /bin 516585'); return; }
   const j = await pedir('/stock/bin/' + bin);
   if (!j.texto) { await enviar(chat, 'Sin disponibles para BIN ' + bin); return; }
-  await enviarDoc(chat, 'bin-' + bin + '-' + fechaArchivo() + '.txt', j.texto + '\n', 'BIN ' + bin);
+  if (j.texto.length < 3400) await enviarPre(chat, j.texto);
+  else await enviarDoc(chat, 'bin-' + bin + '-' + fechaArchivo() + '.txt', j.texto + '\n', 'BIN ' + bin);
   const info = await pedir('/bininfo/' + bin);
   const desc = [info.marca, info.tipo, info.banco, info.pais].filter(Boolean).join(' · ');
   if (desc) await enviar(chat, 'BIN ' + bin + ': ' + esc(desc));
@@ -122,7 +123,8 @@ async function cmdBin(chat, args) {
 async function cmdFull(chat) {
   const j = await pedir('/stock/listado', { refs: '1' });
   if (!j.texto) { await enviar(chat, 'No hay CC disponibles.'); return; }
-  await enviarDoc(chat, 'stock-' + fechaArchivo() + '.txt', j.texto + '\n', 'Stock disponible (con #ref)');
+  if (j.texto.length < 3400) await enviarPre(chat, j.texto);
+  else await enviarDoc(chat, 'stock-' + fechaArchivo() + '.txt', j.texto + '\n', 'Stock disponible (con #ref)');
 }
 async function cmdCc(chat, args) {
   const ref = args[0];
@@ -234,7 +236,8 @@ async function cmdExportar(chat, args) {
   const formato = args[0] === 'txt' ? 'txt' : 'csv';
   const estado = args.map((a) => a.toUpperCase()).find((a) => ['DISPONIBLE', 'RESERVADA', 'VENDIDA', 'BAJA'].includes(a));
   const j = await pedir('/stock/exportar', { formato, estado });
-  await enviarDoc(chat, 'stock-' + fechaArchivo() + '.' + formato, (j.texto || '') + '\n', 'Export ' + formato + (estado ? ' ' + estado : ''));
+  if (j.texto.length < 3400) await enviarPre(chat, j.texto);
+  else await enviarDoc(chat, 'stock-' + fechaArchivo() + '.txt', j.texto + '\n', 'Stock disponible (con #ref)');
 }
 
 async function cmdAlertas(chat) {
@@ -377,3 +380,33 @@ async function pedirTelegram2(url, opciones, intentos = 3) {
   throw ultimo;
 }
 pedirTelegram = pedirTelegram2;
+
+let outboxOn=false;
+const outboxIntentos=new Map();
+async function revisarOutbox(){
+  let j;
+  try{ j=await pedir('/outbox/pendientes',{n:5}); }catch(_){ return; }
+  const lista=(j&&j.pendientes)||[];
+  for(const p of lista){
+    const chat=p.chat_id||process.env.TELEGRAM_ALLOW;
+    try{
+      if(p.tipo==='archivo') await enviarDoc(chat,p.nombre||'archivo.txt',p.contenido||'');
+      else await enviarPre(chat,p.contenido||'');
+      await pedir('/outbox/marcar',{},{id:p.id});
+      outboxIntentos.delete(p.id);
+      log('outbox enviado id='+p.id+' tipo='+p.tipo);
+    }catch(e){
+      const n=(outboxIntentos.get(p.id)||0)+1;
+      outboxIntentos.set(p.id,n);
+      log('outbox fallo id='+p.id+' intento='+n+': '+(e&&e.message?e.message:e));
+      if(n>=5){ try{ await pedir('/outbox/marcar',{},{id:p.id,error:String(e&&e.message?e.message:e)}); }catch(_){} outboxIntentos.delete(p.id); }
+    }
+  }
+}
+export function iniciarOutbox(ms){
+  if(outboxOn)return;
+  outboxOn=true;
+  setInterval(()=>{ revisarOutbox().catch(()=>{}); }, ms||3000);
+  log('outbox poller activo');
+}
+if(process.env.BOT_NO_OUTBOX!=='1') setTimeout(()=>iniciarOutbox(3000),5000);
