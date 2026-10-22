@@ -297,3 +297,9 @@ Atención: la doc de ARCA lista Actividad en 51/52 — es off-by-one; el layout
 2. Reintentar BCRA en un momento de 200 para validar el camino DISPONIBLE.
 3. Probar RENAPER con `node scripts/ficha.js <dni> --red` cuando el free tier
    esté despierto; la cache dura 365 días.
+
+## Stock de CC
+Inventario privado (datos/stock.db: cc + movs). Estados DISPONIBLE/RESERVADA/VENDIDA/BAJA.
+lib/stock.js (logica), lib/bininfo.js (BIN checker con cache), bot/stock.js (24 comandos).
+Endpoints /stock/* con token. Entrega: bloques con titulares del padron separados por 50 '='.
+Tras tocar lib/ o bot/: bash scripts/server.sh --force y bash scripts/bot.sh.

@@ -151,3 +151,12 @@ Variables (`deploy/.env.example`): `PORT=3001`, `RESOLVER_TOKEN=`,
 El test de ficha con cache inyecta en la tabla `renaper` el DNI `87654321` con
 `fechaNac=05/08/1979`, `nroTramite=9876543` y `direccion=AV TEST 123`. Es un
 fixture offline; no debe tomarse como dato real.
+
+## Stock de CC (hecho)
+- lib/stock.js, lib/bininfo.js, bot/stock.js, endpoints /stock/* y /bininfo/:bin.
+- Entrega en bloques con SEPARADOR de 50 '=' y archivo venta_<codigo>_completo.txt.
+- Backup diario en scripts/backup-stock.sh (enganchado en keepalive).
+## Pendiente
+- Probar en Telegram: /cargar, /stock, /vender, /reentrega, /devolver.
+- Definir moneda de los saldos (CLP?) y si /vender manda compacto por defecto.
+- Apelar GitHub o migrar el repo a Codeberg.
