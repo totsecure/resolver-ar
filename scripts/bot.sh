@@ -13,7 +13,7 @@ if [ -f datos/bot.env ]; then
 fi
 
 # Si ya hay un bot corriendo, matarlo antes de relanzar.
-pkill -f 'node bot/telegram.js' >/dev/null 2>&1 || true
+pkill -f '^node bot/telegram\.js$' >/dev/null 2>&1 || true
 sleep 1
 
 nohup node bot/telegram.js >> datos/bot.log 2>&1 &

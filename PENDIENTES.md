@@ -1,7 +1,32 @@
 # PENDIENTES — resolver-ar
 
-Actualizado: 2026-10-21. Todo lo que sigue espera a un tercero o a una acción
-humana; el código ya degrada solo.
+Actualizado: 2026-10-21. Lo que sigue espera a un tercero o a una acción humana;
+el código ya degrada solo.
+
+## 0. Plan de escalado (números reales)
+
+| fuente | techo / universo | modalidad real | estado hoy |
+|---|---|---|---|
+| **AFIP / ARCA** | **5.664.575** personas físicas | **TECHO CONFIRMADO.** AFIP solo publica dos archivos: el padrón con nombres (el que tenemos) y el mismo sin nombres. No hay bulk adicional ni forma legítima de superar ese techo. | completo en `datos/padron.db`; ~16 % de los electores |
+| **CNE (padrón electoral)** | **~35,4 M** de electores | **No hay bulk.** Hay que consultar por DNI; cada consulta pide captcha. El captcha puede o no ser reutilizable según el backend. Cache local con TTL 180 días. | `mode=end`, votación 26-10-2025, todos los distritos en `-1` |
+| **RENAPER** | **~46 M** de personas | **No hay bulk.** Requiere alta/credenciales por TAD y API. Consulta por DNI, con género. | solo simulador (`renaperservice.onrender.com`, 2 DNIs) |
+
+Órdenes de magnitud para dimensionar el scraping (sin contar captcha ni
+reintentos): 35,4 M a 1 consulta/s ≈ 410 días; a 10/s ≈ 41 días; a 100/s ≈ 4
+días. Para RENAPER, 46 M a 10/s ≈ 53 días. Cualquier estrategia masiva necesita
+respetar los términos del servicio, rate limits y la legalidad aplicable.
+
+Estrategia recomendada:
+
+1. **AFIP primero**: ya está completo; no re-scrapear. Es la fuente de identidad
+   y situación impositiva.
+2. **CNE** cuando reabra: encolar DNIs (empezando por los que no están en AFIP),
+   resolver captcha, cachear por DNI y reutilizar token/captcha si el backend lo
+   permite. Medir tasa de 503/401 antes de escalar.
+3. **RENAPER real** solo con alta por TAD y credenciales; misma cola y cache.
+4. **Unión de cobertura**: AFIP aporta identidad; CNE aporta domicilio/electoral;
+   RENAPER aporta nacimiento/trámite. No mezclar fuentes sin declarar
+   `fuente` por campo.
 
 ## 1. CNE — esperando que habiliten el captcha
 
@@ -19,11 +44,12 @@ votacion.instancia: -1
 dictamen        : SERVICIO CERRADO (mode=end, distritos deshabilitados)
 captcha.jpg     : HTTP 503, 3 intentos con 20 s -> 503 / 503 / 503
 consulta        : inutilizable sin captcha
-distritos       : 27, todos con estado -1 (no hay ninguno con estado > 0)
+distritos       : config actual con 27 distritos publicados, todos en -1;
+                  el padrón maneja 30 distritos electorales (ids hasta 31)
 ```
 
-**Comando exacto el día que abra** (DNI de prueba `23854064`, distrito `3` =
-Catamarca; si da 404, probar `2` = Buenos Aires, sexo `M`):
+**Comando exacto el día que abra** (DNI de prueba `23854064`, distrito `2` =
+Buenos Aires; si da 404, probar `3` = Catamarca, sexo `M`):
 
 ```bash
 # 1) config + dictamen
@@ -36,10 +62,10 @@ node scripts/cne.js captcha
 tesseract /tmp/cne-captcha.jpg stdout --psm 8
 
 # 4) consulta real
-node scripts/cne.js consultar 23854064 M 3 <CODIGO> <TOKEN>
-
-# 4b) si 404 (distrito incorrecto), reintentar con d=2
 node scripts/cne.js consultar 23854064 M 2 <CODIGO> <TOKEN>
+
+# 4b) si 404 (distrito incorrecto), reintentar con d=3
+node scripts/cne.js consultar 23854064 M 3 <CODIGO> <TOKEN>
 
 # 5) verificar cache
 node scripts/cne.js cache 23854064
@@ -48,7 +74,7 @@ node scripts/cne.js estado
 
 Si `tesseract` no está: `open /tmp/cne-captcha.jpg`, mirar el código a mano y
 usar el `token` que imprimió el paso 2. Si `config` muestra algún distrito con
-`estado = 0`, usar ese id en el paso 4 en lugar de 3.
+`estado = 0`, usar ese id en el paso 4 en lugar de 2.
 
 ## 2. RENAPER — contrato del SIMULADOR; el real sigue pendiente
 
@@ -56,7 +82,8 @@ usar el `token` que imprimió el paso 2. Si `config` muestra algún distrito con
 `GET /api/personas/{dni}?genero={M|F|X}` y header `X-API-Key`. Es un
 **SERVICIO SIMULADO** (`facuPonceGit/RenaperService`, UTN-FRT): solo tiene
 hardcodeados `30123456` (GOMEZ, MARIA, F) y `33456789` (PEREZ, JUAN, M).
-**No es RENAPER real.**
+**No es RENAPER real.** No hay bulk: el RENAPER real requiere alta por TAD y
+credenciales.
 
 El RENAPER real sigue pendiente **hasta que reabra el CNE** (padrón electoral).
 
@@ -74,25 +101,24 @@ El RENAPER real sigue pendiente **hasta que reabra el CNE** (padrón electoral).
 ```bash
 node scripts/ficha.js 30123456 --red
 node scripts/ficha.js 33456789 --red
-node scripts/verificar.js   # 18 OK / 0 FAIL, offline
+node scripts/verificar.js   # 29 OK / 0 FAIL, offline
 ```
 
-El RENAPER real se activa cuando el CNE reabra; hasta entonces esto valida el
-contrato y los tests offline.
+## 3. Túnel — activo con ngrok (dominio fijo) + Worker
 
-## 3. Túnel — activo con ngrok (dominio fijo)
-
-`https://action-early-pants.ngrok-free.dev` → `localhost:3001`.
+- ngrok: `https://action-early-pants.ngrok-free.dev` → `localhost:3001`.
+- Worker: `https://resolver-api.correonube.workers.dev` → ngrok.
 
 ```bash
 cd /Users/bunker/resolver
 bash scripts/tunel.sh
 cat datos/tunel.url
-curl -s "https://action-early-pants.ngrok-free.dev/health?token=resolver2026"
+curl -s "https://resolver-api.correonube.workers.dev/health?token=resolver2026"
 ```
 
 - URL fija: `datos/tunel.url`.
-- `scripts/tunel.sh` reinicia el agente ngrok y verifica 200 en 30 s.
+- `scripts/tunel.sh` asegura el server y reinicia el agente ngrok; verifica 200
+  en 30 s.
 - Keepalive:
   `nohup bash scripts/keepalive.sh >> datos/keepalive.log 2>&1 &`
 - Requiere `ngrok config add-authtoken <token>` una vez (ya configurado).
@@ -108,7 +134,7 @@ humano defina el dominio real en `deploy/Caddyfile`, cargue
 # systemd
 sudo bash deploy/deploy.sh
 
-# Docker (la DB va por volumen, no en la imagen)
+# Docker
 docker build -f deploy/Dockerfile -t resolver-ar .
 docker run -p 3001:3001 -e RESOLVER_TOKEN=secreto \
   -v /opt/resolver/datos:/app/datos resolver-ar
@@ -122,6 +148,6 @@ Variables (`deploy/.env.example`): `PORT=3001`, `RESOLVER_TOKEN=`,
 
 ## 5. Fixture de test (no es una persona real)
 
-El test 18 inyecta en la tabla `renaper` el DNI `87654321` con
-`fechaNac=05/08/1979`, `nroTramite=9876543` y `direccion=AV TEST 123`.
-Es un fixture offline; no debe tomarse como dato real.
+El test de ficha con cache inyecta en la tabla `renaper` el DNI `87654321` con
+`fechaNac=05/08/1979`, `nroTramite=9876543` y `direccion=AV TEST 123`. Es un
+fixture offline; no debe tomarse como dato real.

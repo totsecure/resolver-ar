@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* verificar.js — tests OFFLINE de resolver-ar (28).
+/* verificar.js — tests OFFLINE de resolver-ar (29).
  *
  * No usa red: el endpoint del CNE esta caido (HAProxy sin backends -> captcha 503)
  * y RENAPER es un free tier que puede dormir.
@@ -19,7 +19,9 @@ import * as renaper from '../lib/renaper.js';
 import { enriquecerPersona } from '../lib/enriquecer.js';
 import { calcular } from '../lib/cobertura.js';
 import { ficha, fichaDetalle } from '../lib/ficha.js';
-import { generarLote } from '../lib/lote.js';
+import { armarBloque, generarLote, seleccionarTitulares } from '../lib/lote.js';
+import { resolver } from '../lib/resolver.js';
+import { renderizar } from '../lib/informe.js';
 import { normalizarDni, parsearMensaje } from '../bot/telegram.js';
 import { asegurarPool, sembrarPool, elegirDelPool } from './pool.js';
 import {
@@ -419,6 +421,46 @@ const tests = [
     assert(new Set(saltados).size === 3, 'DNIs repetidos en saltar=100: ' + saltados.join(','));
     const repetidos = saltados.filter((d) => base.includes(d));
     assert(repetidos.length === 0, 'repite DNIs: ' + repetidos.join(','));
+  }],
+
+  ['sinteticos unificados: mismo DNI => mismo mail y telefono en ficha/informe/lote/titulares', async () => {
+    const db = new DatabaseSync(RUTA_DB);
+    try {
+      const titulares = seleccionarTitulares(db, { cantidad: 3, saltar: 0 });
+      const dnis = titulares.map((t) => t.dni);
+      assert(dnis.join(',') === '30756789,39466006,06219380', 'primeros DNIs: ' + dnis.join(','));
+
+      const lote = generarLote(CARDS_LOTE, { desde: 1, saltar: 0 });
+      const bloquesLote = lote.split(/\n\n(?=TARJETA #\d+\n)/);
+      const bloquesTitulares = titulares.map((t) => armarBloque(t, null, null));
+
+      const extraer = (texto) => {
+        const mail = String(texto).match(/^MAIL\s+(.+)$/m)?.[1]?.trim() || null;
+        const telefono = String(texto).match(/^TELEFONO\s+(.+)$/m)?.[1]?.trim() || null;
+        return { mail, telefono, digitos: String(telefono ?? '').replace(/\D/g, '') };
+      };
+
+      for (let i = 0; i < dnis.length; i++) {
+        const dni = dnis[i];
+        const ficha = extraer((await fichaDetalle(dni, { red: false })).texto);
+        const informe = extraer(renderizar(resolver(db, dni), null));
+        const loteBloque = extraer(bloquesLote[i]);
+        const titularBloque = extraer(bloquesTitulares[i]);
+
+        assert(ficha.mail, dni + ': ficha sin mail');
+        assert(ficha.digitos, dni + ': ficha sin telefono');
+        for (const [origen, valor] of [
+          ['informe', informe], ['lote', loteBloque], ['titulares', titularBloque],
+        ]) {
+          assert(valor.mail === ficha.mail,
+            dni + ': mail distinto en ' + origen + ' (' + valor.mail + ' != ' + ficha.mail + ')');
+          assert(valor.digitos === ficha.digitos,
+            dni + ': telefono distinto en ' + origen + ' (' + valor.digitos + ' != ' + ficha.digitos + ')');
+        }
+      }
+    } finally {
+      db.close();
+    }
   }],
 
   ['normaliza DNI con puntos, espacios, 7/8 y basura', () => {

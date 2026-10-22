@@ -4,48 +4,50 @@
 #   Internet -> https://action-early-pants.ngrok-free.dev -> localhost:3001
 #
 # El agente ngrok reconecta solo. keepalive.sh lo vigila y relanza este script
-# si el local o el publico dejan de responder.
+# si el local o el publico dejan de responder. El server se arranca con
+# scripts/server.sh (entorno de datos/server.env), nunca con env hardcodeado.
 set -uo pipefail
 
 RAIZ="/Users/bunker/resolver"
-TOKEN="resolver2026"
-PUERTO="3001"
 URL="https://action-early-pants.ngrok-free.dev"
 
 cd "$RAIZ" || { echo "ERROR: no existe $RAIZ"; exit 1; }
 mkdir -p datos
 
+if [ -f datos/server.env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . datos/server.env
+  set +a
+fi
+PUERTO="${PORT:-3001}"
+TOKEN="${RESOLVER_TOKEN:-resolver2026}"
+
 echo "== tunel.sh $(date '+%Y-%m-%d %H:%M:%S') =="
 
 echo "[1/4] chequeando server local..."
-CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:${PUERTO}/health" 2>/dev/null || true)
-if [ -z "$CODE" ] || [ "$CODE" = "000" ]; then
-  echo "  server no responde, arrancando con RESOLVER_TOKEN=${TOKEN}..."
-  RESOLVER_TOKEN="$TOKEN" nohup node server.js >> datos/server.log 2>&1 &
-  FIN=$((SECONDS + 15))
-  while [ "$SECONDS" -lt "$FIN" ]; do
-    CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "http://localhost:${PUERTO}/health" 2>/dev/null || true)
-    if [ -n "$CODE" ] && [ "$CODE" != "000" ]; then break; fi
-    sleep 1
-  done
-  if [ -z "$CODE" ] || [ "$CODE" = "000" ]; then
-    echo "  ERROR: el server no respondio en 15s. Ver datos/server.log"
+CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+  "http://localhost:${PUERTO}/health?token=${TOKEN}" 2>/dev/null || true)
+if [ -z "$CODE" ] || [ "$CODE" != "200" ]; then
+  echo "  server no responde (http=${CODE:-000}), arrancando scripts/server.sh..."
+  bash scripts/server.sh || {
+    echo "  ERROR: el server no arranco. Ver datos/server.log"
     tail -20 datos/server.log 2>/dev/null || true
     exit 1
-  fi
-  echo "  server OK (http=${CODE})"
+  }
 else
   echo "  server ya responde (http=${CODE}); no se reinicia"
 fi
 
 echo "[2/4] cerrando ngrok previo..."
-pkill -f 'ngrok http 3001' >/dev/null 2>&1 || true
+pkill -f '^ngrok http' >/dev/null 2>&1 || true
 sleep 1
 
 echo "[3/4] arrancando ngrok..."
 : > datos/tunel.log
 nohup ngrok http "$PUERTO" --url="$URL" >> datos/tunel.log 2>&1 &
 NGROK_PID=$!
+echo "$NGROK_PID" > datos/tunel.pid
 echo "  ngrok pid=$NGROK_PID"
 
 echo "[4/4] esperando health publico (hasta 30s)..."
@@ -53,9 +55,10 @@ JSON=""
 PUBLICO_OK=0
 FIN=$((SECONDS + 30))
 while [ "$SECONDS" -lt "$FIN" ]; do
-  JSON=$(curl -s --max-time 3 "${URL}/health?token=${TOKEN}" 2>/dev/null || true)
+  JSON=$(curl -s --max-time 3 -H 'ngrok-skip-browser-warning: 1' \
+    "${URL}/health?token=${TOKEN}" 2>/dev/null || true)
   case "$JSON" in
-    *'"ok"'*) PUBLICO_OK=1; break ;;
+    *'"ok":true'*) PUBLICO_OK=1; break ;;
   esac
   sleep 1
 done
