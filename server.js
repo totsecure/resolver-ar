@@ -7,6 +7,7 @@ import { renderizar } from './lib/informe.js';
 import { consultarBcra } from './lib/fuentes.js';
 import { fichaDetalle } from './lib/ficha.js';
 import { calcular as calcularCobertura } from './lib/cobertura.js';
+import { armarBloque, generarLote, parsearCards, seleccionarTitulares } from './lib/lote.js';
 
 const VERSION = '1.0.0';
 const PUERTO = Number(process.env.PORT || 3001);
@@ -91,6 +92,46 @@ app.get('/ficha/:dni', soloLectura, async (q, s) => {
     const red = q.query.red === '1';
     const { texto } = await fichaDetalle(q.params.dni, { genero, red });
     s.type('text/plain').send(texto + '\n');
+  } catch (e) {
+    s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
+  }
+});
+
+app.get('/lote', soloLectura, (q, s) => {
+  try {
+    if (q.query.cards === undefined || String(q.query.cards).trim() === '') {
+      return s.status(400).type('text/plain').send('ERROR: falta cards\n');
+    }
+
+    const lista = parsearCards(q.query.cards);
+    const desde = Number.parseInt(q.query.desde, 10);
+    const saltar = Number.parseInt(q.query.saltar, 10);
+    const titulares = seleccionarTitulares(db, {
+      cantidad: lista.length,
+      saltar: Number.isFinite(saltar) && saltar >= 0 ? saltar : 0,
+    });
+
+    const texto = generarLote(lista, {
+      desde: Number.isFinite(desde) ? desde : 1,
+      titulares,
+    });
+    s.type('text/plain').send(texto ? texto + '\n' : '');
+  } catch (e) {
+    s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
+  }
+});
+
+app.get('/titulares', soloLectura, (q, s) => {
+  try {
+    const n = Number.parseInt(q.query.n, 10);
+    const saltar = Number.parseInt(q.query.saltar, 10);
+    const titulares = seleccionarTitulares(db, {
+      cantidad: Number.isFinite(n) && n >= 0 ? n : 10,
+      saltar: Number.isFinite(saltar) && saltar >= 0 ? saltar : 0,
+    });
+
+    const texto = titulares.map((t) => armarBloque(t, null, null)).join('\n\n');
+    s.type('text/plain').send(texto ? texto + '\n' : '');
   } catch (e) {
     s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
   }

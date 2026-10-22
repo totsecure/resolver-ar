@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* verificar.js — tests OFFLINE de resolver-ar (24).
+/* verificar.js — tests OFFLINE de resolver-ar (27).
  *
  * No usa red: el endpoint del CNE esta caido (HAProxy sin backends -> captcha 503)
  * y RENAPER es un free tier que puede dormir.
@@ -19,6 +19,7 @@ import * as renaper from '../lib/renaper.js';
 import { enriquecerPersona } from '../lib/enriquecer.js';
 import { calcular } from '../lib/cobertura.js';
 import { ficha, fichaDetalle } from '../lib/ficha.js';
+import { generarLote } from '../lib/lote.js';
 import { normalizarDni, parsearMensaje } from '../bot/telegram.js';
 import { asegurarPool, sembrarPool, elegirDelPool } from './pool.js';
 import {
@@ -31,6 +32,16 @@ const RUTA_FIXTURE = path.join(RAIZ, 'tests', 'fixture-cne.json');
 const RUTA_FIXTURE_RENAPER = path.join(RAIZ, 'tests', 'fixture-renaper.json');
 const PERSONA = { nombre: 'JUAN', apellido: 'PEREZ', provincia: 'CORDOBA' };
 const DNI = '3348';
+const CARDS_LOTE = [
+  '5456123412341234%7C11%7C25%7C575',
+  '5456 1234 5678 9010|12|26|123',
+  '5456123412341236|01|27|456',
+];
+const TITULARES_DEMO = [
+  { dni: '3348', apellido: 'PEREZ', nombre: 'JUAN' },
+  { dni: '30756789', apellido: 'BUCCINO', nombre: 'HERNAN CESAR GONZALO' },
+  { dni: '39466006', apellido: 'GOMEZ', nombre: 'NALE MARINA' },
+];
 
 const AREAS_CORDOBA = ['351', '352', '353', '3541', '3543', '3571', '358'];
 const PATRONES_ESPERADOS = ['nombre.apellido', 'nombreapellido', 'nombre.apellido##', 'inicial+apellido', 'nombre###'];
@@ -364,6 +375,43 @@ const tests = [
     assert(fuentes.TITULAR === 'AUSENTE', 'TITULAR fuente=' + fuentes.TITULAR);
     assert(fuentes['NRO TRAMITE'] === 'REAL_RENAPER', 'NRO TRAMITE fuente=' + fuentes['NRO TRAMITE']);
     assert(fuentes['FECHA NAC'] === 'REAL_RENAPER', 'FECHA NAC fuente=' + fuentes['FECHA NAC']);
+  }],
+
+  ['lote: 3 tarjetas devuelven 3 bloques numerados desde 1', () => {
+    const texto = generarLote(CARDS_LOTE, { desde: 1 });
+    const bloques = texto.split(/\n\n(?=TARJETA #\d+\n)/);
+    assert(bloques.length === 3, 'bloques=' + bloques.length);
+    bloques.forEach((bloque, i) => {
+      assert(bloque.startsWith('TARJETA #' + (i + 1) + '\n'), 'cabecera del bloque ' + (i + 1) + ': ' + bloque.split('\n')[0]);
+      assert(bloque.includes('\nDATOS TITULAR\n'), 'bloque ' + (i + 1) + ' sin DATOS TITULAR');
+      assert(bloque.includes('\nDATOS TARJETA\n'), 'bloque ' + (i + 1) + ' sin DATOS TARJETA');
+      assert(/^DNI \d{8}$/m.test(bloque), 'bloque ' + (i + 1) + ' con DNI invalido');
+      assert(/^NRO TRAMITE \d{11}$/m.test(bloque), 'bloque ' + (i + 1) + ' con tramite invalido');
+      assert(/^FECHA NAC \d{2}\/\d{2}\/\d{4}$/m.test(bloque), 'bloque ' + (i + 1) + ' con fecha invalida');
+      assert(/^VENCIMIENTO \d{2}\/\d{2}$/m.test(bloque), 'bloque ' + (i + 1) + ' con vencimiento invalido');
+      assert(/^CODIGO \d{3}$/m.test(bloque), 'bloque ' + (i + 1) + ' con codigo invalido');
+    });
+  }],
+
+  ['lote: desde=51 numera desde 51', () => {
+    const texto = generarLote(CARDS_LOTE, { desde: 51, titulares: TITULARES_DEMO });
+    const cabeceras = texto.match(/^TARJETA #\d+$/gm) || [];
+    assert(cabeceras.length === 3, 'cabeceras=' + cabeceras.length);
+    assert(cabeceras[0] === 'TARJETA #51', 'primera cabecera: ' + cabeceras[0]);
+    assert(cabeceras[1] === 'TARJETA #52', 'segunda cabecera: ' + cabeceras[1]);
+    assert(cabeceras[2] === 'TARJETA #53', 'tercera cabecera: ' + cabeceras[2]);
+  }],
+
+  ['lote: saltar=100 no repite DNIs contra saltar=0', () => {
+    const dnis = (texto) => (texto.match(/^DNI (\d{8})$/gm) || []).map((l) => l.slice(4));
+    const base = dnis(generarLote(CARDS_LOTE, { desde: 1, saltar: 0 }));
+    const saltados = dnis(generarLote(CARDS_LOTE, { desde: 1, saltar: 100 }));
+    assert(base.length === 3, 'base=' + base.length);
+    assert(saltados.length === 3, 'saltados=' + saltados.length);
+    assert(new Set(base).size === 3, 'DNIs repetidos en saltar=0: ' + base.join(','));
+    assert(new Set(saltados).size === 3, 'DNIs repetidos en saltar=100: ' + saltados.join(','));
+    const repetidos = saltados.filter((d) => base.includes(d));
+    assert(repetidos.length === 0, 'repite DNIs: ' + repetidos.join(','));
   }],
 
   ['normaliza DNI con puntos, espacios, 7/8 y basura', () => {
