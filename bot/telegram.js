@@ -15,7 +15,6 @@ import dns from 'node:dns';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import * as pathResolver from 'path';
 
 import { fichaDetalle } from '../lib/ficha.js';
 import { asegurarPool, sembrarPool, elegirDelPool, randomAfip } from '../scripts/pool.js';
@@ -23,7 +22,8 @@ import {
   buscarPorPrefijo, ambiguedades, buscarPorCuit, basico,
   formatearCuit, cuitsPorDni,
 } from '../lib/padron.js';
-import { armarBloque, generarLote, seleccionarTitulares, parsearCards } from '../lib/lote.js';
+import { generarLotePaginado } from '../lib/lote.js';
+import { parsearTarjetas } from '../lib/parse-tarjetas.js';
 
 /* Preferir IPv4: en esta red el AAAA de Telegram a veces cuelga. */
 dns.setDefaultResultOrder('ipv4first');
@@ -38,7 +38,7 @@ const HELP = [
   '<b>resolver-ar</b>',
   'Mandame un DNI de 7 u 8 digitos y te devuelvo la ficha.',
   '',
-  '/lote - genera un lote de tarjetas (usa items del padron)',
+  '/lote - arma bloques desde lineas numero|MM|YY|CVV (o un .txt)',
   '/nombre &lt;texto&gt; - buscar por apellido o nombre',
   '/cuit &lt;cuit&gt; - consulta inversa por CUIT',
   '/basico &lt;dni&gt; - apellido, nombre, DNI, CUIT, CUIL, sexo, nacionalidad',
@@ -50,6 +50,7 @@ const HELP = [
 ].join('\n');
 
 const busquedas = new Map();
+const lotesPendientes = new Set();
 let seqBusqueda = 0;
 
 function tokenBusqueda(texto) {
@@ -189,16 +190,115 @@ function enviar(chatId, texto, extra = {}) {
   });
 }
 
-async function enviarDocumento(chatId, texto, nombreArchivo, metodo) {
-  return api(metodo, {
-    chat_id: chatId,
-    document: {
-      source: 'file',
-      filename: nombreArchivo,
-      mimeType: 'text/plain',
-    },
-    caption: texto,
-  });
+async function enviarDocumento(chatId, nombreArchivo, contenido, caption = '') {
+  const url = `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendDocument`;
+  let ultimo = null;
+
+  for (let intento = 1; intento <= 3; intento++) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 60000);
+    try {
+      const form = new FormData();
+      form.append('chat_id', String(chatId));
+      if (caption) form.append('caption', caption);
+      form.append(
+        'document',
+        new Blob([contenido], { type: 'text/plain; charset=utf-8' }),
+        nombreArchivo
+      );
+      const r = await fetch(url, { method: 'POST', body: form, signal: ctrl.signal });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.ok) {
+        throw new Error(`telegram sendDocument http=${r.status} ${j?.description || ''}`.trim());
+      }
+      return j.result;
+    } catch (e) {
+      ultimo = e;
+      if (intento < 3) await sleep(2000);
+    } finally {
+      clearTimeout(t);
+    }
+  }
+  throw ultimo || new Error('telegram sendDocument: sin intentos');
+}
+
+async function descargarDocumento(fileId) {
+  const f = await api('getFile', { file_id: fileId });
+  if (!f?.file_path) throw new Error('telegram getFile sin file_path');
+  const url = `https://api.telegram.org/file/bot${process.env.TELEGRAM_TOKEN}/${f.file_path}`;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 60000);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    if (!r.ok) throw new Error(`descarga http=${r.status}`);
+    return await r.text();
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function fechaArchivo() {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/* Manda texto largo en partes, siempre dentro de <pre>. */
+async function enviarPrePartes(chatId, texto, cabecera = '') {
+  const lineas = String(texto ?? '').split('\n');
+  let parte = cabecera;
+  for (const linea of lineas) {
+    const candidato = parte ? `${parte}\n${linea}` : linea;
+    if (candidato.length > 3500 && parte) {
+      await enviar(chatId, '<pre>' + escapeHtml(parte) + '</pre>');
+      parte = linea;
+    } else {
+      parte = candidato;
+    }
+  }
+  if (parte.trim()) await enviar(chatId, '<pre>' + escapeHtml(parte) + '</pre>');
+}
+
+function sobrantesUnicos(lista) {
+  const vistos = new Set();
+  const out = [];
+  for (const s of lista) {
+    const t = String(s ?? '').trim();
+    if (!t || vistos.has(t)) continue;
+    vistos.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
+async function responderLote(chatId, entrada, origen = 'texto') {
+  const { tarjetas, sobrantes } = parsearTarjetas(entrada);
+  log(`chat=${chatId} /lote origen=${origen} tarjetas=${tarjetas.length} sobrantes=${sobrantes.length}`);
+
+  if (!tarjetas.length) {
+    await enviar(chatId, 'No encontre numeros de tarjeta. Formato: <code>numero|MM|YY|CVV</code>, uno por linea o separados por coma.');
+    const lista = sobrantesUnicos(sobrantes);
+    if (lista.length) await enviarPrePartes(chatId, lista.join('\n'), `Sobrantes (${lista.length}):`);
+    return;
+  }
+
+  /* Paginas de 100 titulares con saltar incremental: no se repiten. */
+  const cuerpo = generarLotePaginado(tarjetas, { desde: 1, saltar: 0, pagina: 100 });
+  if (!cuerpo) {
+    await enviar(chatId, 'No se pudo generar el lote.');
+    return;
+  }
+
+  const nombreArchivo = `lote-${fechaArchivo()}.txt`;
+  await enviarDocumento(chatId, nombreArchivo, cuerpo, `Lote: ${tarjetas.length} bloque(s)`);
+
+  if (tarjetas.length <= 10) {
+    await enviarPrePartes(chatId, cuerpo);
+  }
+
+  const lista = sobrantesUnicos(sobrantes);
+  if (lista.length) {
+    await enviarPrePartes(chatId, lista.join('\n'), `Sobrantes (${lista.length}):`);
+  }
 }
 
 function editar(chatId, messageId, texto, extra = {}) {
@@ -309,6 +409,35 @@ async function procesarCallback(cq, db) {
   });
 }
 
+async function procesarDocumento(msg) {
+  const chatId = msg.chat?.id;
+  if (!permitido(chatId)) {
+    log(`chat=${chatId} documento ignorado (fuera de TELEGRAM_ALLOW)`);
+    return;
+  }
+
+  const doc = msg.document;
+  const nombre = String(doc?.file_name || '');
+  const mime = String(doc?.mime_type || '');
+  if (!/\.txt$/i.test(nombre) && mime !== 'text/plain') {
+    await enviar(chatId, 'Mandame un archivo <b>.txt</b> con las lineas de tarjetas.');
+    return;
+  }
+  if (Number(doc?.file_size) > 10 * 1024 * 1024) {
+    await enviar(chatId, 'El archivo es demasiado grande (maximo 10 MB).');
+    return;
+  }
+
+  lotesPendientes.delete(String(chatId));
+  try {
+    const contenido = await descargarDocumento(doc.file_id);
+    await responderLote(chatId, contenido, 'documento');
+  } catch (e) {
+    log(`chat=${chatId} ERROR documento: ${e?.message || e}`);
+    await enviar(chatId, 'No pude descargar el archivo.');
+  }
+}
+
 async function procesarUpdate(update, db) {
   if (update?.callback_query) {
     await procesarCallback(update.callback_query, db);
@@ -316,13 +445,19 @@ async function procesarUpdate(update, db) {
   }
 
   const msg = update?.message;
-  if (!msg || typeof msg.text !== 'string') return;
+  if (!msg) return;
 
   const chatId = msg.chat?.id;
   if (!permitido(chatId)) {
     log(`chat=${chatId} ignorado (fuera de TELEGRAM_ALLOW)`);
     return;
   }
+
+  if (msg.document) {
+    await procesarDocumento(msg);
+    return;
+  }
+  if (typeof msg.text !== 'string') return;
 
   const p = parsearMensaje(msg.text);
 
@@ -349,80 +484,20 @@ async function procesarUpdate(update, db) {
       return;
     }
     if (p.cmd === 'lote') {
-      const textoEntrada = p.args.join(' ').trim() || '';
-      
-      if (!textoEntrada) {
-        await enviar(chatId, 'Uso: /lote &lt;numero|MM|YY|CVV o nombre.txt&gt; o adjuntar nombre.txt');
+      const payload = String(msg.text).replace(/^\/lote(?:@\w+)?\s*/i, '').trim();
+      if (!payload) {
+        lotesPendientes.add(String(chatId));
+        await enviar(chatId, [
+          'Mandame las lineas de tarjetas o un archivo <b>.txt</b>.',
+          'Formato: <code>numero|MM|YY|CVV</code>, una por linea o separadas por coma.',
+        ].join('\n'));
         return;
       }
-      
-      // Verificar si es un archivo
-      if (textoEntrada.endsWith('.txt')) {
-        const rutaArchivo = pathResolver.join(RAIZ, 'datos', textoEntrada);
-        try {
-          const contenido = fs.readFileSync(rutaArchivo, 'utf8');
-          const lista = parsearCards(contenido);
-          
-          if (lista.length === 0) {
-            await enviar(chatId, 'No se encontraron tarjetas válidas en el archivo.');
-            return;
-          }
-          
-          // Generar nombre de archivo
-          const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-          const nombreArchivo = `lote-${fecha}.txt`;
-          
-          // Generar el lote
-          const titulares = seleccionarTitulares(db, { cantidad: lista.length, saltar: 0 });
-          const textoLote = generarLote(lista, { desde: 1, titulares });
-          
-          if (!textoLote) {
-            await enviar(chatId, 'No se pudo generar el lote.');
-            return;
-          }
-          
-          if (lista.length <= 10) {
-            await enviar(chatId, `<pre>${textoLote}</pre>`);
-          }
-          await enviarDocumento(chatId, `Genere ${lista.length} tarjetas`, nombreArchivo, 'sendDocument');
-          
-          log(`chat=${chatId} /lote archivo=${textoEntrada} cantidad=${lista.length}`);
-          return;
-        } catch (e) {
-          await enviar(chatId, `Error al leer el archivo: ${e.message}`);
-          return;
-        }
-      }
-      
-      // Procesar texto crudo
-      const lista = parsearCards(textoEntrada);
-      
-      if (lista.length === 0) {
-        await enviar(chatId, 'No se encontraron tarjetas válidas. Usá formato: numero|MM|YY|CVV o numeros separados por ;');
-        return;
-      }
-      
-      // Generar nombre de archivo
-      const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const nombreArchivo = `lote-${fecha}.txt`;
-      
-      // Generar el lote (paginación para lotes grandes)
-      const titulares = seleccionarTitulares(db, { cantidad: lista.length, saltar: 0 });
-      const textoLote = generarLote(lista, { desde: 1, titulares });
-      
-      if (!textoLote) {
-        await enviar(chatId, 'No se pudo generar el lote.');
-        return;
-      }
-      
-      if (lista.length <= 10) {
-        await enviar(chatId, `<pre>${textoLote}</pre>`);
-      }
-      await enviarDocumento(chatId, `Genere ${lista.length} tarjetas`, nombreArchivo, 'sendDocument');
-      
-      log(`chat=${chatId} /lote texto cantidad=${lista.length}`);
+      lotesPendientes.delete(String(chatId));
+      await responderLote(chatId, payload, 'comando');
       return;
     }
+    lotesPendientes.delete(String(chatId));
     if (p.cmd === 'nombre') {
       const texto = p.args.join(' ').trim();
       if (!texto) {
@@ -494,6 +569,11 @@ async function procesarUpdate(update, db) {
     }
     log(`chat=${chatId} comando desconocido=${p.cmd}`);
     await enviar(chatId, HELP);
+    return;
+  }
+
+  if (lotesPendientes.delete(String(chatId))) {
+    await responderLote(chatId, msg.text, 'pendiente');
     return;
   }
 
