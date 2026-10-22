@@ -42,7 +42,7 @@ async function enviarDoc(chat, nombre, contenido, caption = '') {
   form.append('chat_id', String(chat));
   if (caption) form.append('caption', caption);
   form.append('document', new Blob([contenido], { type: 'text/plain; charset=utf-8' }), nombre);
-  const r = await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_TOKEN + '/sendDocument', { method: 'POST', body: form });
+  const r = await pedirTelegram('https://api.telegram.org/bot' + process.env.TELEGRAM_TOKEN + '/sendDocument', { method: 'POST', body: form });
   const j = await r.json().catch(() => null);
   if (!r.ok || !j || !j.ok) throw new Error('sendDocument ' + (j?.description || r.status));
 }
@@ -304,3 +304,76 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
   }
   return true;
 }
+
+async function pedirTelegram(url, opciones, intentos = 3) {
+  let ultimo = null;
+  for (let i = 1; i <= intentos; i  ) {
+    try {
+      const r = await fetch(url, opciones);
+      if (r.status >= 500 && i < intentos) { await new Promise((res) => setTimeout(res, 2000)); continue; }
+      return r;
+    } catch (e) {
+      ultimo = e;
+      if (i < intentos) await new Promise((res) => setTimeout(res, 2000));
+    }
+  }
+  throw ultimo || new Error('telegram sin respuesta');
+}
+
+async function apiFirme(metodo, params, intentos = 3) {
+  let ultimo = null;
+  for (let i = 1; i <= intentos; i  ) {
+    try { return await api(metodo, params); }
+    catch (e) {
+      ultimo = e;
+      if (i < intentos) await new Promise((res) => setTimeout(res, 2000));
+    }
+  }
+  throw ultimo;
+}
+
+api = apiFirme;
+
+const conTimeout = async (fn, ms) => {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try { return await fn(ctrl.signal); } finally { clearTimeout(t); }
+};
+
+async function pedirFirme(ruta, params = {}, cuerpo = null) {
+  return conTimeout(async (signal) => {
+    const q = new URLSearchParams({ token: process.env.RESOLVER_TOKEN || '', ...params });
+    const opciones = { method: cuerpo ? 'POST' : 'GET', signal };
+    if (cuerpo) { opciones.headers = { 'content-type': 'application/json' }; opciones.body = JSON.stringify(cuerpo); }
+    const r = await fetch(baseUrl() + ruta + '?' + q, opciones);
+    const texto = await r.text();
+    try { return JSON.parse(texto); } catch (_) { return { error: texto.slice(0, 300) }; }
+  }, 25000);
+}
+pedir = pedirFirme;
+
+async function apiFirme2(metodo, params, intentos = 3) {
+  let ultimo = null;
+  for (let i = 1; i <= intentos; i  ) {
+    try {
+      return await conTimeout(async (signal) => {
+        const r = await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_TOKEN + '/' + metodo, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(params), signal });
+        const j = await r.json().catch(() => null);
+        if (!r.ok || !j || !j.ok) throw new Error('telegram ' + metodo + ' ' + (j?.description || r.status));
+        return j.result;
+      }, 20000);
+    } catch (e) { ultimo = e; if (i < intentos) await new Promise((r) => setTimeout(r, 2000)); }
+  }
+  throw ultimo;
+}
+api = apiFirme2;
+
+async function pedirTelegram2(url, opciones, intentos = 3) {
+  let ultimo = null;
+  for (let i = 1; i <= intentos; i  ) {
+    try { return await conTimeout((signal) => fetch(url, { ...opciones, signal }), 60000); }
+    catch (e) { ultimo = e; if (i < intentos) await new Promise((r) => setTimeout(r, 2000)); }
+  }
+  throw ultimo;
+}
+pedirTelegram = pedirTelegram2;
