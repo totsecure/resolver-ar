@@ -303,3 +303,9 @@ Inventario privado (datos/stock.db: cc + movs). Estados DISPONIBLE/RESERVADA/VEN
 lib/stock.js (logica), lib/bininfo.js (BIN checker con cache), bot/stock.js (24 comandos).
 Endpoints /stock/* con token. Entrega: bloques con titulares del padron separados por 50 '='.
 Tras tocar lib/ o bot/: bash scripts/server.sh --force y bash scripts/bot.sh.
+
+## Stock de CC
+Inventario privado (datos/stock.db: cc + movs). Estados DISPONIBLE/RESERVADA/VENDIDA/BAJA.
+lib/stock.js (logica), lib/bininfo.js (BIN checker con cache), bot/stock.js (24 comandos).
+Endpoints /stock/* con token. Entrega: bloques con titulares del padron separados por 50 '='.
+Tras tocar lib/ o bot/: bash scripts/server.sh --force y bash scripts/bot.sh.
