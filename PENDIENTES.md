@@ -169,3 +169,12 @@ fixture offline; no debe tomarse como dato real.
 - Probar en Telegram: /cargar, /stock, /vender, /reentrega, /devolver.
 - Definir moneda de los saldos (CLP?) y si /vender manda compacto por defecto.
 - Apelar GitHub o migrar el repo a Codeberg.
+
+## Stock de CC (hecho)
+- lib/stock.js, lib/bininfo.js, bot/stock.js, endpoints /stock/* y /bininfo/:bin.
+- Entrega en bloques con SEPARADOR de 50 '=' y archivo venta_<codigo>_completo.txt.
+- Backup diario en scripts/backup-stock.sh (enganchado en keepalive).
+## Pendiente
+- Probar en Telegram: /cargar, /stock, /vender, /reentrega, /devolver.
+- Definir moneda de los saldos (CLP?) y si /vender manda compacto por defecto.
+- Apelar GitHub o migrar el repo a Codeberg.
