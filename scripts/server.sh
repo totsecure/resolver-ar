@@ -5,7 +5,8 @@
 #   bash scripts/server.sh --force    # reinicia aunque /health responda
 #
 # Carga PORT, RESOLVER_TOKEN y RESOLVER_DB desde datos/server.env. Escribe
-# datos/server.pid y no duplica procesos.
+# datos/server.pid. La vida del proceso se chequea por pidfile + kill -0,
+# nunca por pgrep (en macOS pgrep puede no ver el proceso).
 set -uo pipefail
 
 RAIZ="/Users/bunker/resolver"
@@ -34,38 +35,48 @@ health() {
     "http://localhost:${PUERTO}/health?token=${RESOLVER_TOKEN}" 2>/dev/null || true
 }
 
-arrancar_unico() {
-  local patron="$1"; shift
-  local pids; pids="$(pgrep -f "$patron" || true)"
-  if [ -n "$pids" ]; then
-    kill $pids 2>/dev/null
-    for _ in $(seq 1 20); do pgrep -f "$patron" >/dev/null || break; sleep 0.25; done
-    pgrep -f "$patron" | xargs -r kill -9 2>/dev/null
-  fi
-  "$@" &
-  echo $! > "datos/$(basename "$0" .sh).pid"
+vivo() {
+  local pf="$1" pid
+  [ -f "$pf" ] || return 1
+  pid="$(cat "$pf" 2>/dev/null || true)"
+  [ -n "$pid" ] || return 1
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  [ "$pid" -gt 0 ] || return 1
+  kill -0 "$pid" 2>/dev/null
 }
 
-PATRON="node server.js"
-INSTANCIAS=$(pgrep -f "$PATRON" | wc -l | tr -d ' ')
+arrancar_unico() {
+  local pf="$1"; shift
+  if vivo "$pf"; then
+    local viejo; viejo="$(cat "$pf")"
+    kill "$viejo" 2>/dev/null || true
+    for _ in $(seq 1 20); do vivo "$pf" || break; sleep 0.25; done
+    kill -9 "$viejo" 2>/dev/null || true
+  fi
+  rm -f "$pf"
+  "$@" &
+  echo $! > "$pf"
+}
+
+PF="datos/server.pid"
 CODE=$(health)
-if [ "$INSTANCIAS" -eq 1 ] && [ "${1:-}" != "--force" ] && [ "$CODE" = "200" ]; then
-  echo "server ya corriendo (pid=$(pgrep -f "$PATRON" | head -1) http=200); no se duplica"
+if vivo "$PF" && [ "${1:-}" != "--force" ] && [ "$CODE" = "200" ]; then
+  echo "server ya corriendo (pid=$(cat "$PF") http=200); no se duplica"
   exit 0
 fi
 
-if [ "$INSTANCIAS" -gt 0 ]; then
-  echo "reiniciando server (instancias=$INSTANCIAS http=${CODE:-000})"
+if vivo "$PF"; then
+  echo "reiniciando server (pid=$(cat "$PF") http=${CODE:-000})"
 fi
 
 echo "arrancando server (PORT=$PUERTO RESOLVER_DB=$RESOLVER_DB)"
-arrancar_unico "$PATRON" sh -c 'exec nohup node server.js >> datos/server.log 2>&1' >/dev/null
-PID=$(cat datos/server.pid)
+arrancar_unico "$PF" sh -c 'exec nohup node server.js >> datos/server.log 2>&1' >/dev/null
+PID=$(cat "$PF")
 
 FIN=$((SECONDS + 15))
 while [ "$SECONDS" -lt "$FIN" ]; do
   CODE=$(health)
-  if [ "$CODE" = "200" ]; then
+  if [ "$CODE" = "200" ] && vivo "$PF"; then
     echo "server OK (pid=$PID http=200)"
     exit 0
   fi

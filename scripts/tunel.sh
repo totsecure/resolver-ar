@@ -6,6 +6,7 @@
 # El agente ngrok reconecta solo. keepalive.sh lo vigila y relanza este script
 # si el local o el publico dejan de responder. El server se arranca con
 # scripts/server.sh (entorno de datos/server.env), nunca con env hardcodeado.
+# La vida de ngrok se chequea por datos/tunel.pid + kill -0, nunca por pgrep.
 set -uo pipefail
 
 RAIZ="/Users/bunker/resolver"
@@ -49,21 +50,32 @@ else
 fi
 
 echo "[2/4] cerrando ngrok previo..."
+vivo() {
+  local pf="$1" pid
+  [ -f "$pf" ] || return 1
+  pid="$(cat "$pf" 2>/dev/null || true)"
+  [ -n "$pid" ] || return 1
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  [ "$pid" -gt 0 ] || return 1
+  kill -0 "$pid" 2>/dev/null
+}
+
 arrancar_unico() {
-  local patron="$1"; shift
-  local pids; pids="$(pgrep -f "$patron" || true)"
-  if [ -n "$pids" ]; then
-    kill $pids 2>/dev/null
-    for _ in $(seq 1 20); do pgrep -f "$patron" >/dev/null || break; sleep 0.25; done
-    pgrep -f "$patron" | xargs -r kill -9 2>/dev/null
+  local pf="$1"; shift
+  if vivo "$pf"; then
+    local viejo; viejo="$(cat "$pf")"
+    kill "$viejo" 2>/dev/null || true
+    for _ in $(seq 1 20); do vivo "$pf" || break; sleep 0.25; done
+    kill -9 "$viejo" 2>/dev/null || true
   fi
+  rm -f "$pf"
   "$@" &
-  echo $! > "datos/$(basename "$0" .sh).pid"
+  echo $! > "$pf"
 }
 
 echo "[3/4] arrancando ngrok..."
 : > datos/tunel.log
-arrancar_unico "ngrok http" sh -c 'exec nohup ngrok http "$1" --url="$2" --basic-auth="$3" >> datos/tunel.log 2>&1' _ "$PUERTO" "$URL" "$BASIC" >/dev/null
+arrancar_unico "datos/tunel.pid" sh -c 'exec nohup ngrok http "$1" --url="$2" --basic-auth="$3" >> datos/tunel.log 2>&1' _ "$PUERTO" "$URL" "$BASIC" >/dev/null
 NGROK_PID=$(cat datos/tunel.pid)
 echo "  ngrok pid=$NGROK_PID"
 

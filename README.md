@@ -250,8 +250,16 @@ Protocolo de parseo tolerante (`lib/parse-tarjetas.js`):
 - `scripts/keepalive.sh` corre cada 60 s y vigila **los tres**: `server.js`,
   `bot/telegram.js` y el túnel. Si alguno falla, lo relanza con `server.env` /
   `bot.env` y deja una línea con fecha y motivo en `datos/keepalive.log`.
-- No duplica procesos: los scripts de arranque son idempotentes.
+- No duplica procesos: los scripts de arranque matan la instancia previa usando
+  su pidfile (`datos/server.pid`, `datos/bot.pid`, `datos/tunel.pid`).
 - `ngrok config add-authtoken <token>` se configura una vez.
+
+**Detección de procesos (macOS).** Para saber si un proceso vive, usá
+**pidfile + `kill -0`**; nunca `pgrep`. En macOS `pgrep` puede no ver procesos
+(el server es el caso conocido) y el conteo con `ps | grep` se infla porque el
+patrón aparece en el propio comando. `keepalive.sh` decide así: server por
+`/health` HTTP, bot por `datos/bot.pid`, túnel por el health público. `podar()`
+solo mata un huérfano si el pidfile está muerto y existe un proceso igual.
 
 ## PRIVACIDAD
 

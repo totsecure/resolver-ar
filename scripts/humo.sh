@@ -4,10 +4,11 @@
 #
 #   bash scripts/humo.sh
 #
-# Chequea: instancias unicas, /health, /stats, /ficha/30756789, /repo,
-# /lote (1 tarjeta), /titulares?n=2, X-Ms y <200 ms en /lote, tunel publico,
-# Worker y bot (getMe), 401 sin token (local y Worker) y /gh/README.md.
-# /gh se marca SKIP si falta GH_TOKEN. Las credenciales salen de datos/server.env.
+# Chequea: liveness por pidfile (server/bot/tunel), /health, /stats,
+# /ficha/30756789, /repo, /lote (1 tarjeta), /titulares?n=2, X-Ms y <200 ms
+# en /lote, tunel publico, Worker y bot (getMe), 401 sin token (local y Worker)
+# y /gh/README.md. /gh se marca SKIP si falta GH_TOKEN.
+# Las credenciales salen de datos/server.env. No usa pgrep.
 set -uo pipefail
 
 RAIZ="/Users/bunker/resolver"
@@ -54,18 +55,28 @@ skip() {
   echo "  SKIP  $1${2:+ :: $2}"
 }
 
+vivo() {
+  local pf="$1" pid
+  [ -f "$pf" ] || return 1
+  pid="$(cat "$pf" 2>/dev/null || true)"
+  [ -n "$pid" ] || return 1
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  [ "$pid" -gt 0 ] || return 1
+  kill -0 "$pid" 2>/dev/null
+}
+
 echo "HUMO resolver-ar — $(date '+%Y-%m-%d %H:%M:%S')"
 echo "local=$BASE"
 
-# 0) exactamente una instancia de cada proceso
-SERVER_N=$(pgrep -f "node server.js" | wc -l | tr -d ' ')
-BOT_N=$(pgrep -f "bot/telegram.js" | wc -l | tr -d ' ')
-TUNEL_N=$(pgrep -f "ngrok http" | wc -l | tr -d ' ')
-INSTANCIAS="instancias server=${SERVER_N} bot=${BOT_N} tunel=${TUNEL_N}"
-if [ "$SERVER_N" -gt 1 ] || [ "$BOT_N" -gt 1 ] || [ "$TUNEL_N" -gt 1 ]; then
-  fail "instancias unicas" "$INSTANCIAS"
-else
+# 0) liveness por pidfile + kill -0 (no pgrep: en macOS puede no ver el proceso)
+SERVER_OK=0; vivo datos/server.pid && SERVER_OK=1
+BOT_OK=0; vivo datos/bot.pid && BOT_OK=1
+TUNEL_OK=0; vivo datos/tunel.pid && TUNEL_OK=1
+INSTANCIAS="instancias server=${SERVER_OK} bot=${BOT_OK} tunel=${TUNEL_OK}"
+if [ "$SERVER_OK" -eq 1 ] && [ "$BOT_OK" -eq 1 ] && [ "$TUNEL_OK" -eq 1 ]; then
   ok "instancias unicas" "$INSTANCIAS"
+else
+  fail "instancias unicas" "$INSTANCIAS (1 = pidfile vivo)"
 fi
 
 # 1) /health
@@ -182,7 +193,8 @@ if [ -f datos/bot.env ]; then
   set +a
 fi
 TG_TOKEN="${TELEGRAM_TOKEN:-}"
-BOT_PID=$(pgrep -f "bot/telegram.js" | head -1 || true)
+BOT_PID=$(cat datos/bot.pid 2>/dev/null || true)
+vivo datos/bot.pid || BOT_PID=""
 if [ -z "$TG_TOKEN" ]; then
   fail "bot getMe" "falta TELEGRAM_TOKEN en datos/bot.env"
 else
