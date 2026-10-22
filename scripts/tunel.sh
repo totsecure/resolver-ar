@@ -49,14 +49,22 @@ else
 fi
 
 echo "[2/4] cerrando ngrok previo..."
-pkill -f '^ngrok http' >/dev/null 2>&1 || true
-sleep 1
+arrancar_unico() {
+  local patron="$1"; shift
+  local pids; pids="$(pgrep -f "$patron" || true)"
+  if [ -n "$pids" ]; then
+    kill $pids 2>/dev/null
+    for _ in $(seq 1 20); do pgrep -f "$patron" >/dev/null || break; sleep 0.25; done
+    pgrep -f "$patron" | xargs -r kill -9 2>/dev/null
+  fi
+  "$@" &
+  echo $! > "datos/$(basename "$0" .sh).pid"
+}
 
 echo "[3/4] arrancando ngrok..."
 : > datos/tunel.log
-nohup ngrok http "$PUERTO" --url="$URL" --basic-auth="$BASIC" >> datos/tunel.log 2>&1 &
-NGROK_PID=$!
-echo "$NGROK_PID" > datos/tunel.pid
+arrancar_unico "ngrok http" sh -c 'exec nohup ngrok http "$1" --url="$2" --basic-auth="$3" >> datos/tunel.log 2>&1' _ "$PUERTO" "$URL" "$BASIC" >/dev/null
+NGROK_PID=$(cat datos/tunel.pid)
 echo "  ngrok pid=$NGROK_PID"
 
 echo "[4/4] esperando health publico (hasta 30s)..."

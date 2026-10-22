@@ -13,9 +13,17 @@ if [ -f datos/bot.env ]; then
 fi
 
 # Si ya hay un bot corriendo, matarlo antes de relanzar.
-pkill -f '^node bot/telegram\.js$' >/dev/null 2>&1 || true
-sleep 1
+arrancar_unico() {
+  local patron="$1"; shift
+  local pids; pids="$(pgrep -f "$patron" || true)"
+  if [ -n "$pids" ]; then
+    kill $pids 2>/dev/null
+    for _ in $(seq 1 20); do pgrep -f "$patron" >/dev/null || break; sleep 0.25; done
+    pgrep -f "$patron" | xargs -r kill -9 2>/dev/null
+  fi
+  "$@" &
+  echo $! > "datos/$(basename "$0" .sh).pid"
+}
 
-nohup node bot/telegram.js >> datos/bot.log 2>&1 &
-echo $! > datos/bot.pid
+arrancar_unico "bot/telegram.js" sh -c 'exec nohup node bot/telegram.js >> datos/bot.log 2>&1' >/dev/null
 echo "bot pid=$(cat datos/bot.pid)"

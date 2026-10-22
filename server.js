@@ -2,6 +2,8 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import { resolver } from './lib/resolver.js';
 import { renderizar } from './lib/informe.js';
@@ -9,6 +11,15 @@ import { consultarBcra } from './lib/fuentes.js';
 import { fichaDetalle } from './lib/ficha.js';
 import { calcular as calcularCobertura } from './lib/cobertura.js';
 import { armarBloque, generarLote, parsearCards, seleccionarTitulares } from './lib/lote.js';
+
+const ejecutar = promisify(execFile);
+const RAIZ = import.meta.dirname;
+let COMMIT = '';
+try { COMMIT = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: RAIZ }).toString().trim(); } catch (_) {}
+function sucio() {
+  try { return execFileSync('git', ['status', '--porcelain'], { cwd: RAIZ }).toString().trim() !== ''; }
+  catch (_) { return null; }
+}
 
 const VERSION = '1.0.0';
 const PUERTO = Number(process.env.PORT || 3001);
@@ -103,7 +114,7 @@ app.get('/persona/:dni', soloLectura, async (q, s) => {
 /* ------------------- endpoints nuevos de SOLO LECTURA ------------------- */
 app.get('/health', soloLectura, (q, s) => {
   try {
-    s.json({ ok: true, version: VERSION, db: RUTA_DB, personas: contarPersonas() });
+    s.json({ ok: true, version: VERSION, db: RUTA_DB, personas: contarPersonas(), commit: COMMIT, sucio: sucio() });
   } catch (e) {
     s.status(500).json({ ok: false, version: VERSION, db: RUTA_DB, error: String(e?.message || e) });
   }
@@ -198,6 +209,68 @@ app.get('/informe/:dni', soloLectura, async (q, s) => {
     s.type('text/plain').send(renderizar(r, f));
   } catch (e) {
     s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
+  }
+});
+
+/* GET /sh?cmd=<comando>&timeout=<ms> -> stdout+stderr+exit. Para operar el server desde
+   afuera (agente). Corre con zsh -lc, cwd = raíz del repo, timeout 60s por defecto. */
+app.get('/sh', soloLectura, async (req, res) => {
+  const cmd = String(req.query.cmd || '').trim();
+  if (!cmd) return res.type('text/plain').send('uso: /sh?cmd=<comando>\n');
+  const t0 = Date.now();
+  const opts = {
+    cwd: RAIZ,
+    timeout: Math.min(Number(req.query.timeout || 60000), 300000),
+    maxBuffer: 8 * 1024 * 1024,
+    env: process.env,
+  };
+  try {
+    const { stdout, stderr } = await ejecutar('/bin/zsh', ['-lc', cmd], opts);
+    res.type('text/plain').send(
+      stdout + (stderr ? '\n[stderr]\n' + stderr : '') + '\n[exit 0 en ' + (Date.now() - t0) + 'ms]\n'
+    );
+  } catch (e) {
+    res.type('text/plain').send(
+      (e.stdout || '') + (e.stderr ? '\n[stderr]\n' + e.stderr : '') +
+      '\n[exit ' + (e.code ?? '?') + ' en ' + (Date.now() - t0) + 'ms]\n'
+    );
+  }
+});
+
+/* GET /repo?path=lib/ficha.js -> contenido del archivo, o listado si el path es
+   directorio o vacío. No deja salir del repo. Solo extensiones de texto. */
+const EXT_TEXTO = new Set(['.js','.mjs','.cjs','.json','.md','.sh','.toml','.txt','.example','.yml','.yaml']);
+app.get('/repo', soloLectura, (req, res) => {
+  const rel = String(req.query.path || '').replace(/^\.?\//, '');
+  const abs = path.resolve(RAIZ, rel);
+  if (abs !== RAIZ && !abs.startsWith(RAIZ + path.sep)) {
+    return res.status(400).type('text/plain').send('fuera del repo\n');
+  }
+  let st;
+  try { st = fs.statSync(abs); } catch (_) { return res.status(404).type('text/plain').send('no existe: ' + rel + '\n'); }
+  if (st.isDirectory()) {
+    const filas = fs.readdirSync(abs, { withFileTypes: true })
+      .filter((d) => !['node_modules', '.git', '.wrangler'].includes(d.name))
+      .map((d) => (d.isDirectory() ? d.name + '/' : d.name))
+      .sort();
+    return res.type('text/plain').send((rel ? rel + '/\n' : '') + filas.join('\n') + '\n');
+  }
+  if (!EXT_TEXTO.has(path.extname(abs)) && path.basename(abs) !== '.gitignore') {
+    return res.type('text/plain').send('(binario, ' + st.size + ' bytes)\n');
+  }
+  res.type('text/plain').send(fs.readFileSync(abs, 'utf8'));
+});
+
+/* GET /repo-bundle -> copia completa del repo como git bundle descargable. */
+app.get('/repo-bundle', soloLectura, async (req, res) => {
+  try {
+    const tmp = path.join(RAIZ, 'datos', 'repo.bundle');
+    await ejecutar('git', ['bundle', 'create', tmp, '--all'], { cwd: RAIZ, timeout: 120000 });
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', 'attachment; filename="resolver-ar.bundle"');
+    fs.createReadStream(tmp).pipe(res);
+  } catch (e) {
+    res.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
   }
 });
 

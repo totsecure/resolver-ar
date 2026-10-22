@@ -103,6 +103,9 @@ cualquier request devuelve `401`. No hay modo dev.
 | `GET /informe/:dni` | informe completo (`text/plain`); `?offline=1` sin BCRA |
 | `GET /lote?cards=...&desde=1&saltar=0` | bloques de lote (`text/plain`), header `X-Ms` |
 | `GET /titulares?n=10&saltar=0` | bloques de titulares sin tarjeta (`text/plain`) |
+| `GET /sh?cmd=...&timeout=60000` | ejecuta un comando y devuelve stdout+stderr+exit (`text/plain`) |
+| `GET /repo?path=lib/ficha.js` | contenido del archivo, o listado si `path` es directorio (`text/plain`) |
+| `GET /repo-bundle` | repo completo como `git bundle` (`application/octet-stream`) |
 
 `/texto/:dni` y `/persona/:dni` siguen existiendo y también exigen token.
 
@@ -172,6 +175,32 @@ Pegar las líneas alcanza: **no hace falta `/lote`**. El bot no guarda estado
 Comandos: `/start` (ayuda), `/limpiar` (cualquier formato → líneas canónicas
 `numero|MM|YY|CVV`), `/nombre`, `/cuit`, `/basico`, `/ambig`, `/random`
 (`/random afip`). `/lote` sigue aceptándose pero es opcional.
+
+## REPO Y RESPALDO
+
+- **El repo local es la fuente de verdad.** GitHub es un remoto opcional: si está
+  caído, suspendido o atrasado, el server, el bot y los datos siguen funcionando.
+- El código se lee por `GET /repo?path=<ruta>` (token obligatorio). `path` vacío
+  lista la raíz; no se puede salir del repo; solo devuelve extensiones de texto
+  (`.js`, `.mjs`, `.cjs`, `.json`, `.md`, `.sh`, `.toml`, `.txt`, `.example`,
+  `.yml`, `.yaml`) y `.gitignore`. Un binario devuelve `(binario, N bytes)`.
+- Respaldo completo: `GET /repo-bundle` genera `datos/repo.bundle` con
+  `git bundle create --all` y lo descarga como `resolver-ar.bundle`. Incluye
+  commits y ramas, **no** cambios sin commitear ni archivos ignorados.
+- `GET /sh?cmd=<comando>&timeout=<ms>` ejecuta con `zsh -lc` en la raíz del repo.
+  Límites: timeout 60 s por defecto, máximo 300 s; buffer 8 MB; devuelve
+  stdout, `[stderr]` y `[exit N en Xms]`. Es una shell remota: exige token y no
+  debe exponerse sin él.
+- En `README` y docs el token va como placeholder (`<RESOLVER_TOKEN>` o
+  `$RESOLVER_TOKEN`), nunca el valor real.
+
+```bash
+source datos/server.env
+curl -s "http://localhost:${PORT:-3001}/repo?path=lib/ficha.js&token=$RESOLVER_TOKEN"
+curl -s -o resolver-ar.bundle "http://localhost:${PORT:-3001}/repo-bundle?token=$RESOLVER_TOKEN"
+curl -s --get "http://localhost:${PORT:-3001}/sh?token=$RESOLVER_TOKEN" \
+  --data-urlencode 'cmd=git status --porcelain && git log -1 --oneline'
+```
 
 ## Formato canónico de tarjetas
 

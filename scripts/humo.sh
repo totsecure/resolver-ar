@@ -4,10 +4,10 @@
 #
 #   bash scripts/humo.sh
 #
-# Chequea: /health, /stats, /ficha/30756789, /lote (1 tarjeta),
-# /titulares?n=2, X-Ms y <200 ms en /lote, tunel publico, Worker y bot (getMe),
-# 401 sin token (local y Worker) y /gh/README.md (repo privado).
-# El token y las credenciales de ngrok salen de datos/server.env.
+# Chequea: instancias unicas, /health, /stats, /ficha/30756789, /repo,
+# /lote (1 tarjeta), /titulares?n=2, X-Ms y <200 ms en /lote, tunel publico,
+# Worker y bot (getMe), 401 sin token (local y Worker) y /gh/README.md.
+# /gh se marca SKIP si falta GH_TOKEN. Las credenciales salen de datos/server.env.
 set -uo pipefail
 
 RAIZ="/Users/bunker/resolver"
@@ -37,6 +37,7 @@ BASE="http://localhost:${PUERTO}"
 
 OK=0
 FAIL=0
+SKIP=0
 
 ok() {
   OK=$((OK + 1))
@@ -48,8 +49,24 @@ fail() {
   echo "  FAIL  $1 :: $2"
 }
 
+skip() {
+  SKIP=$((SKIP + 1))
+  echo "  SKIP  $1${2:+ :: $2}"
+}
+
 echo "HUMO resolver-ar — $(date '+%Y-%m-%d %H:%M:%S')"
 echo "local=$BASE"
+
+# 0) exactamente una instancia de cada proceso
+SERVER_N=$(pgrep -f "node server.js" | wc -l | tr -d ' ')
+BOT_N=$(pgrep -f "bot/telegram.js" | wc -l | tr -d ' ')
+TUNEL_N=$(pgrep -f "ngrok http" | wc -l | tr -d ' ')
+INSTANCIAS="instancias server=${SERVER_N} bot=${BOT_N} tunel=${TUNEL_N}"
+if [ "$SERVER_N" -gt 1 ] || [ "$BOT_N" -gt 1 ] || [ "$TUNEL_N" -gt 1 ]; then
+  fail "instancias unicas" "$INSTANCIAS"
+else
+  ok "instancias unicas" "$INSTANCIAS"
+fi
 
 # 1) /health
 CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 5 "${BASE}/health?token=${TOKEN}" 2>/dev/null || true)
@@ -74,6 +91,20 @@ if [ "$CODE" = "200" ] && [ "$LINEAS" = "10" ] && grep -q '^DNI 30756789$' "$TMP
   ok "/ficha/30756789" "http=200 lineas=10"
 else
   fail "/ficha/30756789" "http=${CODE:-000} lineas=${LINEAS:-0} $(head -c 200 "$TMP")"
+fi
+
+# 3b) /repo lee el repo local (fuente de verdad)
+CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${BASE}/repo?path=README.md&token=${TOKEN}" 2>/dev/null || true)
+if [ "$CODE" = "200" ] && grep -q '^# resolver-ar' "$TMP"; then
+  ok "/repo?path=README.md" "http=200"
+else
+  fail "/repo?path=README.md" "http=${CODE:-000} $(head -c 160 "$TMP")"
+fi
+CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${BASE}/repo?path=lib/ficha.js&token=${TOKEN}" 2>/dev/null || true)
+if [ "$CODE" = "200" ] && grep -q '^export' "$TMP"; then
+  ok "/repo?path=lib/ficha.js" "http=200"
+else
+  fail "/repo?path=lib/ficha.js" "http=${CODE:-000} $(head -c 160 "$TMP")"
 fi
 
 # 4) /lote con 1 tarjeta
@@ -137,6 +168,8 @@ CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${WORKER_URL}/health" 
 CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 15 "${WORKER_URL}/gh/README.md?token=${TOKEN}" 2>/dev/null || true)
 if [ "$CODE" = "200" ] && grep -q '^# resolver-ar' "$TMP"; then
   ok "/gh/README.md" "http=200"
+elif grep -q 'falta GH_TOKEN' "$TMP"; then
+  skip "/gh/README.md" "falta GH_TOKEN en el Worker"
 else
   fail "/gh/README.md" "http=${CODE:-000} $(head -c 160 "$TMP")"
 fi
@@ -149,7 +182,7 @@ if [ -f datos/bot.env ]; then
   set +a
 fi
 TG_TOKEN="${TELEGRAM_TOKEN:-}"
-BOT_PID=$(pgrep -f '^node bot/telegram\.js$' | head -1 || true)
+BOT_PID=$(pgrep -f "bot/telegram.js" | head -1 || true)
 if [ -z "$TG_TOKEN" ]; then
   fail "bot getMe" "falta TELEGRAM_TOKEN en datos/bot.env"
 else
@@ -163,6 +196,6 @@ else
 fi
 
 echo ""
-echo "RESUMEN: ${OK} OK / ${FAIL} FAIL"
+echo "RESUMEN: ${OK} OK / ${FAIL} FAIL / ${SKIP} SKIP"
 [ "$FAIL" -eq 0 ] && exit 0
 exit 1
