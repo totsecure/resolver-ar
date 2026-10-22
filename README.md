@@ -325,3 +325,26 @@ Variables: `PORT`, `RESOLVER_TOKEN`, `NGROK_USER`, `NGROK_PASS`, `RESOLVER_DB`,
 
 Detalle de pendientes y plan de escalado: `PENDIENTES.md`.
 Reglas de desarrollo: `AGENTS.md`.
+
+## Stock de CC
+
+Inventario privado para venta por Telegram. Base datos/stock.db (tablas cc y movs).
+Estados: DISPONIBLE -> RESERVADA -> VENDIDA; BAJA para las muertas. Nada se borra.
+ref es estable por BIN y codigo_venta es V-AAAAMMDD-NNN.
+
+Endpoints (con ?token=): /stock, /stock/listado, /stock/bin/:bin, /stock/cc/:ref,
+/stock/movs, /stock/cargar, /stock/vender, /stock/entrega, /stock/reentrega,
+/stock/devolver, /stock/baja, /stock/reservar, /stock/expirar, /stock/saldo,
+/stock/etiqueta, /stock/precio, /stock/exportar, /stock/purgar, /stock/backup,
+/stock/stats, /stock/alertas, /bininfo/:bin.
+
+Comandos del bot: /cargar /stock /bins /bin /full /cc /movs /vender /entrega /reentrega
+/devolver /baja /reservar /expirar /saldo /etiqueta /precio /precios /bininfo /exportar
+/alertas /stats /backup /purgar. Un .txt con leyenda /cargar se carga al stock.
+
+Entrega: bloques DATOS TITULAR (padron)   DATOS TARJETA, separados por una linea de
+50 '=' (SEPARADOR en lib/lote.js). Archivo: venta_<codigo>_completo.txt.
+
+IMPORTANTE: tras tocar lib/ hay que reiniciar el server (bash scripts/server.sh --force)
+y el bot (bash scripts/bot.sh): el proceso tiene los modulos en memoria.
+Backup diario: scripts/backup-stock.sh, enganchado en scripts/keepalive.sh.

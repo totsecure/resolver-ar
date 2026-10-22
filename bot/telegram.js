@@ -27,6 +27,7 @@ import {
   formatearCuit, cuitsPorDni,
 } from '../lib/padron.js';
 import { parsearTarjetas } from '../lib/parse-tarjetas.js';
+import { manejarStock } from './stock.js';
 
 /* Preferir IPv4: en esta red el AAAA de Telegram a veces cuelga. */
 dns.setDefaultResultOrder('ipv4first');
@@ -51,6 +52,20 @@ const HELP = [
   '/ambig - DNIs con más de un CUIT',
   '/random - DNI del pool',
   '/random afip - DNI al azar del padrón',
+  '',
+  '<b>stock</b>',
+  '/cargar - pegar lineas o .txt con leyenda /cargar',
+  '/stock - resumen por BIN',
+  '/bin <bin> - listado y datos del BIN',
+  '/full - todo el disponible en .txt',
+  '/cc <ref> - detalle y trazabilidad',
+  '/vender [n] [bin] [comprador] - vende y entrega .txt',
+  '/reentrega <codigo> - rearma la entrega',
+  '/devolver <refs> | /baja <refs>',
+  '/reservar <min> <refs> | /expirar',
+  '/saldo <ref> <disp> [total] | /etiqueta <ref> <txt>',
+  '/precio <bin> <valor> | /precios | /bininfo <bin>',
+  '/exportar [csv|txt] | /movs [ref] | /stats | /alertas | /backup',
 ].join('\n');
 
 const PISTA = [
@@ -494,6 +509,7 @@ async function procesarDocumento(msg) {
 
   try {
     const contenido = await descargarDocumento(doc.file_id);
+    if (/^\/cargar/i.test(String(msg.caption || ''))) await manejarStock(chatId, 'cargar', [], contenido);
     await responderLote(chatId, contenido, 'documento');
   } catch (e) {
     log(`chat=${chatId} ERROR documento: ${e?.message || e}`);
@@ -530,6 +546,7 @@ export async function procesarUpdate(update, db) {
   const p = parsearMensaje(msg.text);
 
   if (p.tipo === 'comando') {
+    if (await manejarStock(chatId, p.cmd, p.args, payloadComando(msg.text))) return;
     if (p.cmd === 'start' || p.cmd === 'help') {
       log(`chat=${chatId} /${p.cmd}`);
       await enviar(chatId, `${HELP}\n\nTu chat id: <code>${chatId}</code>`);

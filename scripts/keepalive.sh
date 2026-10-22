@@ -128,5 +128,6 @@ while true; do
     bash scripts/tunel.sh >> datos/keepalive.log 2>&1
   fi
 
+  bash scripts/backup-stock.sh
   sleep "$INTERVALO"
 done

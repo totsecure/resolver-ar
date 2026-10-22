@@ -10,7 +10,7 @@ import { renderizar } from './lib/informe.js';
 import { consultarBcra } from './lib/fuentes.js';
 import { fichaDetalle } from './lib/ficha.js';
 import { calcular as calcularCobertura } from './lib/cobertura.js';
-import { armarBloque, generarLote, parsearCards, seleccionarTitulares } from './lib/lote.js';
+import { armarBloque, generarLote, parsearCards, seleccionarTitulares, SEPARADOR } from './lib/lote.js';
 
 const ejecutar = promisify(execFile);
 const RAIZ = import.meta.dirname;
@@ -164,7 +164,7 @@ app.get('/titulares', medirTiempo, soloLectura, (q, s) => {
       saltar: Number.isFinite(saltar) && saltar >= 0 ? saltar : 0,
     });
 
-    const texto = titulares.map((t) => armarBloque(t, null, null)).join('\n\n');
+    const texto = titulares.map((t) => armarBloque(t, null, null)).join(SEPARADOR);
     s.type('text/plain').send(texto ? texto + '\n' : '');
   } catch (e) {
     s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
@@ -280,3 +280,75 @@ app.listen(PUERTO, () => console.log('http://localhost:' + PUERTO + '/texto/3348
     else console.error(e);
     process.exit(1);
   });
+
+/* --------------------------- STOCK de CC (privado) --------------------------- */
+import {
+  cargar as sCargar, listarBin as sListarBin, listado as sListado, resumen as sResumen,
+  buscar as sBuscar, movs as sMovs, ultimosMovs as sUltimosMovs, vender as sVender,
+  entrega as sEntrega, reentrega as sReentrega, devolver as sDevolver, baja as sBaja,
+  setSaldo as sSetSaldo, setEtiqueta as sSetEtiqueta, reservar as sReservar,
+  expirarReservas as sExpirar, stats as sStats, alertas as sAlertas, precios as sPrecios,
+  setPrecio as sSetPrecio, porCodigo as sPorCodigo, exportar as sExportar,
+  purgar as sPurgar, backup as sBackup,
+} from './lib/stock.js';
+import { lookup as binLookup } from './lib/bininfo.js';
+
+const qs = (req, k, d) => (typeof req.query[k] === 'string' ? req.query[k] : d);
+const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
+const refsDe = (v) => String(v || '').split(/[,\s] /).filter(Boolean);
+
+function envolver(fn) {
+  return (req, res) => {
+    try {
+      const r = fn(req, res);
+      if (!res.headersSent) res.json(r === undefined ? { ok: true } : r);
+    } catch (e) {
+      res.status(500).json({ error: String(e?.message || e) });
+    }
+  };
+}
+
+app.use(express.json({ limit: '4mb' }));
+
+const quien = (req) => ({ usuario: qs(req, 'usuario'), chat_id: qs(req, 'chat_id') });
+
+app.get('/stock', soloLectura, envolver((req) => {
+  const st = sStats();
+  return { resumen: st.bins, porEstado: st.porEstado, total: st.total, ventas: st.ventas, alertas: sAlertas(num(qs(req, 'umbral', 2), 2)) };
+}));
+
+app.get('/stock/listado', soloLectura, envolver((req) => ({ texto: sListado({ refs: qs(req, 'refs') === '1' }) })));
+app.get('/stock/stats', soloLectura, envolver(() => sStats()));
+app.get('/stock/alertas', soloLectura, envolver((req) => ({ alertas: sAlertas(num(qs(req, 'umbral', 2), 2)) })));
+app.get('/stock/bin/:bin', soloLectura, envolver((req) => ({ bin: req.params.bin, texto: sListarBin(req.params.bin, { refs: true }) })));
+app.get('/stock/cc/:ref', soloLectura, envolver((req) => ({ ccs: sBuscar(req.params.ref) })));
+app.get('/stock/movs', soloLectura, envolver((req) => ({ movs: sUltimosMovs(num(qs(req, 'n', 50), 50)) })));
+app.get('/stock/movs/:ref', soloLectura, envolver((req) => ({ movs: sMovs(req.params.ref) })));
+app.get('/stock/porcodigo/:codigo', soloLectura, envolver((req) => ({ ccs: sPorCodigo(req.params.codigo) })));
+app.get('/stock/precios', soloLectura, envolver(() => ({ precios: sPrecios() })));
+app.get('/stock/precio', soloLectura, envolver((req) => sSetPrecio(qs(req, 'bin'), num(qs(req, 'valor', 0), 0), qs(req, 'moneda'))));
+app.get('/stock/cargar', soloLectura, envolver((req) => sCargar(qs(req, 'texto', ''), { ...quien(req), etiqueta: qs(req, 'etiqueta') })));
+app.post('/stock/cargar', soloLectura, envolver((req) => sCargar(String(req.body?.texto || qs(req, 'texto', '')), { ...quien(req), etiqueta: qs(req, 'etiqueta') })));
+app.get('/stock/vender', soloLectura, envolver((req) => sVender({ ...quien(req), bin: qs(req, 'bin'), cantidad: num(qs(req, 'cantidad', 1), 1), modo: qs(req, 'modo'), refs: refsDe(qs(req, 'refs')), comprador: qs(req, 'comprador'), codigo: qs(req, 'codigo') })));
+app.get('/stock/entrega', soloLectura, envolver((req) => {
+  const r = sEntrega({ ...quien(req), bin: qs(req, 'bin'), cantidad: num(qs(req, 'cantidad', 1), 1), modo: qs(req, 'modo'), refs: refsDe(qs(req, 'refs')), comprador: qs(req, 'comprador'), formato: qs(req, 'formato'), desde: num(qs(req, 'desde', 1), 1), saltar: num(qs(req, 'saltar', 0), 0) });
+  return { codigo: r.codigo, n: r.ccs.length, texto: r.texto, refs: r.ccs.map((c) => c.ref) };
+}));
+app.get('/stock/reentrega', soloLectura, envolver((req) => {
+  const r = sReentrega(qs(req, 'codigo', ''), { formato: qs(req, 'formato'), desde: num(qs(req, 'desde', 1), 1) });
+  if (!r) return { error: 'codigo no encontrado' };
+  return { codigo: r.codigo, n: r.ccs.length, texto: r.texto };
+}));
+app.get('/stock/devolver', soloLectura, envolver((req) => ({ refs: sDevolver(refsDe(qs(req, 'refs')), qs(req, 'usuario'), qs(req, 'chat_id')) })));
+app.get('/stock/baja', soloLectura, envolver((req) => ({ refs: sBaja(refsDe(qs(req, 'refs')), qs(req, 'usuario'), qs(req, 'chat_id'), qs(req, 'motivo')) })));
+app.get('/stock/reservar', soloLectura, envolver((req) => sReservar(refsDe(qs(req, 'refs')), qs(req, 'quien'), num(qs(req, 'minutos', 15), 15), qs(req, 'usuario'), qs(req, 'chat_id'))));
+app.get('/stock/expirar', soloLectura, envolver(() => ({ liberadas: sExpirar() })));
+app.get('/stock/saldo', soloLectura, envolver((req) => sSetSaldo(qs(req, 'ref'), qs(req, 'disp'), qs(req, 'total'), qs(req, 'usuario'), qs(req, 'chat_id'))));
+app.get('/stock/etiqueta', soloLectura, envolver((req) => sSetEtiqueta(qs(req, 'ref'), qs(req, 'valor'), qs(req, 'usuario'), qs(req, 'chat_id'))));
+app.get('/stock/exportar', soloLectura, envolver((req) => ({ texto: sExportar({ formato: qs(req, 'formato', 'csv'), estado: qs(req, 'estado') }) })));
+app.get('/stock/purgar', soloLectura, envolver((req) => sPurgar(num(qs(req, 'dias', 30), 30))));
+app.get('/stock/backup', soloLectura, envolver(() => ({ archivo: sBackup() })));
+app.get('/bininfo/:bin', soloLectura, async (req, res) => {
+  try { res.json(await binLookup(req.params.bin, { forzar: qs(req, 'forzar') === '1' })); }
+  catch (e) { res.status(500).json({ error: String(e?.message || e) }); }
+});

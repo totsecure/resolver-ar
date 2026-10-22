@@ -282,3 +282,8 @@ idempotente) y `.env.example` (`PORT`, `RESOLVER_TOKEN`, `NGROK_USER`,
 "No encontrado" es el caso **normal**. 1.735 DNIs tienen más de un CUIT; se
 ordena de forma determinista y se informa el bloque "DNI AMBIGUO".
 La cobertura se cachea 7 días en `datos/cobertura.json`.
+
+## Stock de CC
+lib/stock.js (inventario), lib/bininfo.js (BIN checker con cache), bot/stock.js (comandos).
+Tras cambiar cualquier archivo de lib/ o bot/: bash scripts/server.sh --force y bash scripts/bot.sh.
+Formato de entrega: bloques separados por 50 '=' (SEPARADOR en lib/lote.js).
