@@ -16,6 +16,7 @@ if [ -f datos/server.env ]; then
 fi
 
 export PORT="${PORT:-3001}"
+export HOST="${HOST:-127.0.0.1}"
 export RESOLVER_DB="${RESOLVER_DB:-$RAIZ/datos/padron.db}"
 export TZ="${TZ:-America/Argentina/Buenos_Aires}"
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"

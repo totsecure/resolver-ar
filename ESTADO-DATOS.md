@@ -365,3 +365,13 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
   `datos/datasette.log` (mismo criterio que server/túnel/litestream).
 - Verificado: sin token 403; con Bearer 200; `cc` devuelve 57 filas; POST no
   escribe (la conexión es read-only).
+
+## Cierre de :3001 y acceso Datasette (2026-10-23)
+
+### Paso 2 — solo loopback
+- `HOST` por env, default `127.0.0.1`; `app.listen(PUERTO, HOST)`. La instancia
+  de E2E (`:3002`) también fuerza `HOST=127.0.0.1`.
+- `trust proxy` pasó de `true` a `1`.
+- Verificado: `127.0.0.1:3001/health` 200; `192.168.0.149:3001` rechazado (000);
+  el Worker sigue llegando (200) y `humo.sh` verde. `lsof` confirma LISTEN en
+  `127.0.0.1:3001` únicamente.

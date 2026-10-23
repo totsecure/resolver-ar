@@ -48,6 +48,8 @@ function sucio() {
 
 const VERSION = '1.0.0';
 const PUERTO = Number(process.env.PORT || 3001);
+/* Solo loopback: el acceso público entra por el Worker -> ngrok. */
+const HOST = process.env.HOST || '127.0.0.1';
 const RUTA_DB = process.env.RESOLVER_DB || path.join(import.meta.dirname, 'datos', 'padron.db');
 const RUTA_LOG = path.join(import.meta.dirname, 'datos', 'server.log');
 /* Sin RESOLVER_TOKEN no se arranca: sin credenciales no se consulta nada. */
@@ -61,7 +63,7 @@ const db = new DatabaseSync(RUTA_DB);
 const app = express();
 app.disable('x-powered-by');
 /* Detras de ngrok/Worker el protocolo y la IP real llegan por headers. */
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 /* Cabeceras seguras. CSP: se permite el <style> inline del panel y los data:
  * URIs de Tabler; no hay scripts inline (todo es /panel/app.js y vendor/).
  * Se desactiva upgrade-insecure-requests para que funcione en http local. */
@@ -517,7 +519,7 @@ setInterval(() => {
   } catch (e) { console.error('reporte diario: ' + String(e?.message || e)); }
 }, JOB_REPORTE_MS);
 
-app.listen(PUERTO, () => console.log('http://localhost:' + PUERTO + '/texto/3348'))
+app.listen(PUERTO, HOST, () => console.log('http://' + HOST + ':' + PUERTO + '/texto/3348'))
   .on('error', e => {
     if (e.code === 'EADDRINUSE') console.error('puerto ' + PUERTO + ' ocupado. Corre: lsof -nP -iTCP:' + PUERTO + ' -sTCP:LISTEN');
     else console.error(e);

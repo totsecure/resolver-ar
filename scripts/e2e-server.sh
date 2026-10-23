@@ -24,6 +24,7 @@ if [ -f datos/server.env ]; then
 fi
 
 export PORT="$PUERTO"
+export HOST="${E2E_HOST:-127.0.0.1}"
 export RESOLVER_STOCK_DB="$DIR/stock.db"
 export RESOLVER_DB="$DIR/padron.db"
 
