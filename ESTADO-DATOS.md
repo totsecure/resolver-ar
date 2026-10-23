@@ -332,3 +332,13 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - `app.set('trust proxy', true)` ya estaba; ahora la IP real no se pierde y un
   límite estricto no throttlea a todos los clientes como si fueran uno.
 - Verificado: `RateLimit-Policy: 600;w=300` en `/panel`; E2E 15/15.
+
+### 5e — zod en POST sensibles
+- `zod` + `lib/validacion.js`: esquemas tolerantes con coerción de strings
+  numéricos/booleanos y `.passthrough()`; rechazan solo objetos/arrays donde se
+  espera un escalar o números no numéricos.
+- Aplicado a: `/api/auth/login`, `/api/auth/2fa`, `/api/registro`,
+  `/api/catalogo/{reservar,pagar,chk,cancelar}`, `/panel/{comprar,cc/analizar,cc/confirmar}`
+  y todos los POST de `/api/admin/*`.
+- `tests/e2e/validacion.spec.js`: 8 tests (API por endpoint + unitarios de los
+  esquemas). Suite total: **23 E2E en verde**.

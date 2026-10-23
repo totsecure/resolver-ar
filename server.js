@@ -28,6 +28,14 @@ import * as checker from './lib/checker.js';
 import * as pedido from './lib/pedido.js';
 import * as pedidos from './lib/pedidos.js';
 import * as operacion from './lib/operacion.js';
+import {
+  validar,
+  login as loginSchema, segundoFactor as segundoFactorSchema, registro as registroSchema,
+  ccAnalizar as ccAnalizarSchema, ccConfirmar as ccConfirmarSchema, panelComprar as panelComprarSchema,
+  catalogoReservar as catalogoReservarSchema, catalogoPagar as catalogoPagarSchema,
+  catalogoChk as catalogoChkSchema, catalogoCancelar as catalogoCancelarSchema,
+  admin as adminSchema,
+} from './lib/validacion.js';
 
 const ejecutar = promisify(execFile);
 const RAIZ = import.meta.dirname;
@@ -541,6 +549,11 @@ function envolver(fn) {
 }
 
 app.use(express.json({ limit: '4mb' }));
+/* Validación tolerante de bodies admin (solo POST). Va después de parsear JSON
+ * y antes de las rutas; las rutas sensibles puntuales agregan su schema. */
+app.use('/api/admin', (req, res, next) => (
+  req.method === 'POST' ? validar(adminSchema)(req, res, next) : next()
+));
 
 /* Modo mantenimiento: bloquea el sitio salvo login/health y admin/servicio. */
 app.use((req, res, next) => {
@@ -561,7 +574,7 @@ app.get('/api/auth/csrf', (req, res) => {
   res.json({ csrf: token });
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', validar(loginSchema), (req, res) => {
   const previo = cookies(req)[COOKIE_PRE];
   const enviado = req.get('x-csrf-token') || req.body?._csrf;
   if (!previo || !enviado || !auth.igualSeguro(enviado, previo)) {
@@ -608,7 +621,7 @@ app.post('/api/auth/logout', soloSesion, csrf, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/auth/2fa', soloSesion, csrf, (req, res) => {
+app.post('/api/auth/2fa', soloSesion, csrf, validar(segundoFactorSchema), (req, res) => {
   const r = auth.verificarSegundoFactor(req.auth.token, req.body?.codigo, req.ip);
   if (!r.ok) return res.status(401).json(r);
   res.json({ ok: true });
@@ -720,7 +733,7 @@ app.get('/catalogo', (req, res) => {
 });
 
 /* Registro publico con invitacion de un solo uso. */
-app.post('/api/registro', (req, res) => {
+app.post('/api/registro', validar(registroSchema), (req, res) => {
   const previo = cookies(req)[COOKIE_PRE];
   const enviado = req.get('x-csrf-token') || req.body?._csrf;
   if (!previo || !enviado || !auth.igualSeguro(enviado, previo)) {
@@ -779,7 +792,7 @@ app.get('/api/catalogo', accesoCatalogo, (req, res) => {
   } catch (e) { fallo(res, e); }
 });
 
-app.post('/api/catalogo/reservar', accesoVendedor, csrf, (req, res) => {
+app.post('/api/catalogo/reservar', accesoVendedor, csrf, validar(catalogoReservarSchema), (req, res) => {
   try {
     const r = catalogo.reservar(usuarioIdDe(req), {
       refs: req.body?.refs, bin: req.body?.bin, cantidad: req.body?.cantidad,
@@ -788,12 +801,12 @@ app.post('/api/catalogo/reservar', accesoVendedor, csrf, (req, res) => {
   } catch (e) { fallo(res, e); }
 });
 
-app.post('/api/catalogo/pagar', accesoVendedor, csrf, (req, res) => {
+app.post('/api/catalogo/pagar', accesoVendedor, csrf, validar(catalogoPagarSchema), (req, res) => {
   const r = catalogo.pagar(usuarioIdDe(req), { id: req.body?.id, grupo: req.body?.grupo });
   res.status(r.ok ? 200 : 409).json(r);
 });
 
-app.post('/api/catalogo/chk', accesoVendedor, csrf, async (req, res) => {
+app.post('/api/catalogo/chk', accesoVendedor, csrf, validar(catalogoChkSchema), async (req, res) => {
   try {
     const d = sBase();
     const r = d.prepare(
@@ -872,7 +885,7 @@ app.get('/c/:token', (req, res) => {
     '<p><small>Este enlace ya quedó usado.</small></p></body>');
 });
 
-app.post('/api/catalogo/cancelar', accesoVendedor, csrf, (req, res) => {
+app.post('/api/catalogo/cancelar', accesoVendedor, csrf, validar(catalogoCancelarSchema), (req, res) => {
   try { res.json(catalogo.cancelar(usuarioIdDe(req), req.body?.id)); }
   catch (e) { fallo(res, e); }
 });
@@ -1207,7 +1220,7 @@ app.get('/panel/pedido', accesoPanel, (req, res) => {
   catch (e) { res.status(500).json({ error: String(e?.message || e) }); }
 });
 app.get('/panel/accion', accesoPanel, envolver((req) => panelAccion({ ...req.query, refs: qs(req, 'refs') })));
-app.post('/panel/comprar', accesoPanel, csrf, envolver((req) => panelComprar({
+app.post('/panel/comprar', accesoPanel, csrf, validar(panelComprarSchema), envolver((req) => panelComprar({
   refs: req.body?.refs || refsDe(qs(req, 'refs')),
     ids: req.body?.ids || qs(req, 'ids'),
   cantidad: num(req.body?.cantidad || qs(req, 'cantidad', 1), 1),
@@ -1261,7 +1274,7 @@ app.get('/panel/movs', accesoPanel, envolver((req) => panelMovs({ n: num(qs(req,
 /* ------------------------- PANEL: cargar tarjetas ------------------------- */
 import { analizar as ccAnalizar, confirmar as ccConfirmar, lote as ccLote, exportar as ccExportar } from './lib/carga-cc.js';
 
-app.post('/panel/cc/analizar', accesoPanel, csrf, (req, res) => {
+app.post('/panel/cc/analizar', accesoPanel, csrf, validar(ccAnalizarSchema), (req, res) => {
   try {
     res.json(ccAnalizar(String(req.body?.texto || ''), {
       nombre: req.body?.nombre || null,
@@ -1274,7 +1287,7 @@ app.post('/panel/cc/analizar', accesoPanel, csrf, (req, res) => {
   }
 });
 
-app.post('/panel/cc/confirmar', accesoPanel, csrf, async (req, res) => {
+app.post('/panel/cc/confirmar', accesoPanel, csrf, validar(ccConfirmarSchema), async (req, res) => {
   try {
     res.json(await ccConfirmar(String(req.body?.texto || ''), {
       nombre: req.body?.nombre || null,
