@@ -34,12 +34,6 @@ toastify.js + toastify.css
   hay dist minificado en el paquete)
   uso: avisos no bloqueantes de resultado de acciones.
 
-chart.umd.min.js
-  paquete: chart.js
-  version: 4.6.1
-  licencia: MIT
-  origen: dist/chart.umd.min.js
-  uso: gráficos del Dashboard, cargado en diferido solo al abrirlo (205 KB).
 
 hotkeys-js.min.js
   paquete: hotkeys-js

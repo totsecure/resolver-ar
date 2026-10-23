@@ -186,16 +186,16 @@ test('chip de sin precio con contador y apagado', async ({ page }) => {
   await expect(chip).not.toHaveClass(/activo/);
 });
 
-test('dashboard carga Chart.js en diferido', async ({ page }) => {
+test('dashboard carga ApexCharts en diferido', async ({ page }) => {
   await abrirPanel(page);
 
-  expect(await page.evaluate(() => !!window.Chart)).toBe(false);
+  expect(await page.evaluate(() => !!window.ApexCharts)).toBe(false);
   await page.click('#btnDash');
 
   await expect(page.locator('#dashBox')).toBeVisible();
-  await expect(page.locator('#dashBox canvas')).toHaveCount(3);
-  await expect.poll(() => page.evaluate(() => !!window.Chart)).toBe(true);
-  await expect(page.locator('#chEstado')).toBeVisible();
+  await expect(page.locator('#dashBox .apexcharts-canvas')).toHaveCount(3);
+  await expect.poll(() => page.evaluate(() => !!window.ApexCharts)).toBe(true);
+  await expect(page.locator('#chEstado .apexcharts-canvas')).toBeVisible();
 
   await page.click('#btnDash');
   await expect(page.locator('#dashBox')).toBeHidden();

@@ -109,3 +109,13 @@ body.tiene-seleccion main{padding-bottom:96px}
 .barra-contextual .crecer{flex:1}
 #barraAcciones{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 @media(max-width:700px){.barra-contextual{overflow-x:auto;flex-wrap:nowrap;padding:8px 10px}#barraAcciones{flex-wrap:nowrap}}
+
+/* ---------- dashboard ---------- */
+.dash-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:12px 0}
+.dash-card{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.dash-card span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
+.dash-card b{display:block;font-size:20px;line-height:1.2;color:var(--txt)}
+.dash-ico{width:38px;height:38px;border-radius:10px;background:rgba(37,99,235,.12);color:#2563eb;display:inline-flex;align-items:center;justify-content:center}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.dash-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px}
+.dash-panel h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}

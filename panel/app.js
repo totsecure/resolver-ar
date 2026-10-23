@@ -344,18 +344,18 @@
   }
 
   /* ---------- dashboard ---------- */
-  var CHART_PROMESA = null, CHARTS = [];
-  function cargarChart() {
-    if (window.Chart) return Promise.resolve();
-    if (CHART_PROMESA) return CHART_PROMESA;
-    CHART_PROMESA = new Promise(function (res, rej) {
-      var s = document.createElement('script');
-      s.src = '/panel/vendor/chart.umd.min.js';
-      s.onload = function () { res(); };
-      s.onerror = function () { CHART_PROMESA = null; rej(new Error('no se pudo cargar Chart.js')); };
-      document.head.appendChild(s);
+  var APEX_PROMESA = null, CHARTS = [];
+  function cargarApex() {
+    if (window.ApexCharts) return Promise.resolve();
+    if (APEX_PROMESA) return APEX_PROMESA;
+    APEX_PROMESA = new Promise(function (res, rej) {
+      var sc = document.createElement('script');
+      sc.src = '/panel/vendor/apexcharts.min.js';
+      sc.onload = function () { res(); };
+      sc.onerror = function () { APEX_PROMESA = null; rej(new Error('no se pudo cargar ApexCharts')); };
+      document.head.appendChild(sc);
     });
-    return CHART_PROMESA;
+    return APEX_PROMESA;
   }
   function paresEstado(k) {
     var pe = (k && k.porEstado) || [];
@@ -367,62 +367,61 @@
     CHARTS = [];
   }
   function dibujarDashboard(k) {
-    if (!window.Chart) return;
+    if (!window.ApexCharts) return;
     var pares = paresEstado(k);
-    Chart.defaults.color = '#94a3b8';
-    Chart.defaults.borderColor = 'rgba(148,163,184,.15)';
-
+    var comun = { background: 'transparent', foreColor: '#94a3b8', toolbar: { show: false } };
     var elEstado = document.getElementById('chEstado');
     if (elEstado) {
-      CHARTS.push(new Chart(elEstado, {
-        type: 'doughnut',
-        data: {
-          labels: pares.map(function (p) { return p[0]; }),
-          datasets: [{ data: pares.map(function (p) { return p[1]; }), backgroundColor: ['#2563eb', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#64748b', '#eab308'], borderWidth: 0 }],
-        },
-        options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } } },
-      }));
+      var c1 = new ApexCharts(elEstado, {
+        chart: Object.assign({ type: 'donut', height: 240 }, comun),
+        series: pares.map(function (p) { return p[1]; }),
+        labels: pares.map(function (p) { return p[0]; }),
+        legend: { position: 'bottom', labels: { colors: '#94a3b8' } },
+        stroke: { width: 0 },
+        dataLabels: { enabled: false },
+        colors: ['#2563eb', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#64748b', '#eab308'],
+      });
+      c1.render(); CHARTS.push(c1);
     }
-
     var bins = ((DATOS && DATOS.facetas && DATOS.facetas.bins) || []).slice(0, 10);
     var elBins = document.getElementById('chBins');
     if (elBins) {
-      CHARTS.push(new Chart(elBins, {
-        type: 'bar',
-        data: {
-          labels: bins.map(function (b) { return b.v; }),
-          datasets: [{ label: 'CC', data: bins.map(function (b) { return b.n; }), backgroundColor: '#2563eb', borderRadius: 4 }],
-        },
-        options: {
-          maintainAspectRatio: false, indexAxis: 'y',
-          plugins: { legend: { display: false } },
-          scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } },
-        },
-      }));
+      var c2 = new ApexCharts(elBins, {
+        chart: Object.assign({ type: 'bar', height: 240 }, comun),
+        series: [{ name: 'CC', data: bins.map(function (b) { return b.n; }) }],
+        xaxis: { categories: bins.map(function (b) { return b.v; }), labels: { style: { colors: '#94a3b8' } } },
+        plotOptions: { bar: { horizontal: true, borderRadius: 4 } },
+        colors: ['#2563eb'], dataLabels: { enabled: false }, grid: { borderColor: 'rgba(148,163,184,.15)' },
+      });
+      c2.render(); CHARTS.push(c2);
     }
-
     api('/movs?n=500').then(function (j) {
-      var porDia = {};
+      var porDia = {}, ultimas = [];
       ((j && j.movs) || []).forEach(function (m) {
         if (m.accion !== 'VENTA') return;
         var dia = String(m.fecha || '').slice(0, 10);
         if (dia) porDia[dia] = (porDia[dia] || 0) + 1;
+        if (ultimas.length < 6) ultimas.push(m);
       });
       var dias = Object.keys(porDia).sort().slice(-14);
       var elVentas = document.getElementById('chVentas');
-      if (!elVentas) return;
-      CHARTS.push(new Chart(elVentas, {
-        type: 'line',
-        data: {
-          labels: dias,
-          datasets: [{ label: 'Ventas', data: dias.map(function (d) { return porDia[d]; }), borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,.18)', fill: true, tension: .3, pointRadius: 3 }],
-        },
-        options: {
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } },
-        },
-      }));
+      if (elVentas) {
+        var c3 = new ApexCharts(elVentas, {
+          chart: Object.assign({ type: 'area', height: 240 }, comun),
+          series: [{ name: 'Ventas', data: dias.map(function (d) { return porDia[d]; }) }],
+          xaxis: { categories: dias, labels: { style: { colors: '#94a3b8' } } },
+          yaxis: { labels: { style: { colors: '#94a3b8' } }, min: 0, forceNiceScale: true },
+          stroke: { curve: 'smooth', width: 2 }, colors: ['#22c55e'], fill: { opacity: .18 },
+          dataLabels: { enabled: false }, grid: { borderColor: 'rgba(148,163,184,.15)' },
+        });
+        c3.render(); CHARTS.push(c3);
+      }
+      var tb = document.getElementById('ultimasVentas');
+      if (tb) {
+        tb.innerHTML = ultimas.length ? ultimas.map(function (m) {
+          return '<tr><td class="sub">' + esc(String(m.fecha || '').slice(0, 16).replace('T', ' ')) + '</td><td class="mono">' + esc(m.detalle || '-') + '</td></tr>';
+        }).join('') : '<tr><td colspan="2" class="vacio">Sin ventas registradas</td></tr>';
+      }
     }).catch(function () {});
   }
   function dashboard() {
@@ -432,28 +431,27 @@
     box.style.display = 'block';
     var k = (DATOS && DATOS.kpis) || {};
     var pares = paresEstado(k);
-    var estados = pares.map(function (p) { return '<div class="card">' + esc(p[0]) + '<b>' + esc(p[1]) + '</b></div>'; }).join('');
-    var bins = ((DATOS && DATOS.facetas && DATOS.facetas.bins) || []).slice(0, 12).map(function (b) {
-      return '<tr><td class="mono">' + esc(b.v) + '</td><td>' + esc(b.banco || '-') + '</td><td>' + esc(b.n) + '</td></tr>';
+    var cards = [
+      ['Disponibles', k.disponible || 0, 'shopping-cart'],
+      ['Vendidas', k.vendidas || 0, 'check'],
+      ['Saldo total', num(k.saldoTotal), 'wallet'],
+      ['Ventas', k.ventas || 0, 'chart-bar'],
+      ['Sin precio', k.sinPrecio || 0, 'alert-triangle'],
+      ['Alertas', (k.alertas || []).length, 'activity'],
+    ].map(function (c) {
+      return '<div class="dash-card"><span class="dash-ico"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-' + c[2] + '"></use></svg></span><div><span>' + esc(c[0]) + '</span><b>' + esc(c[1]) + '</b></div></div>';
     }).join('');
     destruirCharts();
-    box.innerHTML = '<div class="grid">'
-      + '<div class="card">Disponibles<b>' + esc(k.disponible || 0) + '</b></div>'
-      + '<div class="card">Vendidas<b>' + esc(k.vendidas || 0) + '</b></div>'
-      + '<div class="card">Saldo total<b>' + esc(num(k.saldoTotal)) + '</b></div>'
-      + '<div class="card">Ventas<b>' + esc(k.ventas || 0) + '</b></div>'
-      + '<div class="card">Sin precio<b>' + esc(k.sinPrecio || 0) + '</b></div>'
-      + '<div class="card">Alertas<b>' + esc((k.alertas || []).length) + '</b></div>'
-      + estados + '</div>'
-      + '<div class="charts">'
-      + '<div class="chartbox"><h4>Stock por estado</h4><canvas id="chEstado" height="200"></canvas></div>'
-      + '<div class="chartbox"><h4>Ventas por día (últimas 14)</h4><canvas id="chVentas" height="200"></canvas></div>'
-      + '<div class="chartbox"><h4>Top BIN</h4><canvas id="chBins" height="200"></canvas></div>'
+    box.innerHTML = '<div class="dash-cards">' + cards + '</div>'
+      + '<div class="dash-grid">'
+      + '<div class="dash-panel"><h4>Stock por estado</h4><div id="chEstado"></div></div>'
+      + '<div class="dash-panel"><h4>Ventas por día (últimas 14)</h4><div id="chVentas"></div></div>'
+      + '<div class="dash-panel"><h4>Top BIN</h4><div id="chBins"></div></div>'
       + '</div>'
-      + (bins ? '<h3 style="margin:16px 0 6px">Top BIN</h3><table><thead><tr><th>BIN</th><th>Banco</th><th>CC</th></tr></thead><tbody>' + bins + '</tbody></table>' : '');
-    cargarChart().then(function () { dibujarDashboard(k); }).catch(function (e) {
-      var c = $('#dashBox .charts');
-      if (c) c.innerHTML = '<div class="vacio">No se pudo cargar Chart.js: ' + esc(e.message) + '</div>';
+      + '<div class="dash-panel"><h4>Últimas ventas</h4><table class="table table-sm"><thead><tr><th>Fecha</th><th>Detalle</th></tr></thead><tbody id="ultimasVentas"></tbody></table></div>';
+    cargarApex().then(function () { dibujarDashboard(k); }).catch(function (e) {
+      var g = box.querySelector('.dash-grid');
+      if (g) g.innerHTML = '<div class="vacio">No se pudo cargar ApexCharts: ' + esc(e.message) + '</div>';
     });
   }
 
