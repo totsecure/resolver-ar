@@ -26,6 +26,9 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
 #chipSinPrecio[hidden]{display:none}
 #chipSinPrecio.activo{background:var(--warn);color:rgb(17,22,32)}
 #chipSinPrecio .x{margin-left:4px;font-weight:900}
+#dashBox .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:12px}
+#dashBox .chartbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;height:250px;position:relative}
+#dashBox .chartbox h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim)}
 @media (max-width:860px){
   header{gap:8px}
   .kpis{width:100%;margin-left:0;gap:10px}
@@ -123,7 +126,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
   function pintarKpis(k) {
     var c = $('#kpis'); if (!c) return;
     var it = [['Disponibles', k.disponible], ['Vendidas', k.vendidas], ['Saldo', num(k.saldoTotal)], ['Sin precio', k.sinPrecio]];
-    if (DASH) { it.push(['Ventas', k.ventas == null ? '-' : k.ventas], ['Alertas', (k.alertas || []).length]); var pe = k.porEstado || {}; Object.keys(pe).forEach(function (e) { it.push([e, pe[e]]); }); }
+    if (DASH) { it.push(['Ventas', k.ventas == null ? '-' : k.ventas], ['Alertas', (k.alertas || []).length]); paresEstado(k).forEach(function (p) { it.push([p[0], p[1]]); }); }
     c.innerHTML = it.map(function (x) { return '<span>' + esc(x[0]) + ' <b>' + esc(x[1]) + '</b></span>'; }).join('');
   }
   function pintarFacetas(fac) {
@@ -364,17 +367,99 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
   }
 
   /* ---------- dashboard ---------- */
+  var CHART_PROMESA = null, CHARTS = [];
+  function cargarChart() {
+    if (window.Chart) return Promise.resolve();
+    if (CHART_PROMESA) return CHART_PROMESA;
+    CHART_PROMESA = new Promise(function (res, rej) {
+      var s = document.createElement('script');
+      s.src = '/panel/vendor/chart.umd.min.js';
+      s.onload = function () { res(); };
+      s.onerror = function () { CHART_PROMESA = null; rej(new Error('no se pudo cargar Chart.js')); };
+      document.head.appendChild(s);
+    });
+    return CHART_PROMESA;
+  }
+  function paresEstado(k) {
+    var pe = (k && k.porEstado) || [];
+    if (Array.isArray(pe)) return pe.map(function (x) { return [x.estado, x.n]; });
+    return Object.keys(pe).map(function (e) { return [e, pe[e]]; });
+  }
+  function destruirCharts() {
+    CHARTS.forEach(function (c) { try { c.destroy(); } catch (_) {} });
+    CHARTS = [];
+  }
+  function dibujarDashboard(k) {
+    if (!window.Chart) return;
+    var pares = paresEstado(k);
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = 'rgba(148,163,184,.15)';
+
+    var elEstado = document.getElementById('chEstado');
+    if (elEstado) {
+      CHARTS.push(new Chart(elEstado, {
+        type: 'doughnut',
+        data: {
+          labels: pares.map(function (p) { return p[0]; }),
+          datasets: [{ data: pares.map(function (p) { return p[1]; }), backgroundColor: ['#2563eb', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#64748b', '#eab308'], borderWidth: 0 }],
+        },
+        options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } } },
+      }));
+    }
+
+    var bins = ((DATOS && DATOS.facetas && DATOS.facetas.bins) || []).slice(0, 10);
+    var elBins = document.getElementById('chBins');
+    if (elBins) {
+      CHARTS.push(new Chart(elBins, {
+        type: 'bar',
+        data: {
+          labels: bins.map(function (b) { return b.v; }),
+          datasets: [{ label: 'CC', data: bins.map(function (b) { return b.n; }), backgroundColor: '#2563eb', borderRadius: 4 }],
+        },
+        options: {
+          maintainAspectRatio: false, indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } },
+        },
+      }));
+    }
+
+    api('/movs?n=500').then(function (j) {
+      var porDia = {};
+      ((j && j.movs) || []).forEach(function (m) {
+        if (m.accion !== 'VENTA') return;
+        var dia = String(m.fecha || '').slice(0, 10);
+        if (dia) porDia[dia] = (porDia[dia] || 0) + 1;
+      });
+      var dias = Object.keys(porDia).sort().slice(-14);
+      var elVentas = document.getElementById('chVentas');
+      if (!elVentas) return;
+      CHARTS.push(new Chart(elVentas, {
+        type: 'line',
+        data: {
+          labels: dias,
+          datasets: [{ label: 'Ventas', data: dias.map(function (d) { return porDia[d]; }), borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,.18)', fill: true, tension: .3, pointRadius: 3 }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } },
+        },
+      }));
+    }).catch(function () {});
+  }
   function dashboard() {
     var main = document.querySelector('main'); if (!main) return;
     var box = $('#dashBox');
     if (!box) { box = document.createElement('div'); box.id = 'dashBox'; main.appendChild(box); }
     box.style.display = 'block';
     var k = (DATOS && DATOS.kpis) || {};
-    var pe = k.porEstado || {};
-    var estados = Object.keys(pe).map(function (e) { return '<div class="card">' + esc(e) + '<b>' + esc(pe[e]) + '</b></div>'; }).join('');
+    var pares = paresEstado(k);
+    var estados = pares.map(function (p) { return '<div class="card">' + esc(p[0]) + '<b>' + esc(p[1]) + '</b></div>'; }).join('');
     var bins = ((DATOS && DATOS.facetas && DATOS.facetas.bins) || []).slice(0, 12).map(function (b) {
       return '<tr><td class="mono">' + esc(b.v) + '</td><td>' + esc(b.banco || '-') + '</td><td>' + esc(b.n) + '</td></tr>';
     }).join('');
+    destruirCharts();
     box.innerHTML = '<div class="grid">'
       + '<div class="card">Disponibles<b>' + esc(k.disponible || 0) + '</b></div>'
       + '<div class="card">Vendidas<b>' + esc(k.vendidas || 0) + '</b></div>'
@@ -383,7 +468,16 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
       + '<div class="card">Sin precio<b>' + esc(k.sinPrecio || 0) + '</b></div>'
       + '<div class="card">Alertas<b>' + esc((k.alertas || []).length) + '</b></div>'
       + estados + '</div>'
+      + '<div class="charts">'
+      + '<div class="chartbox"><h4>Stock por estado</h4><canvas id="chEstado" height="200"></canvas></div>'
+      + '<div class="chartbox"><h4>Ventas por día (últimas 14)</h4><canvas id="chVentas" height="200"></canvas></div>'
+      + '<div class="chartbox"><h4>Top BIN</h4><canvas id="chBins" height="200"></canvas></div>'
+      + '</div>'
       + (bins ? '<h3 style="margin:16px 0 6px">Top BIN</h3><table><thead><tr><th>BIN</th><th>Banco</th><th>CC</th></tr></thead><tbody>' + bins + '</tbody></table>' : '');
+    cargarChart().then(function () { dibujarDashboard(k); }).catch(function (e) {
+      var c = $('#dashBox .charts');
+      if (c) c.innerHTML = '<div class="vacio">No se pudo cargar Chart.js: ' + esc(e.message) + '</div>';
+    });
   }
 
   /* ---------- vender / pedir / ver ---------- */

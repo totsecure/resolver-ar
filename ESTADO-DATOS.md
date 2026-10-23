@@ -250,3 +250,13 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - Click = mismo toggle que el banner ("Ver sin precio" / "Ver todas"); apaga el
   filtro y limpia `f_pmax`. `limpiar()` también lo resetea.
 - E2E: chip visible con 5, activa 5 filas, se apaga y vuelven las 8 (12 tests).
+
+### 3d — Dashboard con Chart.js
+- `panel/vendor/chart.umd.min.js` (chart.js 4.6.1, MIT, 205 KB), cargado en
+  diferido: el `<script>` se inyecta recién al abrir Dashboard.
+- Gráficos: stock por estado (doughnut), ventas por día de los últimos 14 días
+  (line, contando `movs.accion='VENTA'`) y top BIN (barra horizontal).
+- Se corrigió de paso el render de `porEstado`, que venía como array y se
+  mostraba como `[object Object]` en las tarjetas.
+- E2E: verifica que `window.Chart` no existe antes de abrir, que hay 3 canvas y
+  que Chart.js carga después (13 tests).
