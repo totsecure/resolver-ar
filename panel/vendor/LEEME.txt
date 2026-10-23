@@ -47,3 +47,31 @@ hotkeys-js.min.js
   licencia: MIT
   origen: dist/hotkeys-js.min.js
   uso: atajos de teclado del panel (/ a A d e n p Esc).
+
+iconos.svg
+  paquete: @tabler/icons
+  version: 3.49.0
+  licencia: MIT
+  origen: scripts/iconos.mjs sobre los SVG de scripts/iconos-src/
+  uso: sprite con SOLO los 47 iconos usados (<use href="/panel/vendor/iconos.svg#tabler-x">).
+
+apexcharts.min.js
+  paquete: apexcharts
+  version: 8.4.1
+  licencia: MIT (ver LICENSE.md del paquete)
+  origen: dist/apexcharts.min.js
+  uso: gráficos del dashboard, cargado en diferido solo al abrir Dashboard.
+
+animate.min.css
+  paquete: animate.css
+  version: 4.1.1
+  licencia: MIT
+  origen: animate.min.css
+  uso: micro-animaciones puntuales (fadeIn, fadeInUp) en cards y offcanvas.
+
+tom-select.complete.min.js + tom-select.bootstrap5.min.css
+  paquete: tom-select
+  version: 2.6.2
+  licencia: Apache-2.0
+  origen: dist/js/tom-select.complete.min.js y dist/css/tom-select.bootstrap5.min.css
+  uso: selects de filtros con el look de Tabler/Bootstrap 5.

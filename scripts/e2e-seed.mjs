@@ -62,6 +62,7 @@ const TARJETAS = [
 ];
 
 const stock = await import(pathToFileURL(path.join(RAIZ, 'lib', 'stock.js')).href);
+const auth = await import(pathToFileURL(path.join(RAIZ, 'lib', 'auth.js')).href);
 const d = stock.base();
 
 const refPorBin = new Map();
@@ -98,6 +99,15 @@ try {
   try { d.exec('ROLLBACK'); } catch (_) {}
   throw e;
 }
+
+/* Usuario para el test de login real (operador exige 2FA). */
+try {
+  auth.crearUsuario({ usuario: 'e2e-admin', nombre: 'E2E Admin', rol: 'operador', clave: 'clave-e2e-123', es_test: 1 });
+} catch (e) {
+  if (!/ya existe/.test(String(e?.message || e))) throw e;
+}
+d.prepare("UPDATE usuarios SET totp_secret=?, totp_activo=1, totp_pendiente=NULL WHERE usuario='e2e-admin'")
+  .run('JBSWY3DPEHPK3PXP');
 
 const porEstado = d.prepare('SELECT estado, COALESCE(eliminado,0) eliminado, COUNT(*) n FROM cc GROUP BY 1,2 ORDER BY 1,2').all();
 const total = d.prepare('SELECT COUNT(*) n FROM cc').get().n;
