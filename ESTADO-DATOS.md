@@ -181,15 +181,11 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
   - stock: `quick_check=ok`, `cc=57`.
   Las copias de prueba se borraron después.
 
-### Litestream — evaluado, NO conectado a producción
+### Litestream — conectado a stock.db (2026-10-23)
 - Binario v0.5.17 darwin-arm64 en `varios/bin/litestream` (ignorado por git).
-- Prueba real sobre **copias** de las bases, réplica en
-  `/Volumes/Boveda/litestream-eval`: sync one-shot 14 s (padrón 912 MB de LTX),
-  restore 11,7 s; `quick_check=ok`, `personas=5.664.575`, `cc=57`.
-- No se conectó a `datos/stock.db` ni `datos/padron.db` porque Litestream crea
-  `_litestream_lock` y `_litestream_seq` **dentro de la base origen**, y esta
-  fase prohíbe escribir en ellas. Si se autoriza esa escritura, el binarió ya
-  está listo y sólo falta el `litestream.yml` + launchd.
+- Autorizado en el paso siguiente: **solo `stock.db`**. `padron.db` no se
+  replica (es estática y ya tiene backup semanal).
+- Detalle operativo en la sección "Litestream en producción" más abajo.
 
 ### Monitoreo (sin Docker)
 - No hay Docker en la máquina, así que se usó `scripts/vigilar.sh` + launchd
@@ -202,3 +198,20 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - Prueba real: se congeló el server con `SIGSTOP` 26 s. Llegaron el aviso
   `FALLA: local` y luego `RECUPERADO: local`; la tercera corrida no repitió
   nada (cooldown). El túnel sigue caído, así que `publico` alerta cada 30 min.
+
+
+## Litestream en producción — solo stock.db (2026-10-23)
+- Config: `deploy/litestream.yml` (origen `datos/stock.db`, réplica
+  `/Volumes/Boveda/litestream/stock`).
+- Servicio: launchd `ar.resolver.litestream` -> `scripts/litestream.sh`
+  (`RunAtLoad`, `KeepAlive`, `ThrottleInterval=15`). El wrapper espera hasta
+  5 min a que `/Volumes/Boveda` esté montado; si no está, sale y launchd
+  reintenta.
+- `datos/stock.db` ahora tiene dos tablas internas de Litestream:
+  `_litestream_lock` y `_litestream_seq`. `/stats` las excluye de `tablas` y las
+  informa en `tablas_internas`, así no cambia el contrato público.
+- Verificado en vivo: `quick_check=ok`, `cc=57`, snapshot inicial completo
+  (`datos/litestream.log`), panel `/panel/` http=200.
+- Restore desde la réplica a `/tmp`: `quick_check=ok`, `cc=57`.
+- El backup diario/semanal de `stock.db` sigue funcionando igual; Litestream es
+  complementario (point-in-time), no reemplaza las copias a disco externo.

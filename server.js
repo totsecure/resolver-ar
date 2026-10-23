@@ -230,9 +230,25 @@ function contarTabla(tabla) {
   }
 }
 
+/* Tablas internas de Litestream (creadas en stock.db). No forman parte del
+ * contrato público de /stats, pero se informan aparte para que sean conocidas. */
+const TABLAS_INTERNAS = ['_litestream_lock', '_litestream_seq'];
+
 function tablas() {
   try {
-    return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((r) => r.name);
+    return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all()
+      .map((r) => r.name)
+      .filter((n) => !TABLAS_INTERNAS.includes(n));
+  } catch (_) {
+    return [];
+  }
+}
+
+function tablasInternas() {
+  try {
+    return sBase().prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all()
+      .map((r) => r.name)
+      .filter((n) => TABLAS_INTERNAS.includes(n));
   } catch (_) {
     return [];
   }
@@ -328,6 +344,7 @@ app.get('/stats', soloLectura, (q, s) => {
         calculado: cob.calculado,
       },
       tablas: tablas(),
+      tablas_internas: tablasInternas(),
       filas: {
         personas,
         cne: contarTabla('cne'),
