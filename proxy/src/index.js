@@ -247,6 +247,13 @@ export default {
 
     const h = new Headers(req.headers);
     h.delete("authorization");
+    h.delete("x-forwarded-for");
+    h.delete("x-real-ip");
+    const ipCliente = req.headers.get("cf-connecting-ip");
+    if (ipCliente) {
+      h.set("x-forwarded-for", ipCliente);
+      h.set("x-real-ip", ipCliente);
+    }
     h.set("ngrok-skip-browser-warning", "1");
     h.set("host", new URL(UP).host);
     if (env.NGROK_USER && env.NGROK_PASS) {

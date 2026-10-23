@@ -1,6 +1,7 @@
 import express from 'express';
 import compression from 'compression';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -63,6 +64,20 @@ app.use(helmet({
 }));
 /* Compresión global (gzip/br según Accept-Encoding). */
 app.use(compression());
+/* Rate limit: alto para el panel (se refresca cada 20 s), estricto en auth.
+ * La IP real llega en X-Forwarded-For puesta por el Worker (cf-connecting-ip). */
+const panelLimit = rateLimit({
+  windowMs: 5 * 60 * 1000, limit: 600, standardHeaders: 'draft-7', legacyHeaders: false,
+  message: { error: 'demasiadas peticiones' },
+});
+const authLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false,
+  message: { error: 'demasiados intentos' },
+});
+app.use('/panel', panelLimit);
+app.use('/api/auth/login', authLimit);
+app.use('/api/auth/2fa', authLimit);
+app.use('/api/registro', authLimit);
 auth.migrar();
 wallet.migrar();
 vendedores.migrar();

@@ -320,3 +320,15 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
   estilos) y se desactiva `upgrade-insecure-requests` para http local.
 - Verificado en producción: CSP, `X-Content-Type-Options`, `X-Frame-Options`,
   `Referrer-Policy` y HSTS presentes. E2E 15/15 (incluye descarga CSV con CSP).
+
+### 5d — rate limit
+- `express-rate-limit` (MIT). `/panel`: 600 req / 5 min (el panel se refresca
+  cada 20 s). Estricto: `/api/auth/login`, `/api/auth/2fa*` y `/api/registro`:
+  20 req / 15 min por IP.
+- **Worker**: no propagaba `X-Forwarded-For`. Se modificó `proxy/src/index.js`
+  para borrar cualquier XFF del cliente y setear `x-forwarded-for`/`x-real-ip`
+  desde `cf-connecting-ip` (IP real de Cloudflare). Worker desplegado
+  (Version ID `12930bc7-2cb1-41f1-b03e-7ef33dc6c63a`).
+- `app.set('trust proxy', true)` ya estaba; ahora la IP real no se pierde y un
+  límite estricto no throttlea a todos los clientes como si fueran uno.
+- Verificado: `RateLimit-Policy: 600;w=300` en `/panel`; E2E 15/15.
