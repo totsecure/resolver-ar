@@ -50,6 +50,7 @@ const VERSION = '1.0.0';
 const PUERTO = Number(process.env.PORT || 3001);
 /* Solo loopback: el acceso público entra por el Worker -> ngrok. */
 const HOST = process.env.HOST || '127.0.0.1';
+const DATASETTE_URL = process.env.DATASETTE_URL || 'http://127.0.0.1:3003';
 const RUTA_DB = process.env.RESOLVER_DB || path.join(import.meta.dirname, 'datos', 'padron.db');
 const RUTA_LOG = path.join(import.meta.dirname, 'datos', 'server.log');
 /* Sin RESOLVER_TOKEN no se arranca: sin credenciales no se consulta nada. */
@@ -67,11 +68,16 @@ app.set('trust proxy', 1);
 /* Cabeceras seguras. CSP: se permite el <style> inline del panel y los data:
  * URIs de Tabler; no hay scripts inline (todo es /panel/app.js y vendor/).
  * Se desactiva upgrade-insecure-requests para que funcione en http local. */
-app.use(helmet({
+const helmetMiddleware = helmet({
   contentSecurityPolicy: {
     directives: { 'upgrade-insecure-requests': null },
   },
-}));
+});
+app.use((req, res, next) => {
+  /* Datasette trae su propio HTML/JS inline: no le aplicamos el CSP del panel. */
+  if (req.path === '/datasette' || req.path.startsWith('/datasette/')) return next();
+  return helmetMiddleware(req, res, next);
+});
 /* Compresión global (gzip/br según Accept-Encoding). */
 app.use(compression());
 /* Rate limit: alto para el panel (se refresca cada 20 s), estricto en auth.
@@ -559,6 +565,41 @@ app.use(express.json({ limit: '4mb' }));
 app.use('/api/admin', (req, res, next) => (
   req.method === 'POST' ? validar(adminSchema)(req, res, next) : next()
 ));
+
+/* Datasette: proxy local read-only. El Worker pisa ?token= con RESOLVER_TOKEN;
+ * Datasette usa el mismo token, así que la auth sigue funcionando. */
+async function proxyDatasette(req, res) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    return res.status(405).json({ ok: false, error: 'solo_lectura' });
+  }
+  const enviado = (typeof req.query.token === 'string' && req.query.token)
+    || String(req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  if (!enviado || !igualSeguro(enviado, TOKEN)) {
+    return res.status(403).json({ ok: false, error: 'no autorizado' });
+  }
+  const headers = {};
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (['host', 'connection', 'content-length', 'transfer-encoding', 'authorization'].includes(k)) continue;
+    headers[k] = v;
+  }
+  headers.host = '127.0.0.1:3003';
+  headers.authorization = 'Bearer ' + TOKEN;
+  const destino = new URL(DATASETTE_URL + req.originalUrl);
+  destino.searchParams.delete('token');
+  try {
+    const r = await fetch(destino.toString(), { method: req.method, headers, redirect: 'manual' });
+    res.status(r.status);
+    r.headers.forEach((v, k) => {
+      if (['content-encoding', 'content-length', 'transfer-encoding', 'connection', 'keep-alive'].includes(k)) return;
+      res.setHeader(k, v);
+    });
+    if (req.method === 'HEAD') return res.end();
+    res.end(Buffer.from(await r.arrayBuffer()));
+  } catch (e) {
+    res.status(502).json({ ok: false, error: 'datasette_no_disponible', detalle: String(e?.message || e) });
+  }
+}
+app.use('/datasette', proxyDatasette);
 
 /* Modo mantenimiento: bloquea el sitio salvo login/health y admin/servicio. */
 app.use((req, res, next) => {

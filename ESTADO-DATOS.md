@@ -375,3 +375,14 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - Verificado: `127.0.0.1:3001/health` 200; `192.168.0.149:3001` rechazado (000);
   el Worker sigue llegando (200) y `humo.sh` verde. `lsof` confirma LISTEN en
   `127.0.0.1:3001` únicamente.
+
+### Paso 3 — Datasette por el server/Worker
+- Datasette corre con `--setting base_url /datasette/` y el **token es
+  `RESOLVER_TOKEN`** (ya no el token propio).
+- `server.js` expone `GET/HEAD /datasette/*` como proxy a `127.0.0.1:3003`:
+  valida el token (query o Bearer), borra `token` de la query y forwardea con
+  `Authorization: Bearer RESOLVER_TOKEN`. Así el `?token=` que agrega el Worker
+  no se interpreta como filtro de columna.
+- Helmet no se aplica a `/datasette` (su HTML/JS inline usa su propio CSP).
+- Verificado: local 200, vía Worker 200, `cc` = 57 filas, sin token 403.
+- El plugin `datasette-auth-tokens` ya no usa `param`; solo Bearer.
