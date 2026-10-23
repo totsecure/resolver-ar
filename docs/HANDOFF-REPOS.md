@@ -293,3 +293,20 @@ Hallazgos:
   quedó refrescado).
 - Nota: la instancia de test ejecuta jobs y outbox. Se fuerza `TELEGRAM_TOKEN=""`
   para no enviar mensajes reales; el outbox vive en la base descartable.
+
+### Fase 2 — hecha (2026-10-23)
+
+- Backups: `scripts/backup-dbs.sh` (stock diario 7 + semanal 4; padrón semanal 4)
+  con `.backup`, `quick_check` previo a comprimir, aborto ante corrupción, gzip,
+  copia local + `/Volumes/Boveda/resolver-backups` y log en `datos/backup.log`.
+  Restore probado: padrón `quick_check=ok` y 5.664.575 personas; stock `ok`, 57 CC.
+- Padrón real: 1,43 GiB / ~548 MiB comprimido. Por eso la frecuencia semanal.
+- Litestream v0.5.17 probado sobre copias (sync 14 s, restore 11,7 s, integridad
+  OK). **No se conectó a producción**: escribe `_litestream_lock` y
+  `_litestream_seq` dentro de la base origen. Ver `ESTADO-DATOS.md`.
+- Monitoreo: sin Docker, `scripts/vigilar.sh` + launchd `ar.resolver.vigilar`
+  cada 60 s. Chequea local, túnel vía Worker y bot; alerta por Telegram con
+  cooldown y aviso de recuperación. Prueba real con `SIGSTOP` al server: llegaron
+  FALLA y RECUPERADO.
+- `humo.sh` quedó **47 OK / 0 FAIL / 1 SKIP** (el SKIP es el túnel, realmente
+  caído; lo cubre `vigilar.sh`).

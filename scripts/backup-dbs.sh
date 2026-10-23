@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# backup-dbs.sh — backups consistentes con retención por cantidad.
+# backup-dbs.sh — backups consistentes de stock.db y padron.db.
 #
-#   stock.db  : diario  (7 copias)
-#   padron.db : semanal (4 copias; solo si la última tiene >= 7 días)
+#   stock.db  : diario  (7 copias) + semanal (4 copias)
+#   padron.db : semanal (4 copias; 1.4 GB -> ~550 MB gzip)
 #
-#   bash scripts/backup-dbs.sh            # stock siempre; padron si toca
-#   bash scripts/backup-dbs.sh --padron   # fuerza padron
+#   bash scripts/backup-dbs.sh              # lo que toque según el día
+#   bash scripts/backup-dbs.sh --stock      # fuerza copia diaria de stock
+#   bash scripts/backup-dbs.sh --padron     # fuerza copia semanal de padrón
+#   bash scripts/backup-dbs.sh --semanal    # fuerza las dos semanales
 #
-# Destino local:  datos/backups/
-# Destino remoto: $BACKUP_REMOTO o /Volumes/Boveda/resolver-backups
-# El disco externo DEBE estar montado; si no, falla sin escribir backups.
+# Cada copia se hace con `sqlite3 .backup` (consistente con WAL), se valida con
+# `PRAGMA quick_check` ANTES de comprimir y, si falla, se aborta sin publicar
+# una copia rota. Destino local: datos/backups/. Remoto: $BACKUP_REMOTO.
 set -uo pipefail
 
 RAIZ="/Users/bunker/resolver"
@@ -18,36 +20,44 @@ LOCAL="$RAIZ/datos/backups"
 BASE_REMOTO="${BACKUP_REMOTO_BASE:-/Volumes/Boveda}"
 REMOTO="${BACKUP_REMOTO:-$BASE_REMOTO/resolver-backups}"
 TS="$(date +%Y%m%d-%H%M%S)"
+HOY="$(date +%Y%m%d)"
+SEMANA="$(date +%G%V)"
+DOW="$(date +%u)"
 FALLAS=0
 FORZAR_PADRON=0
 FORZAR_STOCK=0
+FORZAR_SEMANAL=0
 for arg in "$@"; do
   case "$arg" in
     --padron) FORZAR_PADRON=1 ;;
     --stock) FORZAR_STOCK=1 ;;
+    --semanal) FORZAR_SEMANAL=1 ;;
   esac
 done
-HOY="$(date +%Y%m%d)"
 
 cd "$RAIZ" || exit 1
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LOG"; }
+alertar() { bash "$RAIZ/scripts/alertar.sh" "$1" >> "$LOG" 2>&1 || true; }
 
-# 1) Exigir el disco externo ANTES de tocar datos/backups.
+# 1) Exigir el disco externo ANTES de tocar nada.
 if [ "${BACKUP_REMOTO_SIN_MONTAJE:-0}" != "1" ]; then
   if [ ! -d "$BASE_REMOTO" ] || ! mount | grep -F " on $BASE_REMOTO " >/dev/null 2>&1; then
     echo "ERROR: disco externo NO montado: $BASE_REMOTO — no se hizo ningún backup." >&2
-    bash "$RAIZ/scripts/alertar.sh" "Backup falló: disco externo no montado ($BASE_REMOTO)." >> "$LOG" 2>&1 || true
+    log "ABORTO disco externo no montado ($BASE_REMOTO)"
+    alertar "Backup falló: disco externo no montado ($BASE_REMOTO)."
     exit 2
   fi
 fi
 if ! mkdir -p "$REMOTO" 2>/dev/null || ! touch "$REMOTO/.resolver-backup-test" 2>/dev/null; then
-  echo "ERROR: destino remoto no escribible: $REMOTO — no se hizo ningún backup." >&2
-  bash "$RAIZ/scripts/alertar.sh" "Backup falló: destino remoto no escribible ($REMOTO)." >> "$LOG" 2>&1 || true
+  echo "ERROR: destino remoto no escribible: $REMOTO" >&2
+  log "ABORTO destino remoto no escribible ($REMOTO)"
+  alertar "Backup falló: destino remoto no escribible ($REMOTO)."
   exit 3
 fi
 rm -f "$REMOTO/.resolver-backup-test"
 mkdir -p "$LOCAL"
 
-# Evita dos corridas simultáneas (launchd + manual) que copiarían dos veces.
+# Evita dos corridas simultáneas (launchd + manual).
 LOCK="$RAIZ/datos/.backup-lock"
 if ! mkdir "$LOCK" 2>/dev/null; then
   echo "ERROR: ya hay un backup en curso ($LOCK)" >&2
@@ -55,8 +65,7 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 
-log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LOG"; }
-
+# 2) Una copia: .backup -> quick_check -> gzip -> remoto.
 respaldar() {
   local db="$1" nombre="$2"
   local tmp="$LOCAL/${nombre}-${TS}.db"
@@ -80,12 +89,12 @@ SQL
   fi
 
   local check
-  check="$(sqlite3 "$tmp" 'PRAGMA integrity_check;' 2>&1 | head -1)"
+  check="$(sqlite3 "$tmp" 'PRAGMA quick_check;' 2>&1 | head -1)"
   if [ "$check" != "ok" ]; then
-    log "ERROR integrity_check $db => $check"
-    rm -f "$tmp"
-    FALLAS=$((FALLAS + 1))
-    return 1
+    log "ABORTO quick_check $db => $check"
+    rm -f "$tmp" "${tmp}-wal" "${tmp}-shm"
+    alertar "Backup ABORTADO: quick_check falló en $nombre ($check)."
+    exit 5
   fi
 
   if ! nice -n 10 gzip -6 "$tmp"; then
@@ -106,43 +115,55 @@ SQL
   log "OK $nombre $gz (${bytes} bytes) -> $REMOTO/$(basename "$gz")"
 }
 
-# 2) Stock: una copia por día.
-STOCK_HOY="$(ls -1 "$LOCAL"/stock-${HOY}-*.db.gz 2>/dev/null | head -1)"
+# 3) Stock: una copia diaria.
 if [ "$FORZAR_STOCK" = "1" ]; then
-  log "stock FORZADO por --stock"
+  log "stock diario FORZADO por --stock"
   respaldar "$RAIZ/datos/stock.db" "stock"
-elif [ -n "$STOCK_HOY" ]; then
-  log "stock omitido: ya hay copia de hoy ($STOCK_HOY) · segunda corrida no copia"
+elif [ -n "$(ls -1 "$LOCAL"/stock-${HOY}-*.db.gz 2>/dev/null | head -1)" ]; then
+  log "stock diario omitido: ya hay copia de hoy"
 else
   respaldar "$RAIZ/datos/stock.db" "stock"
 fi
 
-# 3) Padrón: semanal (o si no hay ninguna copia, o --padron).
-ULTIMO_PADRON="$(find "$LOCAL" -maxdepth 1 -type f -name 'padron-*.db.gz' -mtime -7 2>/dev/null | head -1)"
-if [ "$FORZAR_PADRON" = "1" ]; then
-  log "padron FORZADO por --padron"
-  respaldar "$RAIZ/datos/padron.db" "padron"
-elif [ -z "$ULTIMO_PADRON" ]; then
-  log "padron: no hay copia de menos de 7 días, se respalda"
-  respaldar "$RAIZ/datos/padron.db" "padron"
+# 4) Stock semanal: domingo, si no hay copia de esta semana, o forzada.
+if [ "$FORZAR_SEMANAL" = "1" ] || [ -z "$(ls -1 "$LOCAL"/stock-semanal-${SEMANA}-*.db.gz 2>/dev/null | head -1)" ]; then
+  if [ "$FORZAR_SEMANAL" != "1" ] && [ "$DOW" != "7" ]; then
+    log "stock semanal pendiente: hoy no es domingo (semana $SEMANA)"
+  else
+    respaldar "$RAIZ/datos/stock.db" "stock-semanal-${SEMANA}"
+  fi
 else
-  log "padron omitido: ya hay copia de menos de 7 días ($ULTIMO_PADRON) · segunda corrida no copia"
+  log "stock semanal omitido: ya hay copia de esta semana ($SEMANA)"
 fi
 
-# 4) Retención por cantidad: 7 stock, 4 padron (local y remoto).
+# 5) Padrón: semanal (1.4 GB; no cambia seguido).
+if [ "$FORZAR_PADRON" = "1" ] || [ "$FORZAR_SEMANAL" = "1" ]; then
+  respaldar "$RAIZ/datos/padron.db" "padron-semanal-${SEMANA}"
+elif [ -n "$(ls -1 "$LOCAL"/padron-semanal-${SEMANA}-*.db.gz 2>/dev/null | head -1)" ]; then
+  log "padron semanal omitido: ya hay copia de esta semana ($SEMANA)"
+elif [ "$DOW" = "7" ]; then
+  respaldar "$RAIZ/datos/padron.db" "padron-semanal-${SEMANA}"
+elif [ -z "$(find "$LOCAL" -maxdepth 1 -type f -name 'padron-semanal-*.db.gz' -mtime -7 2>/dev/null | head -1)" ]; then
+  respaldar "$RAIZ/datos/padron.db" "padron-semanal-${SEMANA}"
+else
+  log "padron semanal omitido: próxima copia el domingo"
+fi
+
+# 6) Retención: 7 diarios de stock + 4 semanales de cada base.
 podar() {
   local dir="$1" prefijo="$2" keep="$3"
   [ -d "$dir" ] || return 0
-  # gzip y crudos heredados, del más nuevo al más viejo
-  { ls -1t "$dir"/${prefijo}-*.db.gz 2>/dev/null; ls -1t "$dir"/${prefijo}-*.db 2>/dev/null; } \
+  ls -1t "$dir"/${prefijo}*.db.gz 2>/dev/null \
     | tail -n +$((keep + 1)) \
     | while IFS= read -r f; do [ -n "$f" ] && rm -f "$f"; done
-  find "$dir" -maxdepth 1 -type f \( -name "${prefijo}-*.db-wal" -o -name "${prefijo}-*.db-shm" \) -delete 2>/dev/null
+  find "$dir" -maxdepth 1 -type f \( -name "${prefijo}*.db-wal" -o -name "${prefijo}*.db-shm" \) -delete 2>/dev/null
 }
-podar "$LOCAL" "stock" 7
-podar "$REMOTO" "stock" 7
-podar "$LOCAL" "padron" 4
-podar "$REMOTO" "padron" 4
+podar "$LOCAL" "stock-2" 7
+podar "$REMOTO" "stock-2" 7
+podar "$LOCAL" "stock-semanal-" 4
+podar "$REMOTO" "stock-semanal-" 4
+podar "$LOCAL" "padron-semanal-" 4
+podar "$REMOTO" "padron-semanal-" 4
 
 log "fin fallas=$FALLAS remoto=$REMOTO"
 if [ "$FALLAS" -eq 0 ]; then
@@ -150,5 +171,5 @@ if [ "$FALLAS" -eq 0 ]; then
   exit 0
 fi
 echo "BACKUP CON FALLAS: $FALLAS (ver $LOG)" >&2
-bash "$RAIZ/scripts/alertar.sh" "Backup falló ($FALLAS error/es). Ver $LOG." >> "$LOG" 2>&1 || true
+alertar "Backup falló ($FALLAS error/es). Ver $LOG."
 exit "$FALLAS"

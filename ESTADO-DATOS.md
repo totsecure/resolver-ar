@@ -151,3 +151,49 @@ Estado real de infraestructura al cerrar el paso: el **túnel ngrok está caído
 (no hay proceso ngrok y `action-early-pants.ngrok-free.dev` devuelve 404) y el
 bot no tiene proceso local, aunque su API responde. Por eso `tunel publico` da
 SKIP. Lo vigila `scripts/vigilar.sh` (Fase 2).
+
+## Fase 2 — backups y monitoreo (2026-10-23)
+
+### Tamaño real del padrón y frecuencia elegida
+- `datos/padron.db`: **1.536.794.624 bytes (~1,43 GiB)**, 5.664.575 personas,
+  WAL activo (el `-wal` llegó a 234 MB).
+- Copia comprimida: **574.794.614 bytes (~548 MiB)**, tarda ~60-70 s con gzip -6.
+- Decisión: `stock.db` diario (7 copias) + semanal (4); `padron.db` **semanal**
+  (4 copias). No se hace diario del padrón porque es de solo lectura y cada
+  copia pesa ~550 MB; con 4 semanales alcanza para reconstruir.
+
+### Backup (`scripts/backup-dbs.sh`)
+- Reemplaza a `backup-stock.sh`, que quedó como shim compatible.
+- `sqlite3 .backup` (consistente con WAL) + `PRAGMA quick_check` **antes** de
+  comprimir. Si falla, borra la copia y aborta con alerta (exit 5).
+- gzip -6, copia a `datos/backups/` y a `/Volumes/Boveda/resolver-backups`.
+  Exige el disco externo montado y usa lock para evitar corridas simultáneas.
+- Retención: 7 diarios de stock, 4 semanales de stock y 4 semanales de padrón
+  (local y remoto). Log: `datos/backup.log`.
+- Launchd `ar.resolver.backup` ya lo ejecuta a las 03:30.
+- Restore probado de verdad en `/tmp`:
+  - padrón: `quick_check=ok`, `personas=5.664.575`, 11 tablas;
+  - stock: `quick_check=ok`, `cc=57`.
+  Las copias de prueba se borraron después.
+
+### Litestream — evaluado, NO conectado a producción
+- Binario v0.5.17 darwin-arm64 en `varios/bin/litestream` (ignorado por git).
+- Prueba real sobre **copias** de las bases, réplica en
+  `/Volumes/Boveda/litestream-eval`: sync one-shot 14 s (padrón 912 MB de LTX),
+  restore 11,7 s; `quick_check=ok`, `personas=5.664.575`, `cc=57`.
+- No se conectó a `datos/stock.db` ni `datos/padron.db` porque Litestream crea
+  `_litestream_lock` y `_litestream_seq` **dentro de la base origen**, y esta
+  fase prohíbe escribir en ellas. Si se autoriza esa escritura, el binarió ya
+  está listo y sólo falta el `litestream.yml` + launchd.
+
+### Monitoreo (sin Docker)
+- No hay Docker en la máquina, así que se usó `scripts/vigilar.sh` + launchd
+  `ar.resolver.vigilar` cada 60 s (`deploy/ar.resolver.vigilar.plist`).
+- Chequea: `/health` local con token, `/health` del túnel **vía Worker** con
+  token, y bot por `getMe`.
+- Alerta por Telegram reusando `scripts/alertar.sh` (ahora valida la respuesta
+  de la API). Cooldown 1800 s por chequeo; avisa también la recuperación.
+  Estado en `datos/vigilar-<check>.estado`, log en `datos/vigilar.log`.
+- Prueba real: se congeló el server con `SIGSTOP` 26 s. Llegaron el aviso
+  `FALLA: local` y luego `RECUPERADO: local`; la tercera corrida no repitió
+  nada (cooldown). El túnel sigue caído, así que `publico` alerta cada 30 min.

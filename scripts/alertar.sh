@@ -12,5 +12,11 @@ fi
 TOKEN="${TELEGRAM_TOKEN:-}"
 CHAT="${TELEGRAM_ADMIN:-${TELEGRAM_AUDIT:-${TELEGRAM_ALLOW%%,*}}}"
 [ -z "$TOKEN" ] || [ -z "$CHAT" ] && { echo "sin TELEGRAM_TOKEN/TELEGRAM_ADMIN" >&2; exit 1; }
-curl -sS --max-time 10 -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
-  --data-urlencode "chat_id=${CHAT}" --data-urlencode "text=⚠️ ${MSG}" >/dev/null
+RESP="$(curl -sS --max-time 10 -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+  --data-urlencode "chat_id=${CHAT}" --data-urlencode "text=⚠️ ${MSG}" 2>&1 || true)"
+if printf '%s' "$RESP" | grep -q '"ok":true'; then
+  echo "alerta enviada"
+  exit 0
+fi
+echo "ERROR al enviar alerta: ${RESP:0:200}" >&2
+exit 1
