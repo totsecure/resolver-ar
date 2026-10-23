@@ -157,7 +157,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     var cls = m.indexOf('visa') >= 0 ? 'visa' : (m.indexOf('master') >= 0 ? 'master' : '');
     var falta = f.sin_precio ? ' style="color:var(--warn)"' : '';
     return '<tr' + on + '>'
-      + '<td><input type="checkbox" data-id="' + esc(f.id) + '"' + (SEL.has(String(f.id)) ? ' checked' : '') + '></td>'
+      + '<td><input type="checkbox" data-id="' + esc(f.id) + '" aria-label="Seleccionar tarjeta ref ' + esc(f.ref) + '"' + (SEL.has(String(f.id)) ? ' checked' : '') + '></td>'
       + '<td><div class="bin mono">' + esc(f.bin) + '</div><div class="sub">' + esc(f.banco || '-') + '</div></td>'
       + '<td><span class="badge ' + cls + '">' + esc(f.marca || '-') + '</span></td>'
       + '<td>' + esc(f.tipo || '-') + '</td>'

@@ -280,6 +280,35 @@ test('exportar CSV con el encabezado esperado', async ({ page }) => {
   expect(lineas.length).toBe(TOTALES.DISPONIBLE + 1);
 });
 
+test('responsive 390/820/1440 sin scroll horizontal y acciones alcanzables', async ({ page }) => {
+  for (const ancho of [390, 820, 1440]) {
+    await page.setViewportSize({ width: ancho, height: 900 });
+    await abrirPanel(page);
+
+    const desborde = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(desborde, 'scroll horizontal a ' + ancho + 'px').toBeLessThanOrEqual(1);
+
+    await marcarFila(page, 0);
+    for (const sel of ['#btnComprar', '#btnSelTodos', '#btnPedirSel', '#btnCSV']) {
+      const el = page.locator(sel);
+      await expect(el, sel + ' a ' + ancho + 'px').toBeVisible();
+      await el.scrollIntoViewIfNeeded();
+      const caja = await el.boundingBox();
+      expect(caja, sel + ' sin caja a ' + ancho + 'px').not.toBeNull();
+      expect(caja.x).toBeGreaterThanOrEqual(0);
+      expect(caja.x + caja.width).toBeLessThanOrEqual(ancho + 1);
+    }
+  }
+});
+
+test('accesibilidad: sin violaciones críticas (axe-core)', async ({ page }) => {
+  await abrirPanel(page);
+  const AxeBuilder = (await import('@axe-core/playwright')).default;
+  const resultado = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  const criticas = resultado.violations.filter((v) => v.impact === 'critical');
+  expect(criticas.map((v) => ({ id: v.id, nodos: v.nodes.length }))).toEqual([]);
+});
+
 test('a papelera, restaurar y borrado definitivo', async ({ page }) => {
   await abrirPanel(page);
 

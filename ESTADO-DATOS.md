@@ -268,3 +268,14 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
   (text/number/select/textarea); checkbox y botones siguen permitiendo Esc.
 - Enter en `#f_q`/`#f_bins` se mantiene con un listener mínimo.
 - E2E de atajos sigue verde (13 tests).
+
+### 3f — responsive y accesibilidad
+- E2E responsive a 390, 820 y 1440 px: sin scroll horizontal del documento y
+  botones de acción (`#btnComprar`, `#btnSelTodos`, `#btnPedirSel`, `#btnCSV`)
+  visibles y dentro del viewport.
+- `devDependency`: `@axe-core/playwright` 4.14.0. Test nuevo con WCAG 2 A/AA:
+  cero violaciones **críticas**.
+- Arreglos de accesibilidad: `for` en los 16 labels de filtros, `aria-label` en
+  el checkbox de cada fila y en `#chkTodos`, y el rótulo "Saldeadas" ya no es un
+  label sin control asociado.
+- Suite E2E final: **15 tests**.

@@ -65,15 +65,15 @@ tr:hover td{background:rgba(59,130,246,.06)}
 </header>
 <main>
   <div class="filtros">
-    <div><label>BIN</label><input id="f_bins" placeholder="516585,545652"></div>
-    <div><label>BIN desde</label><input id="f_bin_desde" inputmode="numeric" placeholder="516500"></div>
-    <div><label>BIN hasta</label><input id="f_bin_hasta" inputmode="numeric" placeholder="516599"></div>
-    <div><label>Pais</label><select id="f_paises"></select></div>
-    <div><label>Banco</label><select id="f_bancos"></select></div>
-    <div><label>Red</label><select id="f_redes"></select></div>
-    <div><label>Tipo</label><select id="f_tipos"></select></div>
-    <div><label>Base / etiqueta</label><select id="f_etiquetas"></select></div>
-    <div><label>Estado</label><select id="f_estado">
+    <div><label for="f_bins">BIN</label><input id="f_bins" placeholder="516585,545652"></div>
+    <div><label for="f_bin_desde">BIN desde</label><input id="f_bin_desde" inputmode="numeric" placeholder="516500"></div>
+    <div><label for="f_bin_hasta">BIN hasta</label><input id="f_bin_hasta" inputmode="numeric" placeholder="516599"></div>
+    <div><label for="f_paises">Pais</label><select id="f_paises"></select></div>
+    <div><label for="f_bancos">Banco</label><select id="f_bancos"></select></div>
+    <div><label for="f_redes">Red</label><select id="f_redes"></select></div>
+    <div><label for="f_tipos">Tipo</label><select id="f_tipos"></select></div>
+    <div><label for="f_etiquetas">Base / etiqueta</label><select id="f_etiquetas"></select></div>
+    <div><label for="f_estado">Estado</label><select id="f_estado">
       <option value="DISPONIBLE">Disponible</option>
       <option value="RESERVADA">Reservada</option>
       <option value="VENDIDA">Vendida</option>
@@ -81,20 +81,20 @@ tr:hover td{background:rgba(59,130,246,.06)}
       <option value="PAPELERA">Papelera</option>
       <option value="BAJA">Baja</option>
     </select></div>
-    <div><label>Saldo min</label><input id="f_saldmin" type="number"></div>
-    <div><label>Saldo max</label><input id="f_saldmax" type="number"></div>
-    <div><label>Precio min</label><input id="f_pmin" type="number"></div>
-    <div><label>Precio max</label><input id="f_pmax" type="number"></div>
-    <div><label>Buscar</label><input id="f_q" placeholder="número, últimos 4, DNI, titular, ref, código o etiqueta"></div>
-    <div><label>Saldeadas</label><label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="f_saldeadas" style="width:auto"> solo base Saldeadas</label></div>
+    <div><label for="f_saldmin">Saldo min</label><input id="f_saldmin" type="number"></div>
+    <div><label for="f_saldmax">Saldo max</label><input id="f_saldmax" type="number"></div>
+    <div><label for="f_pmin">Precio min</label><input id="f_pmin" type="number"></div>
+    <div><label for="f_pmax">Precio max</label><input id="f_pmax" type="number"></div>
+    <div><label for="f_q">Buscar</label><input id="f_q" placeholder="número, últimos 4, DNI, titular, ref, código o etiqueta"></div>
+    <div><span style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim);margin-bottom:4px">Saldeadas</span><label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="f_saldeadas" style="width:auto"> solo base Saldeadas</label></div>
     <div class="botones">
       <button class="prim" id="btnBuscar">Buscar</button>
       <button class="sec" id="btnLimpiar">Limpiar</button>
     </div>
   </div>
   <div class="filtros" style="margin-top:8px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
-    <div><label>Guardar filtro</label><input id="f_nombre" placeholder="nombre del filtro"></div>
-    <div><label>Filtros guardados</label><select id="f_guardados"></select></div>
+    <div><label for="f_nombre">Guardar filtro</label><input id="f_nombre" placeholder="nombre del filtro"></div>
+    <div><label for="f_guardados">Filtros guardados</label><select id="f_guardados"></select></div>
     <div class="botones">
       <button class="sec" id="btnGuardarFiltro">Guardar</button>
       <button class="sec" id="btnCargarFiltro">Cargar</button>
@@ -112,7 +112,7 @@ tr:hover td{background:rgba(59,130,246,.06)}
   </div>
   <table>
     <thead><tr>
-      <th style="width:34px"><input type="checkbox" id="chkTodos"></th>
+      <th style="width:34px"><input type="checkbox" id="chkTodos" aria-label="Seleccionar todas las filas de la página"></th>
       <th>BIN / Banco</th><th>Red</th><th>Tipo</th><th>EXP</th>
       <th>Pais</th><th>ZIP</th><th>Datos</th><th>Base</th>
       <th>Refund</th><th>Saldo</th><th>1 pago</th><th>en cuotas</th><th></th>
