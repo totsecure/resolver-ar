@@ -352,3 +352,16 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - Se silenció el warning de express-rate-limit sobre `trust proxy` permisivo:
   el XFF lo controla el Worker; el límite sigue funcionando.
 - Suite final: **24 E2E**.
+
+## Fase 4 — Datasette read-only (2026-10-23)
+- Venv en `varios/datasette-venv` (ignorado): datasette 0.65.4 +
+  datasette-auth-tokens 0.3. No se tocó Python del sistema.
+- `scripts/datasette.sh`: sirve `datos/stock.db` en `127.0.0.1:3003`, con
+  `mode=ro` + `PRAGMA query_only=1` (Datasette), sin descargas y límites de
+  tiempo/filas. No reemplaza el panel.
+- Auth por token: `datos/datasette.token` (chmod 600, generado con openssl).
+  Acepta `Authorization: Bearer <token>` o `?token=<token>`.
+- launchd `ar.resolver.datasette` con `RunAtLoad` + `KeepAlive`, logs en
+  `datos/datasette.log` (mismo criterio que server/túnel/litestream).
+- Verificado: sin token 403; con Bearer 200; `cc` devuelve 57 filas; POST no
+  escribe (la conexión es read-only).
