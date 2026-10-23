@@ -1196,6 +1196,8 @@ app.post('/outbox/marcar', soloLectura, (req, res) => res.json({ ok: outboxMarca
 const PANEL_PUBLICOS = new Set(['/app.js', '/login.html', '/tema.css', '/login.js', '/mi.js']);
 app.use('/panel', (req, res, next) => {
   if (PANEL_PUBLICOS.has(req.path)) return next();
+  /* Vendor: CSS/JS estáticos de terceros (MIT), sin datos ni endpoints. */
+  if (req.path.startsWith('/vendor/')) return next();
   const ctx = contexto(req);
   if (!ctx) {
     if (req.method === 'GET' && req.accepts('html')) {

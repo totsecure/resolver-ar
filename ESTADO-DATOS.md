@@ -227,3 +227,19 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - Iconos: no se agregó paquete; se usan los data: URIs incluidos en el CSS.
 - `panel/vendor/LEEME.txt` documenta archivo, paquete, versión y licencia.
 - E2E: 10/10 en verde después del cambio.
+
+### 3b — SweetAlert2 + Toastify
+- `panel/vendor/sweetalert2.all.min.js` (11.26.25, MIT) y
+  `panel/vendor/toastify.js` + `toastify.css` (toastify-js 1.12.0, MIT).
+- `server.js`: `/panel/vendor/*` es público (solo assets estáticos); si no, el
+  navegador recibía el HTML del login y fallaba con "Unexpected token '<'".
+- `panel/app.js`: **cero `alert()`/`confirm()`/`prompt()`**. Reemplazados por:
+  - SweetAlert2 input: precio 1 pago, cuotas, etiqueta.
+  - Form de dos campos: saldo disponible + saldo referencia.
+  - Select: cambio de estado.
+  - Form de tres campos: precio por BIN (BIN + 1 pago + cuotas).
+  - Confirmaciones: devolver, baja, a papelera, borrado definitivo, restaurar.
+  - Toasts de éxito/error en cada acción (publicar, reservar, precios, saldo,
+    CSV, etc.).
+- E2E: 11 tests. Se agregó un test del form de saldo y un detector de diálogos
+  nativos (si aparece uno, el test falla). Publicar verifica el toast.

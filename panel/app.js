@@ -47,6 +47,40 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
   var txt = function (id) { var e = $('#' + id); return e ? String(e.value || '').trim() : ''; };
   var qq = function (o) { return new URLSearchParams(o).toString(); };
 
+  /* ---------- avisos y diálogos (SweetAlert2 + Toastify) ---------- */
+  var ACCION_TXT = {
+    publicar: 'Publicadas', reservar: 'Reservadas', devolver: 'Devueltas',
+    baja: 'Dadas de baja', precioCC: 'Precio actualizado', precioCuotas: 'Cuotas actualizadas',
+    etiqueta: 'Etiqueta actualizada', saldo: 'Saldo actualizado', borrar: 'A la papelera',
+    restaurar: 'Restauradas', borrarDef: 'Borradas', estado: 'Estado actualizado',
+  };
+  function toast(msg, tipo) {
+    if (window.Toastify) {
+      Toastify({
+        text: msg, duration: 3200, gravity: 'bottom', position: 'right', close: true,
+        style: { background: tipo === 'error' ? '#b91c1c' : '#15803d' },
+      }).showToast();
+      return;
+    }
+    console.log((tipo === 'error' ? 'ERROR: ' : '') + msg);
+  }
+  function confirmar(titulo, texto, boton) {
+    if (!window.Swal) { toast('Falta SweetAlert2', 'error'); return Promise.resolve(false); }
+    return Swal.fire({
+      title: titulo, text: texto, icon: 'warning', showCancelButton: true,
+      confirmButtonText: boton || 'Confirmar', cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#2563eb', cancelButtonColor: '#475569',
+    }).then(function (r) { return r.isConfirmed; });
+  }
+  function pedirTexto(titulo, placeholder) {
+    if (!window.Swal) { toast('Falta SweetAlert2', 'error'); return Promise.resolve(null); }
+    return Swal.fire({
+      title: titulo, input: 'text', inputPlaceholder: placeholder || '',
+      showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#2563eb',
+    }).then(function (r) { return r.isConfirmed ? (r.value == null ? '' : String(r.value)) : null; });
+  }
+
   /* ---------- estado ---------- */
   var ESTADO = 'DISPONIBLE', PAGINA = 1, POR = 50, SEL = new Set(), DATOS = null, DASH = false, ACC = null;
   var HIST = [], TODO_FILTRO = false, SIN_PRECIO = false;
@@ -179,7 +213,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     if (act) sel.value = act;
   }
   function guardarFiltro() {
-    var n = txt('f_nombre'); if (!n) return alert('Pone un nombre para el filtro.');
+    var n = txt('f_nombre'); if (!n) return toast('Pone un nombre para el filtro.', 'error');
     var data = filtrosGuardados(); var v = {};
     FILTRO_IDS.forEach(function (id) { var e = $('#' + id); if (!e) return; v[id] = e.type === 'checkbox' ? e.checked : e.value; });
     data[n] = v; localStorage.setItem('resolver_filtros', JSON.stringify(data)); refrescarGuardados(); $('#f_guardados').value = n;
@@ -226,39 +260,59 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     var h = HIST[HIST.length - 1]; if (!h) return;
     HIST.pop(); pintarUndo();
     var j = await api('/accion?' + qq({ accion: 'pares', pares: JSON.stringify(h.pares) }));
-    if (j && j.error) { alert('Error: ' + j.error); HIST.push(h); pintarUndo(); }
+    if (j && j.error) { toast('Error: ' + j.error, 'error'); HIST.push(h); pintarUndo(); return; }
+    toast('Deshecho (' + h.nombre + ')');
     cargar();
   }
   async function mutar(nombre, params, undoMapa) {
-    var lista = ids(); if (!lista.length) { alert('Nada seleccionado'); return; }
+    var lista = ids(); if (!lista.length) { toast('Nada seleccionado', 'error'); return; }
     registrarUndo(nombre, lista, undoMapa || {});
     var o = Object.assign({ accion: nombre, ids: lista.join(',') }, params || {});
     var j = await api('/accion?' + qq(o));
-    if (j && j.error) { alert('Error: ' + j.error); HIST.pop(); pintarUndo(); return; }
+    if (j && j.error) { toast('Error: ' + j.error, 'error'); HIST.pop(); pintarUndo(); return; }
     SEL.clear(); TODO_FILTRO = false; cargar();
+    toast((ACCION_TXT[nombre] || nombre) + ' (' + lista.length + ')');
   }
   async function selTodosFiltro() {
     var f = filtros(); f.accion = 'ids';
     var j = await api('/accion?' + qq(f));
-    if (!j || j.error) { alert('Error: ' + ((j && j.error) || 'red')); return; }
+    if (!j || j.error) { toast('Error: ' + ((j && j.error) || 'red'), 'error'); return; }
     SEL = new Set((j.ids || []).map(String)); TODO_FILTRO = true; pintarTabla();
     var s = $('#sel'); if (s) s.textContent = SEL.size + ' seleccionadas (todo el filtro)';
   }
   async function exportar() {
     var f = filtros(); f.accion = 'export';
     var j = await api('/accion?' + qq(f));
-    if (!j || j.error) { alert('Error: ' + ((j && j.error) || 'red')); return; }
+    if (!j || j.error) { toast('Error: ' + ((j && j.error) || 'red'), 'error'); return; }
     var blob = new Blob(['\uFEFF' + j.csv], { type: 'text/csv;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = j.nombre || 'stock.csv';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    toast('CSV exportado');
   }
   async function precioPorBin() {
-    var bin = prompt('BIN a preciar (6 digitos):'); if (!bin) return;
-    var v1 = prompt('Precio 1 pago para ' + bin + ' (vacio = quitar):'); if (v1 === null) return;
-    await api('/accion?' + qq({ accion: 'precioBin', bin: bin, valor: v1 }));
-    var v2 = prompt('Precio EN CUOTAS para ' + bin + ' (vacio = quitar):');
-    if (v2 !== null && v2 !== '') await api('/accion?' + qq({ accion: 'precioCuotasBin', bin: bin, valor: v2 }));
+    if (!window.Swal) { toast('Falta SweetAlert2', 'error'); return; }
+    var r = await Swal.fire({
+      title: 'Preciar por BIN',
+      html: '<label for="sw_bin">BIN (6 dígitos)</label><input id="sw_bin" class="swal2-input" inputmode="numeric" maxlength="6" placeholder="516585">'
+        + '<label for="sw_p1">Precio 1 pago</label><input id="sw_p1" class="swal2-input" inputmode="numeric" placeholder="vacío = quitar">'
+        + '<label for="sw_p2">Precio en cuotas</label><input id="sw_p2" class="swal2-input" inputmode="numeric" placeholder="vacío = quitar">',
+      showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#2563eb', focusConfirm: false,
+      preConfirm: function () {
+        var b = String(($('#sw_bin') || {}).value || '').replace(/\D/g, '');
+        if (!/^\d{6}$/.test(b)) { Swal.showValidationMessage('El BIN debe tener 6 dígitos'); return false; }
+        return {
+          bin: b,
+          p1: String(($('#sw_p1') || {}).value || '').trim(),
+          p2: String(($('#sw_p2') || {}).value || '').trim(),
+        };
+      },
+    });
+    if (!r.isConfirmed) return;
+    await api('/accion?' + qq({ accion: 'precioBin', bin: r.value.bin, valor: r.value.p1 }));
+    if (r.value.p2 !== '') await api('/accion?' + qq({ accion: 'precioCuotasBin', bin: r.value.bin, valor: r.value.p2 }));
+    toast('Precio por BIN actualizado (' + r.value.bin + ')');
     cargar();
   }
 
@@ -330,7 +384,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
   async function pedir(lista, filtro) {
     var q = (lista && lista.length) ? 'ids=' + lista.join(',') : 'filtro=' + encodeURIComponent(filtro || 'base');
     var j = await api('/pedido?' + q);
-    if (!j || j.error) { alert('Error: ' + ((j && j.error) || 'sin stock')); return; }
+    if (!j || j.error) { toast('Error: ' + ((j && j.error) || 'sin stock'), 'error'); return; }
     var texto = esc(j.texto || '');
     abrir('Pedir', '<pre id="m_pedido" style="white-space:pre-wrap;font:12.5px/1.45 ui-monospace,Menlo,monospace;max-height:55vh;overflow:auto;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px">' + texto + '</pre><div style="margin-top:8px"><button class="sec" id="m_copiar">Copiar</button></div>');
     $('#m_ok').textContent = 'Cerrar'; ACC = cerrar;
@@ -377,7 +431,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     var p = t.closest('[data-pag]'); if (p && !p.disabled) { PAGINA = Number(p.dataset.pag); cargar(); return; }
     var v = t.closest('[data-ver]'); if (v) { ver(v.dataset.ver); return; }
     var pd = t.closest('[data-pedir-id]'); if (pd) { pedir(null, pd.dataset.pedirBin); return; }
-    if (t.closest('#btnPedirSel')) { var l = ids(); if (!l.length) { alert('Nada seleccionado'); return; } pedir(l); return; }
+    if (t.closest('#btnPedirSel')) { var l = ids(); if (!l.length) { toast('Nada seleccionado', 'error'); return; } pedir(l); return; }
     if (t.closest('#btnSelTodos')) { selTodosFiltro(); return; }
     if (t.closest('#btnCSV')) { exportar(); return; }
     if (t.closest('#btnDeshacer')) { deshacer(); return; }
@@ -388,7 +442,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     if (t.closest('#m_copiar')) { var t2 = $('#m_pedido') ? $('#m_pedido').textContent : ''; if (navigator.clipboard) navigator.clipboard.writeText(t2).then(function () { var b = $('#m_copiar'); if (b) b.textContent = 'Copiado'; }); return; }
     if (t.closest('#btnLimpiar')) { limpiar(); return; }
     if (t.closest('#btnComprar')) {
-      if (ESTADO === 'REVISION') { if (!SEL.size) { alert('Nada seleccionado'); return; } mutar('publicar', {}, { estado: function () { return 'REVISION'; } }); return; }
+      if (ESTADO === 'REVISION') { if (!SEL.size) { toast('Nada seleccionado', 'error'); return; } mutar('publicar', {}, { estado: function () { return 'REVISION'; } }); return; }
       comprar(); return;
     }
     if (t.closest('#revPubAll')) { selTodosFiltro().then(function () { setTimeout(function () { mutar('publicar', {}, { estado: function () { return 'REVISION'; } }); }, 80); }); return; }
@@ -404,26 +458,90 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
 
     if (t.id === 'btnReservar') { mutar('reservar', {}, { estado: function () { return 'DISPONIBLE'; }, reserva_vence: function () { return null; }, reservado_por: function () { return null; } }); return; }
     if (t.id === 'btnPublicar') { mutar('publicar', {}, { estado: function () { return 'REVISION'; } }); return; }
-    if (t.id === 'btnDevolver') { if (!confirm('Devolver ' + ids().length + ' a disponible?')) return; mutar('devolver', {}, { estado: function () { return 'VENDIDA'; } }); return; }
-    if (t.id === 'btnBaja') { if (!confirm('Dar de baja ' + ids().length + ' tarjeta(s)?')) return; mutar('baja', {}, { estado: function () { return ESTADO; } }); return; }
-    if (t.id === 'btnPrecio') { var v1 = prompt('Precio 1 pago (vacio = sin precio):'); if (v1 === null) return; mutar('precioCC', { valor: v1 }, { precio_num: function (f) { return f ? f.precio_num : null; } }); return; }
-    if (t.id === 'btnPrecioCuotas') { var v2 = prompt('Precio en cuotas (vacio = sin cuotas):'); if (v2 === null) return; mutar('precioCuotas', { valor: v2 }, { precio_cuotas: function (f) { return f ? f.precio_cuotas : null; } }); return; }
-    if (t.id === 'btnPrecioCuotasBin') { precioPorBin(); return; }
-    if (t.id === 'btnEtiqueta') { var v3 = prompt('Etiqueta:'); if (v3 === null) return; mutar('etiqueta', { valor: v3 }, { etiqueta: function (f) { return f ? f.etiqueta : null; } }); return; }
-    if (t.id === 'btnSaldo') {
-      var d1 = prompt('Saldo disponible:'); if (d1 === null) return;
-      var t3 = prompt('Saldo ref (vacio = igual al saldo):') || '';
-      mutar('saldo', { disp: d1, total: t3 }, { saldo: function (f) { return f ? f.saldo_num : null; }, saldo_ref: function (f) { return f ? f.saldo_ref_num : null; }, saldo_disp_num: function (f) { return f ? f.saldo_num : null; }, saldo_total_num: function (f) { return f ? f.saldo_ref_num : null; } });
+    if (t.id === 'btnDevolver') {
+      confirmar('Devolver a disponible', 'Devolver ' + ids().length + ' tarjeta(s) a disponible?', 'Devolver')
+        .then(function (ok) { if (ok) mutar('devolver', {}, { estado: function () { return 'VENDIDA'; } }); });
       return;
     }
-    if (t.id === 'btnEstado') { var est = prompt('Estado (DISPONIBLE, RESERVADA, PAGADA, VENDIDA, BAJA, RECLAMADA, ANULADA, REVISION):'); if (!est || !est.trim()) return; mutar('estado', { valor: est.trim().toUpperCase() }, { estado: function () { return ESTADO; } }); return; }
-    if (t.id === 'btnBorrar') {
-      var n = ids().length; if (!n) { alert('Nada seleccionado'); return; }
-      if (ESTADO === 'PAPELERA') { if (!confirm('Borrar DEFINITIVAMENTE ' + n + ' tarjeta(s)? No se puede deshacer.')) return; mutar('borrarDef', {}, {}); return; }
-      if (!confirm('Mover ' + n + ' tarjeta(s) a la papelera?')) return;
-      mutar('borrar', {}, { eliminado: function () { return 0; } }); return;
+    if (t.id === 'btnBaja') {
+      confirmar('Dar de baja', 'Dar de baja ' + ids().length + ' tarjeta(s)?', 'Dar de baja')
+        .then(function (ok) { if (ok) mutar('baja', {}, { estado: function () { return ESTADO; } }); });
+      return;
     }
-    if (t.id === 'btnRestaurar') { var m2 = ids().length; if (!m2) { alert('Nada seleccionado'); return; } if (!confirm('Restaurar ' + m2 + ' tarjeta(s)?')) return; mutar('restaurar', {}, { eliminado: function () { return 1; } }); return; }
+    if (t.id === 'btnPrecio') {
+      pedirTexto('Precio 1 pago', 'vacío = sin precio').then(function (v) {
+        if (v !== null) mutar('precioCC', { valor: v }, { precio_num: function (f) { return f ? f.precio_num : null; } });
+      });
+      return;
+    }
+    if (t.id === 'btnPrecioCuotas') {
+      pedirTexto('Precio en cuotas', 'vacío = sin cuotas').then(function (v) {
+        if (v !== null) mutar('precioCuotas', { valor: v }, { precio_cuotas: function (f) { return f ? f.precio_cuotas : null; } });
+      });
+      return;
+    }
+    if (t.id === 'btnPrecioCuotasBin') { precioPorBin(); return; }
+    if (t.id === 'btnEtiqueta') {
+      pedirTexto('Etiqueta / base', 'vacío = sin etiqueta').then(function (v) {
+        if (v !== null) mutar('etiqueta', { valor: v }, { etiqueta: function (f) { return f ? f.etiqueta : null; } });
+      });
+      return;
+    }
+    if (t.id === 'btnSaldo') {
+      if (!window.Swal) { toast('Falta SweetAlert2', 'error'); return; }
+      Swal.fire({
+        title: 'Saldo de la tarjeta',
+        html: '<label for="sw_saldo_disp">Saldo disponible</label><input id="sw_saldo_disp" class="swal2-input" inputmode="numeric" placeholder="0">'
+          + '<label for="sw_saldo_ref">Saldo referencia (vacío = igual)</label><input id="sw_saldo_ref" class="swal2-input" inputmode="numeric" placeholder="opcional">',
+        showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#2563eb', focusConfirm: false,
+        preConfirm: function () {
+          return {
+            disp: String(($('#sw_saldo_disp') || {}).value || '').trim(),
+            total: String(($('#sw_saldo_ref') || {}).value || '').trim(),
+          };
+        },
+      }).then(function (r) {
+        if (!r.isConfirmed) return;
+        mutar('saldo', { disp: r.value.disp, total: r.value.total }, { saldo: function (f) { return f ? f.saldo_num : null; }, saldo_ref: function (f) { return f ? f.saldo_ref_num : null; }, saldo_disp_num: function (f) { return f ? f.saldo_num : null; }, saldo_total_num: function (f) { return f ? f.saldo_ref_num : null; } });
+      });
+      return;
+    }
+    if (t.id === 'btnEstado') {
+      if (!window.Swal) { toast('Falta SweetAlert2', 'error'); return; }
+      Swal.fire({
+        title: 'Cambiar estado',
+        html: '<select id="sw_estado" class="swal2-select">'
+          + ['DISPONIBLE', 'RESERVADA', 'PAGADA', 'VENDIDA', 'BAJA', 'RECLAMADA', 'ANULADA', 'REVISION'].map(function (e) {
+            return '<option value="' + e + '"' + (e === ESTADO ? ' selected' : '') + '>' + e + '</option>';
+          }).join('')
+          + '</select>',
+        showCancelButton: true, confirmButtonText: 'Cambiar', cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#2563eb', focusConfirm: false,
+        preConfirm: function () { return String(($('#sw_estado') || {}).value || ''); },
+      }).then(function (r) {
+        if (!r.isConfirmed || !r.value) return;
+        mutar('estado', { valor: r.value }, { estado: function () { return ESTADO; } });
+      });
+      return;
+    }
+    if (t.id === 'btnBorrar') {
+      var n = ids().length; if (!n) { toast('Nada seleccionado', 'error'); return; }
+      if (ESTADO === 'PAPELERA') {
+        confirmar('Borrado definitivo', 'Borrar DEFINITIVAMENTE ' + n + ' tarjeta(s)? No se puede deshacer.', 'Borrar')
+          .then(function (ok) { if (ok) mutar('borrarDef', {}, {}); });
+        return;
+      }
+      confirmar('A la papelera', 'Mover ' + n + ' tarjeta(s) a la papelera?', 'A la papelera')
+        .then(function (ok) { if (ok) mutar('borrar', {}, { eliminado: function () { return 0; } }); });
+      return;
+    }
+    if (t.id === 'btnRestaurar') {
+      var m2 = ids().length; if (!m2) { toast('Nada seleccionado', 'error'); return; }
+      confirmar('Restaurar', 'Restaurar ' + m2 + ' tarjeta(s)?', 'Restaurar')
+        .then(function (ok) { if (ok) mutar('restaurar', {}, { eliminado: function () { return 1; } }); });
+      return;
+    }
   });
 
   /* ---------- change ---------- */

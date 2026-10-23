@@ -18,3 +18,18 @@ con su atribución.
 
 Regla: cualquier archivo nuevo en este directorio se documenta acá con
 archivo, paquete, versión y licencia.
+
+sweetalert2.all.min.js
+  paquete: sweetalert2
+  version: 11.26.25
+  licencia: MIT
+  origen: dist/sweetalert2.all.min.js (incluye estilos)
+  uso: diálogos y confirmaciones del panel (reemplaza prompt/confirm/alert).
+
+toastify.js + toastify.css
+  paquete: toastify-js
+  version: 1.12.0
+  licencia: MIT
+  origen: src/toastify.js y src/toastify.css (son los archivos publicados; no
+  hay dist minificado en el paquete)
+  uso: avisos no bloqueantes de resultado de acciones.

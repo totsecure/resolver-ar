@@ -20,6 +20,10 @@ test.beforeEach(async ({ page }) => {
     page._errores.push('console: ' + m.text());
   });
   page.on('pageerror', (e) => page._errores.push('pageerror: ' + e.message));
+  page.on('dialog', (d) => {
+    page._errores.push('diálogo nativo: ' + d.message());
+    d.dismiss();
+  });
 });
 
 test.afterEach(async ({ page }) => {
@@ -48,6 +52,10 @@ async function buscar(page, texto, total) {
 
 async function marcarFila(page, indice) {
   await page.locator('#cuerpo tr').nth(indice).locator('input[type=checkbox]').click();
+}
+
+async function confirmarSwal(page) {
+  await page.locator('.swal2-confirm').click();
 }
 
 test('carga de las cinco pestañas con el total del fixture', async ({ page }) => {
@@ -162,6 +170,20 @@ test('ver sin precio (toggle) y precio máximo sin NULL', async ({ page }) => {
   await esperarTotal(page, TOTALES.DISPONIBLE);
 });
 
+test('formulario de saldo con SweetAlert2 (sin prompt nativo)', async ({ page }) => {
+  await abrirPanel(page);
+
+  await marcarFila(page, 0);
+  await page.click('#btnSaldo');
+  await expect(page.locator('#sw_saldo_disp')).toBeVisible();
+  await page.fill('#sw_saldo_disp', '777');
+  await page.fill('#sw_saldo_ref', '888');
+  await confirmarSwal(page);
+
+  await expect(page.locator('.toastify')).toContainText('Saldo actualizado');
+  await expect(page.locator('#cuerpo tr').first().locator('td').nth(10)).toContainText('777/888');
+});
+
 test('atajos /, a, A y Esc', async ({ page }) => {
   await abrirPanel(page);
 
@@ -199,6 +221,7 @@ test('publicar desde Revisión y deshacer', async ({ page }) => {
   await expect(page.locator('#btnComprar')).toHaveText('Publicar seleccionadas');
 
   await page.click('#btnComprar');
+  await expect(page.locator('.toastify')).toContainText('Publicadas');
   await esperarTotal(page, TOTALES.REVISION - 2);
 
   await irATab(page, 'DISPONIBLE', TOTALES.DISPONIBLE + 2);
@@ -232,8 +255,8 @@ test('a papelera, restaurar y borrado definitivo', async ({ page }) => {
   // 1) Market -> papelera
   await buscar(page, 'E2E-01', 1);
   await marcarFila(page, 0);
-  page.once('dialog', (d) => d.accept());
   await page.click('#btnBorrar');
+  await confirmarSwal(page);
   await esperarTotal(page, 0);
 
   await page.click('#btnLimpiar');
@@ -243,8 +266,8 @@ test('a papelera, restaurar y borrado definitivo', async ({ page }) => {
   // 2) restaurar
   await buscar(page, 'E2E-01', 1);
   await marcarFila(page, 0);
-  page.once('dialog', (d) => d.accept());
   await page.click('#btnRestaurar');
+  await confirmarSwal(page);
   await esperarTotal(page, 0);
 
   await page.click('#btnLimpiar');
@@ -255,15 +278,15 @@ test('a papelera, restaurar y borrado definitivo', async ({ page }) => {
   await irATab(page, 'DISPONIBLE', TOTALES.DISPONIBLE);
   await buscar(page, 'E2E-02', 1);
   await marcarFila(page, 0);
-  page.once('dialog', (d) => d.accept());
   await page.click('#btnBorrar');
+  await confirmarSwal(page);
   await esperarTotal(page, 0);
 
   await irATab(page, 'PAPELERA', 1);
   await marcarFila(page, 0);
-  page.once('dialog', (d) => d.accept());
   await expect(page.locator('#btnBorrar')).toHaveText('Borrar definitivo');
   await page.click('#btnBorrar');
+  await confirmarSwal(page);
   await esperarTotal(page, 0);
 
   await page.click('#btnLimpiar');
