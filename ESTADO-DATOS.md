@@ -117,7 +117,7 @@ node scripts/diag-join-idach.mjs 50
   `freelist_count=0`. La base de producción no se recreó ni se perdió nada.
 
 ## Fase 1 — E2E Playwright (2026-10-23)
-- Suite: `tests/e2e/panel.spec.js` (9 tests, 1 worker, retries 0).
+- Suite: `tests/e2e/panel.spec.js` (10 tests, 1 worker, retries 0).
 - Aislamiento total: `scripts/e2e-server.sh` levanta una segunda instancia en
   `PORT=3002` con `RESOLVER_STOCK_DB=.e2e/stock.db` y `RESOLVER_DB=.e2e/padron.db`
   (symlink a `datos/padron.db`, no se copia el padrón). La instancia de :3001 y

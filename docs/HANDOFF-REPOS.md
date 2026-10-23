@@ -288,7 +288,7 @@ Hallazgos:
   filtro BIN, búsqueda, selección por checkbox y por fila, página vs todo el
   filtro, banner sin precio, atajos `/ a A Esc`, publicar/deshacer, CSV y ciclo
   papelera/restaurar/borrado definitivo. Además falla si hay errores de consola.
-- Resultado: **9 passed** en 4,9 s. `verificar.js` 30/0 y `humo.sh` 44/5
+- Resultado: **10 passed** en ~5,5 s. `verificar.js` 30/0 y `humo.sh` 44/5
   (las fallas de infraestructura de la línea base, sin el snapshot `/gh`, que
   quedó refrescado).
 - Nota: la instancia de test ejecuta jobs y outbox. Se fuerza `TELEGRAM_TOKEN=""`
