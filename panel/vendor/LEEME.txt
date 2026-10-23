@@ -1,0 +1,20 @@
+Vendor de RESOLVER STORE
+=======================
+
+Todos los archivos se bajan con `npm pack` del paquete publicado. Nunca se
+compila nada en este repo.
+
+tabler.min.css
+  paquete: @tabler/core
+  version: 1.7.1
+  licencia: MIT
+  origen: dist/css/tabler.min.css
+  uso: base visual del panel, cargada antes del style propio.
+  peso: 668 KB (sin fuentes externas; los iconos son data: URIs).
+
+Iconos SVG: no se agregó el paquete de iconos. Se usan los data: URIs que ya
+trae tabler.min.css. Si más adelante hace falta un icono suelto, copiarlo acá
+con su atribución.
+
+Regla: cualquier archivo nuevo en este directorio se documenta acá con
+archivo, paquete, versión y licencia.

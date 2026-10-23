@@ -215,3 +215,15 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - Restore desde la réplica a `/tmp`: `quick_check=ok`, `cc=57`.
 - El backup diario/semanal de `stock.db` sigue funcionando igual; Litestream es
   complementario (point-in-time), no reemplaza las copias a disco externo.
+
+## Fase 3 — UI por sub-pasos (2026-10-23)
+
+### 3a — Tabler CSS
+- `panel/vendor/tabler.min.css` (@tabler/core 1.7.1, MIT, 668 KB) servido desde
+  el static existente y cargado **antes** del `<style>` propio en `index.html`.
+- Sin cambios de IDs, endpoints ni JS. El CSS propio sigue ganando por orden;
+  Tabler aporta tipografía, badges, tablas y utilidades para los componentes
+  nuevos (chip, dashboard).
+- Iconos: no se agregó paquete; se usan los data: URIs incluidos en el CSS.
+- `panel/vendor/LEEME.txt` documenta archivo, paquete, versión y licencia.
+- E2E: 10/10 en verde después del cambio.
