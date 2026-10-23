@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -51,6 +52,8 @@ const app = express();
 app.disable('x-powered-by');
 /* Detras de ngrok/Worker el protocolo y la IP real llegan por headers. */
 app.set('trust proxy', true);
+/* Compresión global (gzip/br según Accept-Encoding). */
+app.use(compression());
 auth.migrar();
 wallet.migrar();
 vendedores.migrar();

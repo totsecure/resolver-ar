@@ -299,3 +299,10 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - Recomendación: mover los servicios a `/Library/LaunchDaemons` (dominio
   `system`, arrancan sin login). Requiere `sudo` y ajustar rutas/entorno; no se
   hizo en esta tanda porque necesita autorización y contraseña de admin.
+
+## Fase 5 — performance y endurecido (2026-10-23)
+
+### 5a — compresión
+- `compression` (MIT) global, antes de las rutas.
+- Verificado con curl: `tabler.min.css` sale `Content-Encoding: gzip` y
+  `chart.umd.min.js` con `br` si el cliente lo acepta.
