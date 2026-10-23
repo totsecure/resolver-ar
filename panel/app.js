@@ -4,6 +4,34 @@
 
   /* ---------- estilos propios ---------- */
   var CSS = `
+/* ---------- shell ---------- */
+.icon{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;flex:0 0 auto}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:240px;flex:0 0 240px;background:var(--panel);border-right:1px solid var(--line);position:sticky;top:0;height:100vh;overflow:auto;padding:16px 10px;display:flex;flex-direction:column;gap:14px;z-index:12}
+.sidebar-brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.4px;padding:2px 8px 10px;border-bottom:1px solid var(--line)}
+.brand-mark{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;background:var(--acc);color:#fff}
+.sidebar-nav{display:flex;flex-direction:column;gap:3px}
+.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);padding:10px 10px 4px}
+.nav-link{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:8px;padding:9px 10px;color:var(--dim);font-weight:600;font-size:13px;cursor:pointer;text-decoration:none}
+.nav-link:hover{background:var(--panel2);color:var(--txt)}
+.nav-link.on{background:var(--acc);color:#fff}
+.sidebar-foot{margin-top:auto;display:flex;align-items:center;gap:8px;color:var(--dim);font-size:11.5px;padding:8px 10px;border-top:1px solid var(--line)}
+.page{flex:1;min-width:0;display:block}
+main{width:100%;min-width:0}
+.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:11}
+.topbar .logo{font-weight:800;letter-spacing:.4px}
+.menu-btn{display:none;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid var(--line);border-radius:8px;cursor:pointer;color:var(--txt)}
+.menu-toggle{display:none}
+.sidebar-backdrop{display:none}
+@media (max-width:900px){
+  .sidebar{position:fixed;left:0;top:0;bottom:0;transform:translateX(-102%);transition:transform .2s ease;box-shadow:12px 0 40px rgba(0,0,0,.28)}
+  #menuToggle:checked ~ .layout .sidebar{transform:translateX(0)}
+  #menuToggle:checked ~ .layout .sidebar-backdrop{display:block;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:11}
+  .menu-btn{display:inline-flex}
+  .topbar{padding:8px 10px;gap:8px}
+  .topbar .logo{font-size:13px}
+  .topbar .kpis{order:10;width:100%;margin-left:0}
+}
 #cargarBox{display:none}
 #cargarBox textarea{width:100%;min-height:150px;background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:9px;font:12.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
 #cc_preview{margin-top:12px}
@@ -717,8 +745,13 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
 
   /* ---------- movimientos ---------- */
   function montarMovs() {
-    var cab = document.querySelector('header');
-    if (cab && !$('#btnMovs')) { var bt = document.createElement('button'); bt.className = 'tab'; bt.id = 'btnMovs'; bt.textContent = 'Movimientos'; cab.appendChild(bt); }
+    var nav = document.querySelector('.sidebar-nav');
+    if (nav && !$('#btnMovs')) {
+      var bt = document.createElement('button');
+      bt.className = 'tab nav-link'; bt.id = 'btnMovs';
+      bt.innerHTML = '<svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-activity"></use></svg> Movimientos';
+      nav.appendChild(bt);
+    }
     var main = document.querySelector('main');
     var cont = document.createElement('div'); cont.id = 'movsbox'; cont.style.display = 'none'; cont.style.marginTop = '14px';
     if (main) main.appendChild(cont);

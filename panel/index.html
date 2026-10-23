@@ -53,17 +53,39 @@ tr:hover td{background:rgba(59,130,246,.06)}
 </style><link rel="stylesheet" href="/panel/tema.css">
 </head>
 <body class="claro">
-<header>
-  <div class="logo">RESOLVER <b>STORE</b></div>
-  <button class="tab on" data-estado="DISPONIBLE">Market</button>
-  <button class="tab" data-estado="RESERVADA">Reservadas</button>
-  <button class="tab" data-estado="VENDIDA">Vendidas</button>
-  <button class="tab" data-estado="REVISION">Revisión</button>
-  <button class="tab" data-estado="PAPELERA">Papelera</button>
-  <button class="tab" id="btnDash">Dashboard</button><a class="tab" href="/panel/admin.html">Administración</a><button class="tab" id="btnTema">Tema</button><button class="tab" id="btnSalir">Salir</button>
-  <div class="kpis" id="kpis"></div>
-</header>
-<main>
+<input type="checkbox" id="menuToggle" class="menu-toggle" hidden>
+<div class="layout">
+  <label class="sidebar-backdrop" for="menuToggle" aria-label="Cerrar menú"></label>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-mark"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-shield-lock"></use></svg></span>
+      <span>RESOLVER <b>STORE</b></span>
+    </div>
+    <nav class="sidebar-nav" aria-label="Secciones">
+      <div class="nav-label">Market</div>
+      <button class="tab nav-link on" data-estado="DISPONIBLE"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-shopping-cart"></use></svg> Market</button>
+      <button class="tab nav-link" data-estado="RESERVADA"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-bookmark"></use></svg> Reservadas</button>
+      <button class="tab nav-link" data-estado="VENDIDA"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-check"></use></svg> Vendidas</button>
+      <button class="tab nav-link" data-estado="REVISION"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-clock"></use></svg> Revisión</button>
+      <button class="tab nav-link" data-estado="PAPELERA"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-trash"></use></svg> Papelera</button>
+      <div class="nav-label">Herramientas</div>
+      <button class="tab nav-link" id="btnDash"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-chart-pie"></use></svg> Dashboard</button>
+      <a class="tab nav-link" href="/panel/admin.html"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-settings"></use></svg> Administración</a>
+    </nav>
+    <div class="sidebar-foot">
+      <span class="badge bg-blue-lt">v1.0</span>
+      <span id="sidebarEstado">Operativo</span>
+    </div>
+  </aside>
+  <div class="page">
+    <header class="topbar">
+      <label class="menu-btn" for="menuToggle" aria-label="Abrir menú"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-menu-2"></use></svg></label>
+      <div class="logo">RESOLVER <b>STORE</b></div>
+      <div class="kpis" id="kpis"></div>
+      <button class="btn btn-sm btn-outline-secondary" id="btnTema"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-moon"></use></svg> Tema</button>
+      <button class="btn btn-sm btn-outline-secondary" id="btnSalir"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-logout"></use></svg> Salir</button>
+    </header>
+    <main>
   <div class="filtros">
     <div><label for="f_bins">BIN</label><input id="f_bins" placeholder="516585,545652"></div>
     <div><label for="f_bin_desde">BIN desde</label><input id="f_bin_desde" inputmode="numeric" placeholder="516500"></div>
@@ -121,6 +143,8 @@ tr:hover td{background:rgba(59,130,246,.06)}
   </table>
   <div class="pag" id="pag"></div>
 </main>
+  </div>
+</div>
 <div class="modal" id="modal"><div class="caja">
   <h3 id="m_titulo">Comprar</h3>
   <div id="m_cuerpo"></div>
