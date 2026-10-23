@@ -56,12 +56,6 @@ apexcharts.min.js
   origen: dist/apexcharts.min.js
   uso: gráficos del dashboard, cargado en diferido solo al abrir Dashboard.
 
-animate.min.css
-  paquete: animate.css
-  version: 4.1.1
-  licencia: MIT
-  origen: animate.min.css
-  uso: micro-animaciones puntuales (fadeIn, fadeInUp) en cards y offcanvas.
 
 tom-select.complete.min.js + tom-select.bootstrap5.min.css
   paquete: tom-select

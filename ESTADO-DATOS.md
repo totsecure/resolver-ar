@@ -510,11 +510,11 @@ Infra de UI:
   el CLS de inyectar estilos después del primer paint. `/panel/panel.css` es público.
 - `scripts/iconos.mjs` genera `panel/vendor/iconos.svg` (47 símbolos) desde
   `scripts/iconos-src/`; nada de sprite completo.
-- Vendor nuevo: `apexcharts.min.js` (8.4.1, MIT), `animate.min.css` (4.1.1, MIT),
+- Vendor nuevo: `apexcharts.min.js` (8.4.1, MIT), 
   `tom-select` (2.6.2, Apache-2.0) y `iconos.svg` (@tabler/icons 3.49.0, MIT).
-- Presupuesto: `panel/vendor/` = **1,86 MB** sin comprimir, por encima del objetivo
+- Presupuesto: `panel/vendor/` = **1,79 MB** sin comprimir, por encima del objetivo
   de ~1,5 MB. El excedente es ApexCharts (923 KB); Tabler 668 KB, SweetAlert2 77 KB,
-  Tom Select 66 KB, resto <80 KB. Con gzip/brotli la transferencia sigue siendo baja.
+  Tom Select 66 KB, resto <110 KB. animate.css se descartó por no usarse. Con gzip/brotli la transferencia sigue siendo baja.
   Si hace falta bajar el número, el camino es un bundle de Apex con solo
   donut/bar/area compilado una vez y commiteado.
 - Tests nuevos: login real CSRF+2FA, assets vendor (no HTML/302), tema, mobile cards
