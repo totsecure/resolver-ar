@@ -1195,6 +1195,10 @@ app.post('/panel/comprar', accesoPanel, csrf, envolver((req) => panelComprar({
 })));
 app.get('/outbox/pendientes', soloLectura, (req, res) => res.json({ pendientes: outboxPendientes(qs(req, 'n')) }));
 app.post('/outbox/marcar', soloLectura, (req, res) => res.json({ ok: outboxMarcar(req.body?.id, req.body?.error) }));
+/* Assets de vendor: versionados por paquete, cache larga e immutable. */
+app.use('/panel/vendor', express.static(path.join(RAIZ, 'panel', 'vendor'), {
+  maxAge: '1y', immutable: true, fallthrough: true,
+}));
 /* Static del panel detras del login. login.html y tema.css son publicos. */
 const PANEL_PUBLICOS = new Set(['/app.js', '/login.html', '/tema.css', '/login.js', '/mi.js']);
 app.use('/panel', (req, res, next) => {
@@ -1222,7 +1226,11 @@ app.use('/panel', (req, res, next) => {
   }
   req.auth = ctx;
   next();
-}, express.static(path.join(RAIZ, 'panel'), { extensions: ['html'] }));
+}, express.static(path.join(RAIZ, 'panel'), {
+  extensions: ['html'],
+  /* El resto del panel se revalida siempre (no cache agresivo). */
+  setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache'),
+}));
 import { movs as panelMovs } from './lib/panel.js';
 app.get('/panel/movs', accesoPanel, envolver((req) => panelMovs({ n: num(qs(req, 'n', 100), 100) })));
 

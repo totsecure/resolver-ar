@@ -306,3 +306,10 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - `compression` (MIT) global, antes de las rutas.
 - Verificado con curl: `tabler.min.css` sale `Content-Encoding: gzip` y
   `chart.umd.min.js` con `br` si el cliente lo acepta.
+
+### 5b — cache de assets
+- `/panel/vendor/*`: `Cache-Control: public, max-age=31536000, immutable` (son
+  versionados por paquete).
+- Resto del panel (`index.html`, `app.js`, HTML/JS/CSS propios):
+  `Cache-Control: no-cache` + ETag, para no servir código viejo.
+- Verificado con curl en producción y E2E 15/15.
