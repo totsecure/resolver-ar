@@ -78,3 +78,26 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
   .barra .crecer{margin-left:0}
   #barraAcciones button{font-size:12px;padding:7px 10px}
 }
+
+/* ---------- tabla ---------- */
+.tabla-wrap{max-height:calc(100vh - 300px);overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.tabla-wrap table{border:0;border-radius:0;margin:0}
+thead th{position:sticky;top:0;z-index:6;background:var(--panel2)}
+tbody tr:nth-child(even) td{background:rgba(148,163,184,.035)}
+tbody tr:hover td{background:rgba(59,130,246,.08)}
+.badge-estado{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;letter-spacing:.02em;border:1px solid transparent;white-space:nowrap}
+.estado-disponible{background:rgba(34,197,94,.15);color:#15803d;border-color:rgba(34,197,94,.35)}
+.estado-reservada{background:rgba(245,158,11,.16);color:#b45309;border-color:rgba(245,158,11,.35)}
+.estado-pagada{background:rgba(59,130,246,.16);color:#1d4ed8;border-color:rgba(59,130,246,.35)}
+.estado-vendida{background:rgba(14,165,233,.15);color:#0369a1;border-color:rgba(14,165,233,.35)}
+.estado-revision{background:rgba(168,85,247,.15);color:#7e22ce;border-color:rgba(168,85,247,.35)}
+.estado-papelera{background:rgba(100,116,139,.18);color:#475569;border-color:rgba(100,116,139,.35)}
+.estado-reclamada{background:rgba(239,68,68,.15);color:#b91c1c;border-color:rgba(239,68,68,.35)}
+.estado-anulada,.estado-baja{background:rgba(100,116,139,.18);color:#475569;border-color:rgba(100,116,139,.35)}
+.acciones{position:relative;display:inline-block}
+.acciones summary{list-style:none;cursor:pointer;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--dim)}
+.acciones summary::-webkit-details-marker{display:none}
+.acciones[open] summary{border-color:var(--acc);color:var(--acc)}
+.acciones-menu{position:absolute;right:0;top:34px;z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px;display:none;min-width:110px;box-shadow:0 10px 30px rgba(15,23,42,.18)}
+.acciones[open] .acciones-menu{display:flex;flex-direction:column;gap:3px}
+.acciones-menu button{width:100%;text-align:left}

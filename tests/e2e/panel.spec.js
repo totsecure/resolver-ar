@@ -212,7 +212,7 @@ test('formulario de saldo con SweetAlert2 (sin prompt nativo)', async ({ page })
   await confirmarSwal(page);
 
   await expect(page.locator('.toastify')).toContainText('Saldo actualizado');
-  await expect(page.locator('#cuerpo tr').first().locator('td').nth(10)).toContainText('777/888');
+  await expect(page.locator('#cuerpo tr').first().locator('td.saldo')).toContainText('777/888');
 });
 
 test('atajos /, a, A y Esc', async ({ page }) => {

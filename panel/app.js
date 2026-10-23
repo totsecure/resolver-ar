@@ -133,15 +133,18 @@
       + '<td>' + iconos(f.features || {}) + '</td>'
       + '<td>' + esc(f.etiqueta || '-') + '</td>'
       + '<td>' + (f.refund ? 'SI' : 'NO') + '</td>'
-      + '<td class="mono">' + esc(f.saldo || '-') + '</td>'
+      + '<td><span class="badge-estado estado-' + esc(String(f.estado || ESTADO).toLowerCase()) + '">' + esc(f.estado || ESTADO) + '</span></td>'
+      + '<td class="mono saldo">' + esc(f.saldo || '-') + '</td>'
       + '<td class="precio"' + falta + '>' + (f.precio == null ? '-' : esc(num(f.precio))) + '</td>'
       + '<td class="precio"' + falta + '>' + esc(f.precio_cuotas == null ? '-' : num(f.precio_cuotas)) + '</td>'
-      + '<td><button class="sec" data-ver="' + esc(f.id) + '">ver</button> <button class="sec" data-pedir-id="' + esc(f.id) + '" data-pedir-bin="' + esc(f.bin) + '">Pedir</button></td>'
+      + '<td><details class="acciones"><summary aria-label="Acciones"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-dots-vertical"></use></svg></summary>'
+      + '<div class="acciones-menu"><button class="sec" data-ver="' + esc(f.id) + '">Ver</button>'
+      + '<button class="sec" data-pedir-id="' + esc(f.id) + '" data-pedir-bin="' + esc(f.bin) + '">Pedir</button></div></details></td>'
       + '</tr>';
   }
   function pintarTabla() {
     var t = $('#cuerpo'); if (!t) return;
-    if (!DATOS || !DATOS.filas.length) t.innerHTML = '<tr><td colspan="14" class="vacio">Sin resultados</td></tr>';
+    if (!DATOS || !DATOS.filas.length) t.innerHTML = '<tr><td colspan="15" class="vacio">Sin resultados</td></tr>';
     else t.innerHTML = DATOS.filas.map(fila).join('');
     var s = $('#sel'); if (s) s.textContent = SEL.size + ' seleccionadas' + (TODO_FILTRO ? ' (todo el filtro)' : '');
     var b = $('#btnComprar'); if (b) b.disabled = !SEL.size;
@@ -674,7 +677,7 @@
 
   /* ---------- toggle de fila clickeable ---------- */
   document.addEventListener('click', function (ev) {
-    if (ev.target.closest('button') || ev.target.closest('input') || ev.target.closest('a')) return;
+    if (ev.target.closest('button') || ev.target.closest('input') || ev.target.closest('a') || ev.target.closest('summary') || ev.target.closest('.acciones')) return;
     var tr = ev.target.closest('tr');
     if (!tr || !tr.parentNode || tr.parentNode.tagName !== 'TBODY') return;
     var cb = tr.querySelector('input[type=checkbox]');

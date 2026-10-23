@@ -142,15 +142,17 @@ tr:hover td{background:rgba(59,130,246,.06)}
     <span class="sel" id="info"></span>
     <button class="prim" id="btnComprar" disabled>Comprar seleccionadas</button>
   </div>
-  <table>
+  <div class="tabla-wrap">
+  <table class="table table-vcenter table-sm table-striped card-table">
     <thead><tr>
       <th style="width:34px"><input type="checkbox" id="chkTodos" aria-label="Seleccionar todas las filas de la página"></th>
       <th>BIN / Banco</th><th>Red</th><th>Tipo</th><th>EXP</th>
       <th>Pais</th><th>ZIP</th><th>Datos</th><th>Base</th>
-      <th>Refund</th><th>Saldo</th><th>1 pago</th><th>en cuotas</th><th></th>
+      <th>Refund</th><th>Estado</th><th>Saldo</th><th>1 pago</th><th>en cuotas</th><th></th>
     </tr></thead>
     <tbody id="cuerpo"></tbody>
   </table>
+  </div>
   <div class="pag" id="pag"></div>
 </main>
   </div>
