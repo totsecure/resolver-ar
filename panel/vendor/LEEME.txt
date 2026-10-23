@@ -40,3 +40,10 @@ chart.umd.min.js
   licencia: MIT
   origen: dist/chart.umd.min.js
   uso: gráficos del Dashboard, cargado en diferido solo al abrirlo (205 KB).
+
+hotkeys-js.min.js
+  paquete: hotkeys-js
+  version: 4.0.8
+  licencia: MIT
+  origen: dist/hotkeys-js.min.js
+  uso: atajos de teclado del panel (/ a A d e n p Esc).

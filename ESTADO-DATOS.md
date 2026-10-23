@@ -260,3 +260,11 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
   mostraba como `[object Object]` en las tarjetas.
 - E2E: verifica que `window.Chart` no existe antes de abrir, que hay 3 canvas y
   que Chart.js carga después (13 tests).
+
+### 3e — atajos con hotkeys-js
+- `panel/vendor/hotkeys-js.min.js` (hotkeys-js 4.0.8, MIT).
+- Se eliminó el handler manual de `keydown`. Los atajos `/ a shift+a d e n p esc`
+  se registran con hotkeys-js. El filtro solo bloquea campos de escritura
+  (text/number/select/textarea); checkbox y botones siguen permitiendo Esc.
+- Enter en `#f_q`/`#f_bins` se mantiene con un listener mínimo.
+- E2E de atajos sigue verde (13 tests).

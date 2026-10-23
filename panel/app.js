@@ -666,19 +666,44 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     if (e.target.id === 'f_saldeadas') { PAGINA = 1; cargar(); }
   });
 
-  /* ---------- teclado ---------- */
+  /* ---------- teclado (hotkeys-js) ---------- */
+  function limpiarSeleccion() {
+    SEL.clear(); TODO_FILTRO = false; pintarTabla();
+  }
+  if (window.hotkeys) {
+    hotkeys.filter = function (ev) {
+      var el = ev.target || {};
+      var tag = (el.tagName || '').toUpperCase();
+      if (tag === 'TEXTAREA' || tag === 'SELECT') return false;
+      if (tag === 'INPUT') {
+        var tipo = String(el.type || 'text').toLowerCase();
+        return tipo === 'checkbox' || tipo === 'radio' || tipo === 'button' || tipo === 'submit' || tipo === 'range';
+      }
+      return true;
+    };
+    hotkeys('/', function (e) {
+      e.preventDefault();
+      var fq = $('#f_q'); if (fq) fq.focus();
+    });
+    hotkeys('a', function (e) {
+      e.preventDefault();
+      (DATOS && DATOS.filas || []).forEach(function (f) { SEL.add(String(f.id)); });
+      TODO_FILTRO = false; pintarTabla();
+    });
+    hotkeys('shift+a', function (e) { e.preventDefault(); selTodosFiltro(); });
+    hotkeys('d', function (e) { e.preventDefault(); deshacer(); });
+    hotkeys('e', function (e) { e.preventDefault(); exportar(); });
+    hotkeys('n', function (e) { e.preventDefault(); PAGINA = PAGINA + 1; cargar(); });
+    hotkeys('p', function (e) { e.preventDefault(); PAGINA = Math.max(1, PAGINA - 1); cargar(); });
+    hotkeys('esc', function (e) {
+      e.preventDefault();
+      if ($('#modal').classList.contains('abierto')) cerrar(); else limpiarSeleccion();
+    });
+  }
+  /* Enter sigue buscando desde los campos de texto. */
   document.addEventListener('keydown', function (e) {
-    var tag = (e.target.tagName || '').toUpperCase();
-    var enCampo = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
-    if (e.key === 'Escape') { if ($('#modal').classList.contains('abierto')) cerrar(); else { SEL.clear(); TODO_FILTRO = false; pintarTabla(); } return; }
-    if (enCampo) { if (e.key === 'Enter' && (e.target.id === 'f_q' || e.target.id === 'f_bins')) { PAGINA = 1; cargar(); } return; }
-    if (e.key === '/') { e.preventDefault(); var fq = $('#f_q'); if (fq) fq.focus(); return; }
-    if (e.key === 'a') { (DATOS && DATOS.filas || []).forEach(function (f) { SEL.add(String(f.id)); }); TODO_FILTRO = false; pintarTabla(); return; }
-    if (e.key === 'A') { selTodosFiltro(); return; }
-    if (e.key === 'd') { deshacer(); return; }
-    if (e.key === 'e') { exportar(); return; }
-    if (e.key === 'n') { PAGINA = PAGINA + 1; cargar(); return; }
-    if (e.key === 'p') { PAGINA = Math.max(1, PAGINA - 1); cargar(); return; }
+    if (e.key !== 'Enter') return;
+    if (e.target && (e.target.id === 'f_q' || e.target.id === 'f_bins')) { PAGINA = 1; cargar(); }
   });
 
   /* ---------- toggle de fila clickeable ---------- */
