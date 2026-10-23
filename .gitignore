@@ -28,3 +28,8 @@ proxy/.dev.vars
 # macOS / temporales
 .DS_Store
 varios/
+
+# E2E (base descartable y artefactos)
+.e2e/
+playwright-report/
+test-results/

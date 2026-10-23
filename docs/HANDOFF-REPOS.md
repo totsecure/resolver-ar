@@ -275,3 +275,20 @@ Hallazgos:
   - snapshot `/gh` desactualizado (`server.js` cambió desde el último `worker-repo.mjs`);
   - `bot getMe` responde OK pero el chequeo de pidfile da `pid='-'`.
   No se tocaron: son infraestructura/proxy, fuera del alcance de Fase 0.
+
+### Fase 1 — hecha (2026-10-23)
+
+- Dependencia de desarrollo: `@playwright/test` + Chromium. No se agregó nada de
+  runtime.
+- Aislamiento: `.e2e/stock.db` descartable + symlink `.e2e/padron.db`; segunda
+  instancia en `:3002` (`scripts/e2e-server.sh`). `:3001` y `datos/stock.db`
+  intactos (verificado: la base real sigue con 57 tarjetas en REVISION).
+- Fixture determinista: `scripts/e2e-seed.mjs`, 24 tarjetas `es_test=1`.
+- Suite: `tests/e2e/panel.spec.js`, 9 tests seriales. Cubre pestañas y totales,
+  filtro BIN, búsqueda, selección por checkbox y por fila, página vs todo el
+  filtro, banner sin precio, atajos `/ a A Esc`, publicar/deshacer, CSV y ciclo
+  papelera/restaurar/borrado definitivo. Además falla si hay errores de consola.
+- Resultado: **9 passed** en 4,9 s. `verificar.js` 30/0 y `humo.sh` 43/6 (mismas
+  6 fallas de infraestructura de la línea base).
+- Nota: la instancia de test ejecuta jobs y outbox. Se fuerza `TELEGRAM_TOKEN=""`
+  para no enviar mensajes reales; el outbox vive en la base descartable.

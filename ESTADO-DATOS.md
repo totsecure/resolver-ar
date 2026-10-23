@@ -109,3 +109,40 @@ node scripts/diag-join-idach.mjs 50
 - Snapshot previo a cualquier cambio: `datos/backups/pre-repos.db` (444 KB).
 - Clonado reproducible: `bash scripts/clonar-refs.sh` (idempotente).
 - No se agregaron dependencias de runtime ni se tocó código de producción.
+
+## Mantenimiento de stock.db (2026-10-23)
+- `PRAGMA quick_check` reportaba páginas 78/79 "never used". Se copió a
+  `_bak/stock.db.pre-vacuum-20261023-072012` y se corrió `VACUUM` online con
+  `busy_timeout=8000` (el server no lo bloqueó). `quick_check` final: `ok`,
+  `freelist_count=0`. La base de producción no se recreó ni se perdió nada.
+
+## Fase 1 — E2E Playwright (2026-10-23)
+- Suite: `tests/e2e/panel.spec.js` (9 tests, 1 worker, retries 0).
+- Aislamiento total: `scripts/e2e-server.sh` levanta una segunda instancia en
+  `PORT=3002` con `RESOLVER_STOCK_DB=.e2e/stock.db` y `RESOLVER_DB=.e2e/padron.db`
+  (symlink a `datos/padron.db`, no se copia el padrón). La instancia de :3001 y
+  `datos/stock.db` no se tocan.
+- Fixture: `scripts/e2e-seed.mjs`, 24 tarjetas `es_test=1` (8 disponibles, 3
+  reservadas, 4 vendidas, 5 revisión, 2 papelera, 2 baja). Se recrea en cada run.
+- Auth: token de servicio por query (`/panel/?token=...`), sin login/2FA/CSRF.
+- Comando: `bash scripts/e2e.sh` (Playwright levanta y baja el server solo).
+- La instancia de test corre jobs y outbox; se fuerza `TELEGRAM_TOKEN=""` y
+  `TELEGRAM_ALLOW=""` para que ningún test pueda mandar mensajes reales. El
+  outbox igual se llena en `.e2e/stock.db` (descartable).
+- Bug detectado en el panel (NO corregido en esta fase, panel congelado): el
+  botón "Ver sin precio" (`#spVer`) setea `pmax=0` y la consulta usa
+  `PRECIO <= 0`, que descarta los `NULL`; devuelve 0 resultados en vez de las
+  publicadas sin precio.
+
+## Fallas de humo.sh pendientes (infraestructura, no Fase 0/1)
+Baseline: 43 OK / 6 FAIL, idéntico antes y después de Fase 0/1.
+1. `tunel publico` — `https://action-early-pants.ngrok-free.dev` responde 404
+   (túnel caído o URL rotada).
+2. `Worker publico` — `https://resolver-api.correonube.workers.dev` responde 404.
+3. `Worker sin token` — 404, consecuencia del Worker/túnel caído.
+4. `snapshot /gh` — el KV se desactualiza cuando cambian archivos; se refresca
+   con `node scripts/worker-repo.mjs`. Ya refrescado tras Fase 1.
+5. `bot getMe` — la API de Telegram responde OK pero el chequeo de pidfile da
+   `pid='-'` (el bot corre sin el pidfile que espera humo.sh).
+6. (agrupado con 1-3) el 404 del Worker hace fallar los tres chequeos públicos.
+No se tocaron en Fase 1.
