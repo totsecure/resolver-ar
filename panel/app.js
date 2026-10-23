@@ -148,6 +148,7 @@
     else t.innerHTML = DATOS.filas.map(fila).join('');
     var s = $('#sel'); if (s) s.textContent = SEL.size + ' seleccionadas' + (TODO_FILTRO ? ' (todo el filtro)' : '');
     var b = $('#btnComprar'); if (b) b.disabled = !SEL.size;
+    actualizarBarraContextual();
     var i = $('#info'); if (i && DATOS) i.textContent = DATOS.total + ' resultados - pag ' + DATOS.pagina;
     var ct = $('#chkTodos');
     if (ct && DATOS) ct.checked = DATOS.filas.length > 0 && DATOS.filas.every(function (f) { return SEL.has(String(f.id)); });
@@ -228,10 +229,17 @@
     if (HIST.length > 25) HIST.shift();
     pintarUndo();
   }
+  function actualizarBarraContextual() {
+    var ctx = $('#barraContextual'); if (!ctx) return;
+    var visible = SEL.size > 0 || TODO_FILTRO || HIST.length > 0;
+    ctx.hidden = !visible;
+    document.body.classList.toggle('tiene-seleccion', visible);
+  }
   function pintarUndo() {
     var b = $('#btnDeshacer'); if (!b) return;
     var h = HIST[HIST.length - 1];
     b.disabled = !h; b.textContent = h ? 'Deshacer (' + h.nombre + ')' : 'Deshacer';
+    actualizarBarraContextual();
   }
   async function deshacer() {
     var h = HIST[HIST.length - 1]; if (!h) return;
@@ -495,7 +503,8 @@
       + '<button class="sec" id="btnRestaurar">Restaurar</button>'
       + '<button class="sec" id="btnCSV">CSV</button>'
       + '<button class="sec" id="btnDeshacer" disabled>Deshacer</button>';
-    barra.insertBefore(b, barra.querySelector('.crecer'));
+    var ctx = document.getElementById('barraContextual') || barra;
+    ctx.insertBefore(b, ctx.querySelector('#btnComprar') || null);
     var main = document.querySelector('main');
     if (main && !$('#atajos')) {
       var h = document.createElement('div'); h.id = 'atajos';

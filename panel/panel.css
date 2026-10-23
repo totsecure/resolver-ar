@@ -101,3 +101,11 @@ tbody tr:hover td{background:rgba(59,130,246,.08)}
 .acciones-menu{position:absolute;right:0;top:34px;z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px;display:none;min-width:110px;box-shadow:0 10px 30px rgba(15,23,42,.18)}
 .acciones[open] .acciones-menu{display:flex;flex-direction:column;gap:3px}
 .acciones-menu button{width:100%;text-align:left}
+
+/* ---------- barra contextual ---------- */
+body.tiene-seleccion main{padding-bottom:96px}
+.barra-contextual{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:color-mix(in srgb, var(--panel) 92%, transparent);border-top:1px solid var(--line);box-shadow:0 -10px 30px rgba(15,23,42,.16);backdrop-filter:blur(10px)}
+.barra-contextual[hidden]{display:none}
+.barra-contextual .crecer{flex:1}
+#barraAcciones{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+@media(max-width:700px){.barra-contextual{overflow-x:auto;flex-wrap:nowrap;padding:8px 10px}#barraAcciones{flex-wrap:nowrap}}

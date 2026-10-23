@@ -134,13 +134,11 @@ tr:hover td{background:rgba(59,130,246,.06)}
     </div>
   </details>
   <div class="barra">
-    <span class="sel" id="sel">0 seleccionadas</span>
     <button class="sec" id="btnSelTodos">Seleccionar todas</button>
     <button class="sec" id="btnPedirSel">Pedir</button>
     <button class="sec" id="chipSinPrecio" hidden>Sin precio <b id="chipSinPrecioN">0</b> <span class="x">×</span></button>
     <div class="crecer"></div>
     <span class="sel" id="info"></span>
-    <button class="prim" id="btnComprar" disabled>Comprar seleccionadas</button>
   </div>
   <div class="tabla-wrap">
   <table class="table table-vcenter table-sm table-striped card-table">
@@ -154,6 +152,11 @@ tr:hover td{background:rgba(59,130,246,.06)}
   </table>
   </div>
   <div class="pag" id="pag"></div>
+  <div class="barra-contextual" id="barraContextual" hidden>
+    <span class="sel" id="sel">0 seleccionadas</span>
+    <div class="crecer"></div>
+    <button class="prim" id="btnComprar" disabled>Comprar seleccionadas</button>
+  </div>
 </main>
   </div>
 </div>

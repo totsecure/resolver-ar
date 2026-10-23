@@ -265,6 +265,7 @@ test('publicar desde Revisión y deshacer', async ({ page }) => {
 
 test('exportar CSV con el encabezado esperado', async ({ page }) => {
   await abrirPanel(page);
+  await marcarFila(page, 0);
 
   const [descarga] = await Promise.all([
     page.waitForEvent('download'),
