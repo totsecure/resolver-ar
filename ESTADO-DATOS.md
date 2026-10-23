@@ -101,3 +101,11 @@ node scripts/diag-join-idach.mjs 50
 `scripts/importar-padron-idach.mjs`, `scripts/diag-join-idach.mjs`,
 `scripts/cobertura-nosis.mjs`, `docs/SOLICITUD-SISA.txt`,
 `docs/MAIL-APISTORE.txt`.
+
+## Repos open-source (Fase 0, 2026-10-23)
+- Handoff y plan por fases: `docs/HANDOFF-REPOS.md`.
+- `refs/` (313 MB) contiene 12 repos clonados en shallow, solo para lectura; está
+  en `.gitignore`. `panel/vendor/` se versiona (dist estáticos para producción).
+- Snapshot previo a cualquier cambio: `datos/backups/pre-repos.db` (444 KB).
+- Clonado reproducible: `bash scripts/clonar-refs.sh` (idempotente).
+- No se agregaron dependencias de runtime ni se tocó código de producción.

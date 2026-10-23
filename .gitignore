@@ -8,6 +8,12 @@ datos/bot-offset.json
 datos/nosis-session.json
 datos/nosis-cooldown.json
 
+# Repos de referencia: se clonan solo para LEER, nunca van a produccion
+refs/
+
+# panel/vendor/ SI se versiona (decision Fase 0): son dist estaticos que el
+# server sirve desde el static actual; produccion no depende de un build.
+
 # Dependencias y artefactos
 node_modules/
 proxy/node_modules/
