@@ -7,7 +7,7 @@
 # Chequea: liveness por pidfile (server/bot/tunel), /health, /stats,
 # /ficha/30756789, /repo, /lote (1 tarjeta), /titulares?n=2, X-Ms y <200 ms
 # en /lote, tunel publico, Worker y bot (getMe), 401 sin token (local y Worker)
-# y /gh/README.md. /gh se marca SKIP si falta GH_TOKEN.
+# y /gh/README.md desde el snapshot KV (sin GH_TOKEN).
 # Las credenciales salen de datos/server.env. No usa pgrep.
 set -uo pipefail
 
@@ -64,6 +64,11 @@ vivo() {
   [ "$pid" -gt 0 ] || return 1
   kill -0 "$pid" 2>/dev/null
 }
+
+DB_REAL="$RAIZ/datos/stock.db"
+contar_db() { sqlite3 "$DB_REAL" "$1" 2>/dev/null || echo '?'; }
+CC0=$(contar_db 'SELECT COUNT(*) FROM cc;')
+USR0=$(contar_db 'SELECT COUNT(*) FROM usuarios;')
 
 echo "HUMO resolver-ar — $(date '+%Y-%m-%d %H:%M:%S')"
 echo "local=$BASE"
@@ -126,6 +131,155 @@ else
   fail "/lote (1 tarjeta)" "http=${CODE:-000} $(head -c 200 "$TMP")"
 fi
 
+# 4b) carga masiva de CC: 3 validas + 1 duplicada + 1 invalida (DB temporal)
+if node scripts/test-carga-cc.mjs > "$TMP" 2>&1; then
+  ok "carga CC (analizar/confirmar)" "$(tail -1 "$TMP")"
+else
+  fail "carga CC (analizar/confirmar)" "$(tail -3 "$TMP" | tr '\n' ' ')"
+fi
+
+# 4c) auth fase 1: hash/sesiones/2FA (base temporal) y flujo HTTP real
+if node scripts/test-auth.mjs > "$TMP" 2>&1; then
+  ok "auth (fase 1)" "$(tail -1 "$TMP")"
+else
+  fail "auth (fase 1)" "$(tail -3 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-auth-http.mjs > "$TMP" 2>&1; then
+  ok "auth HTTP (fase 1)" "$(tail -1 "$TMP")"
+else
+  fail "auth HTTP (fase 1)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fase2.mjs > "$TMP" 2>&1; then
+  ok "vendedores/saldo/catalogo (fase 2)" "$(tail -1 "$TMP")"
+else
+  fail "vendedores/saldo/catalogo (fase 2)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fase2-http.mjs > "$TMP" 2>&1; then
+  ok "fase 2 HTTP" "$(tail -1 "$TMP")"
+else
+  fail "fase 2 HTTP" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fase3.mjs > "$TMP" 2>&1; then
+  ok "concurrencia/ventana/pago (fase 3)" "$(tail -1 "$TMP")"
+else
+  fail "concurrencia/ventana/pago (fase 3)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fase3-http.mjs > "$TMP" 2>&1; then
+  ok "fase 3 HTTP" "$(tail -1 "$TMP")"
+else
+  fail "fase 3 HTTP" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fase4.mjs > "$TMP" 2>&1; then
+  ok "web<->telegram (fase 4)" "$(tail -1 "$TMP")"
+else
+  fail "web<->telegram (fase 4)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fase4-http.mjs > "$TMP" 2>&1; then
+  ok "fase 4 HTTP" "$(tail -1 "$TMP")"
+else
+  fail "fase 4 HTTP" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fase5.mjs > "$TMP" 2>&1; then
+  ok "admin/precios/reclamos (fase 5)" "$(tail -1 "$TMP")"
+else
+  fail "admin/precios/reclamos (fase 5)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fase5-http.mjs > "$TMP" 2>&1; then
+  ok "fase 5 HTTP" "$(tail -1 "$TMP")"
+else
+  fail "fase 5 HTTP" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fase6.mjs > "$TMP" 2>&1; then
+  ok "checker hook/cola (fase 6)" "$(tail -1 "$TMP")"
+else
+  fail "checker hook/cola (fase 6)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fase6-http.mjs > "$TMP" 2>&1; then
+  ok "fase 6 HTTP" "$(tail -1 "$TMP")"
+else
+  fail "fase 6 HTTP" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-b4-config.mjs > "$TMP" 2>&1; then
+  ok "decisiones B4" "$(tail -1 "$TMP")"
+else
+  fail "decisiones B4" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-b6-lotes.mjs > "$TMP" 2>&1; then
+  ok "lotes B6" "$(tail -1 "$TMP")"
+else
+  fail "lotes B6" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-b7-pipe.mjs > "$TMP" 2>&1; then
+  ok "pipe/DNI B7" "$(tail -1 "$TMP")"
+else
+  fail "pipe/DNI B7" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-b9-reactivar.mjs > "$TMP" 2>&1; then
+  ok "reactivar BAJA B9" "$(tail -1 "$TMP")"
+else
+  fail "reactivar BAJA B9" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-a1-a5.mjs > "$TMP" 2>&1; then
+  ok "tienda busca/pide/filtra (A)" "$(tail -1 "$TMP")"
+else
+  fail "tienda busca/pide/filtra (A)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fix1-fix2.mjs > "$TMP" 2>&1; then
+  ok "trámite/teléfono (fix 1-2)" "$(tail -1 "$TMP")"
+else
+  fail "trámite/teléfono (fix 1-2)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-b1-b4.mjs > "$TMP" 2>&1; then
+  ok "grupo B (bloque/saldo/busqueda)" "$(tail -1 "$TMP")"
+else
+  fail "grupo B (bloque/saldo/busqueda)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-concurrencia.mjs > "$TMP" 2>&1; then
+  ok "concurrencia 20 reservas" "$(tail -1 "$TMP")"
+else
+  fail "concurrencia 20 reservas" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-c1-c4.mjs > "$TMP" 2>&1; then
+  ok "grupo C (menu/paridad/avisos)" "$(tail -1 "$TMP")"
+else
+  fail "grupo C (menu/paridad/avisos)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-d1-d4.mjs > "$TMP" 2>&1; then
+  ok "grupo D (pedidos/links/comprobante)" "$(tail -1 "$TMP")"
+else
+  fail "grupo D (pedidos/links/comprobante)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-e1-e5.mjs > "$TMP" 2>&1; then
+  ok "grupo E (acciones/metricas/alertas)" "$(tail -1 "$TMP")"
+else
+  fail "grupo E (acciones/metricas/alertas)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-f1-f4.mjs > "$TMP" 2>&1; then
+  ok "grupo F (cuenta/seguridad)" "$(tail -1 "$TMP")"
+else
+  fail "grupo F (cuenta/seguridad)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-g1-g4.mjs > "$TMP" 2>&1; then
+  ok "grupo G (operacion/export)" "$(tail -1 "$TMP")"
+else
+  fail "grupo G (operacion/export)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-h1-h2.mjs > "$TMP" 2>&1; then
+  ok "grupo H (checker)" "$(tail -1 "$TMP")"
+else
+  fail "grupo H (checker)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-fix6.mjs > "$TMP" 2>&1; then
+  ok "FIX-6 (es_test quirurgico)" "$(tail -1 "$TMP")"
+else
+  fail "FIX-6 (es_test quirurgico)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+if node scripts/test-precio-par.mjs > "$TMP" 2>&1; then
+  ok "precio par (1 pago/cuotas)" "$(tail -1 "$TMP")"
+else
+  fail "precio par (1 pago/cuotas)" "$(tail -4 "$TMP" | tr '\n' ' ')"
+fi
+
 # 5) /titulares?n=2
 CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 20 "${BASE}/titulares?n=2&token=${TOKEN}" 2>/dev/null || true)
 BLOQUES=$(grep -c '^DATOS TITULAR$' "$TMP" 2>/dev/null || true)
@@ -133,6 +287,29 @@ if [ "$CODE" = "200" ] && [ "$BLOQUES" = "2" ] && grep -q '^DNI 30756789$' "$TMP
   ok "/titulares?n=2" "http=200 bloques=2"
 else
   fail "/titulares?n=2" "http=${CODE:-000} bloques=${BLOQUES:-0} $(head -c 200 "$TMP")"
+fi
+
+# 5b) /panel/movs (pestaña Movimientos del panel)
+CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${BASE}/panel/movs?n=2&token=${TOKEN}" 2>/dev/null || true)
+if [ "$CODE" = "200" ] && grep -q '"movs"' "$TMP" && grep -q '"cols"' "$TMP"; then
+  ok "/panel/movs" "http=200"
+else
+  fail "/panel/movs" "http=${CODE:-000} $(head -c 160 "$TMP")"
+fi
+
+# 5c) panel detras del login: /panel/ sin sesion redirige, /login publico
+RESP=$(curl -s -D "$TMPH" -o /dev/null -w '%{http_code}' --max-time 5 "${BASE}/panel/" 2>/dev/null || true)
+LOC=$(grep -i '^location:' "$TMPH" 2>/dev/null | tail -1 | tr -d '\r' | awk '{print $2}')
+if [ "$RESP" = "302" ] && [ "${LOC#/login}" != "$LOC" ]; then
+  ok "/panel detras del login" "http=302 location=$LOC"
+else
+  fail "/panel detras del login" "http=${RESP:-000} location=${LOC:-'-'}"
+fi
+CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 5 "${BASE}/login" 2>/dev/null || true)
+if [ "$CODE" = "200" ] && grep -q 'RESOLVER' "$TMP"; then
+  ok "/login publico" "http=200"
+else
+  fail "/login publico" "http=${CODE:-000}"
 fi
 
 # 6) /lote devuelve X-Ms y tarda menos de 200 ms
@@ -175,14 +352,23 @@ CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${BASE}/health" 2>/dev
 CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${WORKER_URL}/health" 2>/dev/null || true)
 [ "$CODE" = "401" ] && ok "Worker sin token" "http=401" || fail "Worker sin token" "http=${CODE:-000}"
 
-# 8c) /gh/README.md por el Worker (repo privado con GH_TOKEN)
+# 8c) /gh/README.md por el Worker (snapshot KV del repo privado, sin GH_TOKEN)
 CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 15 "${WORKER_URL}/gh/README.md?token=${TOKEN}" 2>/dev/null || true)
 if [ "$CODE" = "200" ] && grep -q '^# resolver-ar' "$TMP"; then
   ok "/gh/README.md" "http=200"
 elif grep -q 'falta GH_TOKEN' "$TMP"; then
   skip "/gh/README.md" "falta GH_TOKEN en el Worker"
 else
-  fail "/gh/README.md" "http=${CODE:-000} $(head -c 160 "$TMP")"
+  fail "/gh/README.md" "http=${CODE:-000} $(head -c 160 "$TMP") (correr node scripts/worker-repo.mjs)"
+fi
+
+# 8d) snapshot /gh al dia (hash local vs __manifest__.json del KV)
+# Se usa --check (API de Cloudflare, consistente). --remoto puede leer un edge
+# con KV todavia sin propagar justo despues de subir.
+if node scripts/worker-repo.mjs --check > "$TMP" 2>&1; then
+  ok "snapshot /gh" "$(tail -1 "$TMP")"
+else
+  fail "snapshot /gh" "$(tail -2 "$TMP" | tr '\n' ' ') (correr node scripts/worker-repo.mjs)"
 fi
 
 # 9) bot vivo (getMe + proceso)
@@ -205,6 +391,14 @@ else
   else
     fail "bot getMe" "http=${CODE:-000} pid=${BOT_PID:-'-'} $(head -c 160 "$TMP")"
   fi
+fi
+
+CC1=$(contar_db 'SELECT COUNT(*) FROM cc;')
+USR1=$(contar_db 'SELECT COUNT(*) FROM usuarios;')
+if [ "$CC0" = "$CC1" ] && [ "$USR0" = "$USR1" ]; then
+  ok "base real sin cambios" "cc=${CC0}->${CC1} usuarios=${USR0}->${USR1}"
+else
+  fail "base real sin cambios" "cc=${CC0}->${CC1} usuarios=${USR0}->${USR1}"
 fi
 
 echo ""

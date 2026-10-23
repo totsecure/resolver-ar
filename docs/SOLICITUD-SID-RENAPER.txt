@@ -1,0 +1,44 @@
+SOLICITUD SID / RENAPER — CONVENIO ÚNICO DE CONFRONTE DE DATOS (P10)
+====================================================================
+
+Canal oficial
+-------------
+- Producto: Servicio de Validación de Datos del DNI (API REST), dentro del SID.
+- Contratación: Convenio Único de Confronte de Datos con el Renaper, por TAD.
+- Página: https://www.argentina.gob.ar/sid/modalidades-y-productos
+- Adhesión: https://www.argentina.gob.ar/sid/adherir
+- Consultas administrativas: conveniosid@renaper.gob.ar
+
+Requisitos que publica Renaper
+------------------------------
+1. Cumplir la Ley 25.326 de Protección de Datos Personales y disposiciones.
+2. La cesión de datos solo procede con consentimiento del titular, finalidad
+   informada e identificación del cesionario (art. 11).
+3. No se pueden ceder/transferir los servicios a terceros ajenos a la
+   organización contratante.
+4. El contratante debe tener medidas de seguridad adecuadas al tipo de datos.
+5. El interés legítimo lo dictamina Renaper; en base a eso se otorga el servicio.
+
+Borrador de nota de inicio
+--------------------------
+Asunto: Inicio de trámite de Convenio Único de Confronte de Datos (SID)
+
+Buen día. Solicito iniciar el trámite del Convenio Único de Confronte de Datos
+con el Renaper para acceder al Servicio de Validación de Datos del DNI (API REST)
+del SID.
+
+Uso previsto: validación de identidad de titulares en un sistema privado de venta
+y control de tarjetas, con consentimiento del titular y medidas de seguridad
+para los datos (Ley 25.326). No se cederán los servicios a terceros.
+
+Quedo a disposición para presentar la documentación societaria, el responsable
+de seguridad de la información y el detalle de las medidas adoptadas.
+
+Gracias.
+
+Notas
+-----
+- Es la vía oficial y la más barata a escala, pero burocrática: requiere TAD,
+  personería, interés legítimo y probablemente auditoría de seguridad.
+- Mientras tanto, la fuente paga por consulta (apistore/Dateas/Didit) cubre el
+  trámite y el nacimiento para los titulares que se venden.

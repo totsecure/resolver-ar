@@ -41,6 +41,15 @@ log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') $*"
 }
 
+ESTADO_ALERTA="$RAIZ/datos/monitor.estado"
+avisar() {
+  local motivo="$1" previo=""
+  [ -f "$ESTADO_ALERTA" ] && previo="$(cat "$ESTADO_ALERTA" 2>/dev/null || true)"
+  [ "$previo" = "$motivo" ] && return 0
+  echo "$motivo" > "$ESTADO_ALERTA" 2>/dev/null || true
+  bash "$RAIZ/scripts/alertar.sh" "$motivo" >> "$RAIZ/datos/keepalive.log" 2>&1 || true
+}
+
 vivo() {
   local pf="$1" pid
   [ -f "$pf" ] || return 1
@@ -115,11 +124,13 @@ while true; do
 
   if [ "$LOCAL" != "200" ]; then
     log "motivo=server no responde (http=${LOCAL}); relanzando scripts/server.sh"
+    avisar "Server no responde (http=${LOCAL}). Reintentando."
     bash scripts/server.sh >> datos/keepalive.log 2>&1
   fi
 
   if ! vivo datos/bot.pid; then
     log "motivo=bot sin pidfile vivo; relanzando scripts/bot.sh"
+    avisar "Bot de Telegram caído. Reintentando."
     bash scripts/bot.sh >> datos/keepalive.log 2>&1
   fi
 

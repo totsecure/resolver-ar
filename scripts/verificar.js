@@ -17,6 +17,7 @@ import { VERSION, fnv1a, generarMail, generarTelefono, generarSinteticos } from 
 import * as cne from '../lib/cne.js';
 import * as renaper from '../lib/renaper.js';
 import { enriquecerPersona } from '../lib/enriquecer.js';
+import { modoNacimiento, mostrarTramitePendiente } from '../lib/config.js';
 import { calcular } from '../lib/cobertura.js';
 import { ficha, fichaDetalle } from '../lib/ficha.js';
 import { armarBloque, generarLote, seleccionarTitulares } from '../lib/lote.js';
@@ -60,18 +61,19 @@ function assert(cond, motivo) {
 const ETIQUETAS_FICHA = ['TITULAR', 'DNI', 'NRO TRAMITE', 'FECHA NAC', 'MAIL', 'TELEFONO', 'DIRECCION', 'CIUDAD', 'PROVINCIA', 'PAIS'];
 const FORMATOS_FICHA = {
   DNI: /^\d{8}$/,
-  'NRO TRAMITE': /^\d{11}$/,
-  'FECHA NAC': /^\d{2}\/\d{2}\/\d{4}$/,
+  'NRO TRAMITE': /^(\d{11}|\(pendiente\))$/,
+  'FECHA NAC': /^(\d{2}\/\d{2}\/\d{4}|\(pendiente\))$/,
   MAIL: /^[a-z][a-z0-9._]*@[a-z0-9.-]+$/,
-  TELEFONO: /^\d{10,11}$/,
+  TELEFONO: /^\d{2,4} \d{6,8}$/,
   PAIS: /^Argentina$/,
 };
 
-/* Valida 10 lineas, orden, etiquetas y el formato de cada valor != "-". */
+/* Valida las líneas esperadas (NRO TRAMITE puede omitirse si está pendiente). */
 function validarFicha(texto, contexto = 'ficha') {
   const lineas = String(texto).split('\n');
-  assert(lineas.length === 10, contexto + ': lineas=' + lineas.length);
-  ETIQUETAS_FICHA.forEach((etiqueta, i) => {
+  const etiquetas = ETIQUETAS_FICHA.filter((e) => e !== 'NRO TRAMITE' || /^NRO TRAMITE /m.test(texto));
+  assert(lineas.length === etiquetas.length, contexto + ': lineas=' + lineas.length + '/' + etiquetas.length);
+  etiquetas.forEach((etiqueta, i) => {
     assert(lineas[i].startsWith(etiqueta + ' '), contexto + ': linea ' + (i + 1) + ': ' + lineas[i]);
     const valor = lineas[i].slice(etiqueta.length + 1);
     if (valor !== '-' && FORMATOS_FICHA[etiqueta]) {
@@ -319,26 +321,36 @@ const tests = [
     assert(typeof s.cacheados === 'number' && typeof s.intentos === 'number', 'stats invalido');
   }],
 
-  ['ficha() devuelve 10 lineas, en el orden y con las etiquetas exactas', async () => {
+  ['ficha() devuelve las lineas en orden y con las etiquetas exactas', async () => {
     const texto = await ficha('3348', { red: false });
     const lineas = validarFicha(texto, 'ficha 3348');
     assert(lineas[0].startsWith('TITULAR '), 'TITULAR: ' + lineas[0]);
     assert(lineas[1] === 'DNI 00003348', 'DNI: ' + lineas[1]);
-    assert(lineas[9] === 'PAIS Argentina', 'PAIS: ' + lineas[9]);
+    assert(lineas[lineas.length - 1] === 'PAIS Argentina', 'PAIS: ' + lineas[lineas.length - 1]);
   }],
 
-  ['ficha() sin red para un DNI inexistente: 10 lineas, campos AUSENTE como "-", sin lanzar', async () => {
+  ['ficha() sin red para un DNI inexistente: sin lanzar, nacimiento según modo y trámite omitido/pendiente', async () => {
+    const modo = modoNacimiento();
     const texto = await ficha('99999997', { red: false });
     const lineas = validarFicha(texto, 'ficha inexistente');
+    const valor = (etiqueta) => {
+      const l = lineas.find((x) => x.startsWith(etiqueta + ' '));
+      return l ? l.slice(etiqueta.length + 1) : null;
+    };
     assert(lineas[0] === 'TITULAR -', 'TITULAR: ' + lineas[0]);
     assert(lineas[1] === 'DNI 99999997', 'DNI: ' + lineas[1]);
-    assert(lineas[2] === 'NRO TRAMITE -', 'NRO TRAMITE: ' + lineas[2]);
-    assert(lineas[3] === 'FECHA NAC -', 'FECHA NAC: ' + lineas[3]);
-    assert(lineas[4].startsWith('MAIL u99999997@'), 'MAIL sin nombre deberia ser u<dni>: ' + lineas[4]);
-    assert(lineas[6] === 'DIRECCION -', 'DIRECCION: ' + lineas[6]);
-    assert(lineas[7] === 'CIUDAD -', 'CIUDAD: ' + lineas[7]);
-    assert(lineas[8] === 'PROVINCIA -', 'PROVINCIA: ' + lineas[8]);
-    assert(lineas[9] === 'PAIS Argentina', 'PAIS: ' + lineas[9]);
+    if (modo === '1') {
+      assert(/^\d{11}$/.test(valor('NRO TRAMITE') || ''), 'NRO TRAMITE modo 1: ' + valor('NRO TRAMITE'));
+    } else {
+      assert(valor('NRO TRAMITE') === null, 'NRO TRAMITE no debería imprimirse: ' + valor('NRO TRAMITE'));
+    }
+    if (modo === '0') {
+      assert(valor('FECHA NAC') === '(pendiente)', 'FECHA NAC modo 0: ' + valor('FECHA NAC'));
+    } else {
+      assert(/^\d{2}\/\d{2}\/\d{4}$/.test(valor('FECHA NAC') || ''), 'FECHA NAC sintética: ' + valor('FECHA NAC'));
+    }
+    assert((valor('MAIL') || '').startsWith('u99999997@'), 'MAIL sin nombre deberia ser u<dni>: ' + valor('MAIL'));
+    assert(valor('PAIS') === 'Argentina', 'PAIS: ' + valor('PAIS'));
   }],
 
   ['ficha() con cache renaper: NRO TRAMITE 11 digitos, FECHA NAC dd/mm/aaaa y TITULAR AUSENTE "-"', async () => {
@@ -366,7 +378,7 @@ const tests = [
         cuil: '20123456789',
       },
     });
-    assert(guardado && guardado.fuente === 'REAL_RENAPER', 'no se guardo la cache renaper');
+    assert(guardado && guardado.fuente === 'MANUAL', 'no se guardo la cache manual');
 
     const { texto, fuentes } = await fichaDetalle(dni, { red: false });
     const lineas = validarFicha(texto, 'ficha cache renaper');
@@ -375,8 +387,8 @@ const tests = [
     assert(lineas[3] === 'FECHA NAC 05/08/1979', 'FECHA NAC: ' + lineas[3]);
     assert(lineas[6] === 'DIRECCION AV TEST 123', 'DIRECCION: ' + lineas[6]);
     assert(fuentes.TITULAR === 'AUSENTE', 'TITULAR fuente=' + fuentes.TITULAR);
-    assert(fuentes['NRO TRAMITE'] === 'REAL_RENAPER', 'NRO TRAMITE fuente=' + fuentes['NRO TRAMITE']);
-    assert(fuentes['FECHA NAC'] === 'REAL_RENAPER', 'FECHA NAC fuente=' + fuentes['FECHA NAC']);
+    assert(fuentes['NRO TRAMITE'] === 'MANUAL', 'NRO TRAMITE fuente=' + fuentes['NRO TRAMITE']);
+    assert(fuentes['FECHA NAC'] === 'MANUAL', 'FECHA NAC fuente=' + fuentes['FECHA NAC']);
   }],
 
   ['lote: 3 tarjetas devuelven 3 bloques numerados desde 1', () => {
@@ -388,8 +400,14 @@ const tests = [
       assert(bloque.includes('\nDATOS TITULAR\n'), 'bloque ' + (i + 1) + ' sin DATOS TITULAR');
       assert(bloque.includes('\nDATOS TARJETA\n'), 'bloque ' + (i + 1) + ' sin DATOS TARJETA');
       assert(/^DNI \d{8}$/m.test(bloque), 'bloque ' + (i + 1) + ' con DNI invalido');
-      assert(/^NRO TRAMITE \d{11}$/m.test(bloque), 'bloque ' + (i + 1) + ' con tramite invalido');
-      assert(/^FECHA NAC \d{2}\/\d{2}\/\d{4}$/m.test(bloque), 'bloque ' + (i + 1) + ' con fecha invalida');
+      const conTramite = /^NRO TRAMITE (\d{11}|\(pendiente\))$/m.test(bloque);
+      const conPendiente = /^NRO TRAMITE \(pendiente\)$/m.test(bloque);
+      if (conPendiente) {
+        assert(mostrarTramitePendiente(), 'bloque ' + (i + 1) + ' imprime tramite pendiente con flag 0');
+      } else if (!conTramite) {
+        assert(!mostrarTramitePendiente(), 'bloque ' + (i + 1) + ' sin tramite y flag 0');
+      }
+      assert(/^FECHA NAC (\d{2}\/\d{2}\/\d{4}|\(pendiente\))$/m.test(bloque), 'bloque ' + (i + 1) + ' con fecha invalida');
       assert(/^VENCIMIENTO \d{2}\/\d{2}$/m.test(bloque), 'bloque ' + (i + 1) + ' con vencimiento invalido');
       assert(/^CODIGO \d{3}$/m.test(bloque), 'bloque ' + (i + 1) + ' con codigo invalido');
     });

@@ -1,3 +1,9 @@
 name = "resolver-api"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
+
+# Snapshot privado del repo (sin GH_TOKEN): /gh/<path> lee de aca.
+# Se carga con: node scripts/worker-repo.mjs
+[[kv_namespaces]]
+binding = "REPO"
+id = "b148b4e182174d13847fa8ba5aa18972"

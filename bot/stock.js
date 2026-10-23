@@ -96,7 +96,7 @@ async function cmdCargar(chat, args, payload, quien) {
   const inv = (r.invalidas || []).length;
   log('cargar chat=' + chat + ' nuevas=' + r.nuevas + ' dups=' + dups + ' inv=' + inv);
   await enviar(chat, 'Cargadas <b>' + r.nuevas + '</b>' + (dups ? ' · ya estaban ' + dups : '') + (inv ? ' · inválidas ' + inv : '') + (etiqueta ? ' · etiqueta ' + esc(etiqueta) : ''));
-  if (inv) await enviarPre(chat, 'INVALIDAS\n' + r.invalidas.map((i) => i.numero + ' ' + i.motivo).join('\n'));
+  if (r.avisos.length) await enviarPre(chat, 'AVISOS largo: ' + r.avisos.map(function(x){return x.numero + ' ' + x.motivo}).join(' ')); if (inv) await enviarPre(chat, 'INVALIDAS\n' + r.invalidas.map((i) => i.numero + ' ' + i.motivo).join('\n'));
 }
 
 async function cmdStock(chat) {
@@ -203,7 +203,7 @@ async function cmdExpirar(chat) {
 }
 async function cmdSaldo(chat, args, quien) {
   const ref = args[0];
-  if (!ref || !args[1]) { await enviar(chat, 'Uso: /saldo <ref> <disponible> [total]'); return; }
+  if (!ref || !args[1]) { await enviar(chat, 'Uso: /saldo &lt;ref&gt; <disponible> [total]'); return; }
   const j = await pedir('/stock/saldo', { ref, disp: args[1], total: args[2] || args[1], usuario: quien, chat_id: String(chat) });
   if (!j || j.error) { await enviar(chat, 'Error: ' + esc(j?.error || 'no encontrada')); return; }
   await enviar(chat, '#' + j.ref + ' saldo actualizado: ' + j.disp + '/' + j.total);
@@ -212,7 +212,7 @@ async function cmdSaldo(chat, args, quien) {
 async function cmdEtiqueta(chat, args, quien) {
   const ref = args[0];
   const valor = args.slice(1).join(' ').trim();
-  if (!ref || !valor) { await enviar(chat, 'Uso: /etiqueta <ref> <texto>'); return; }
+  if (!ref || !valor) { await enviar(chat, 'Uso: /etiqueta &lt;ref&gt; <texto>'); return; }
   const j = await pedir('/stock/etiqueta', { ref, valor, usuario: quien, chat_id: String(chat) });
   if (!j || j.error) { await enviar(chat, 'Error: ' + esc(j?.error || 'no encontrada')); return; }
   await enviar(chat, '#' + j.ref + ' etiqueta: ' + esc(j.etiqueta));
@@ -273,18 +273,60 @@ async function cmdBinInfo(chat, args) {
 
 const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo']);
 
+/* === atajos === */
+const ALIAS = {
+  v: 'vender', venta: 'venta', c: 'cotizar', s: 'stock', b: 'bin', d: 'devolver',
+  x: 'baja', r: 'reservar', e: 'entrega', m: 'movs', p: 'precio', pl: 'precios',
+  al: 'alertas', st: 'stats', et: 'etiqueta', sa: 'saldo', bi: 'bininfo',
+  re: 'reentrega', ca: 'cargar', f: 'full', ex: 'exportar',
+};
+COMANDOS.add('cotizar');
+COMANDOS.add('venta');
+
+function partesVenta(args) {
+  const txt = (args || []).map((x) => String(x));
+  const nums = txt.filter((x) => /^[0-9]+$/.test(x));
+  const otros = txt.filter((x) => !/^[0-9]+$/.test(x));
+  const largo = nums.find((x) => x.length >= 6) || "";
+  const corto = nums.find((x) => x.length < 6) || "";
+  let n = corto ? Number(corto) : 0;
+  if (!n) n = largo ? 1 : 0;
+  return { n, bin: largo, comprador: otros.length ? otros[otros.length - 1] : "" };
+}
+
+async function precioDe(bin) {
+  if (!bin) return null;
+  try {
+    const pr = await pedir('/stock/precios');
+    const raw = pr && pr.precios;
+    if (!raw) return null;
+    let arr = [];
+    if (Array.isArray(raw)) arr = raw;
+    else if (typeof raw === 'object') arr = Object.entries(raw).map(([k, v]) => (v && typeof v === 'object') ? Object.assign({ bin: k }, v) : { bin: k, valor: v });
+    const hit = arr.find((p) => String(p.bin || p.BIN || '') === String(bin));
+    if (!hit) return null;
+    const valor = Number(hit.valor || hit.precio || hit.monto || 0) || 0;
+    if (!valor) return null;
+    return { valor, moneda: hit.moneda || '' };
+  } catch (_) { return null; }
+}
+/* === fin atajos === */
+
 export async function manejarStock(chatId, cmd, args = [], payload = '') {
-  const c = String(cmd || '').toLowerCase();
+  const _raw = String(cmd || '').toLowerCase();
+  const c = ALIAS[_raw] || _raw;
   if (!COMANDOS.has(c)) return false;
   const quien = aliasDe(chatId);
   try {
     if (c === 'cargar') await cmdCargar(chatId, args, payload, quien);
     else if (c === 'stock' || c === 'bins' || c === 'resumen') await cmdStock(chatId);
     else if (c === 'bin') await cmdBin(chatId, args);
+    else if (c === 'cotizar') await cmdCotizar(chatId, args);
     else if (c === 'full') await cmdFull(chatId);
     else if (c === 'cc') await cmdCc(chatId, args);
     else if (c === 'movs') await cmdMovs(chatId, args);
-    else if (c === 'vender') await cmdEntrega(chatId, args, quien, true);
+    else if (c === 'vender') await cmdVenderConBoton(chatId, args, quien);
+    else if (c === 'venta') await cmdEntrega(chatId, args, quien, true);
     else if (c === 'entrega') await cmdEntrega(chatId, args, quien, false);
     else if (c === 'reentrega') await cmdReentrega(chatId, args);
     else if (c === 'devolver') await cmdDevolver(chatId, args, quien);
@@ -410,3 +452,52 @@ export function iniciarOutbox(ms){
   log('outbox poller activo');
 }
 if(process.env.BOT_NO_OUTBOX!=='1') setTimeout(()=>iniciarOutbox(3000),5000);
+
+/* === botones de venta === */
+const pendientes = new Map();
+let seqOp = 0;
+
+async function cmdCotizar(chatId, args) {
+  const { n, bin } = partesVenta(args);
+  const p = await precioDe(bin);
+  const L = ['<b>Cotizacion</b>', 'bin: ' + (bin || '-'), 'cantidad: ' + (n || '-')];
+  if (p) {
+    L.push('precio: ' + p.valor + ' ' + p.moneda + ' c/u');
+    if (n) L.push('<b>total: ' + (p.valor * n).toFixed(2) + ' ' + p.moneda + '</b>');
+  } else L.push('sin precio cargado para ese BIN');
+  await enviar(chatId, L.join('\n'));
+}
+
+async function cmdVenderConBoton(chatId, args, quien) {
+  const { n, bin, comprador } = partesVenta(args);
+  const p = await precioDe(bin);
+  const L = ['<b>Confirmar venta</b>'];
+  if (n) L.push('cantidad: ' + n);
+  L.push('bin: ' + (bin || '-'));
+  if (comprador) L.push('comprador: ' + comprador);
+  if (p) {
+    L.push('precio: ' + p.valor + ' ' + p.moneda + ' c/u');
+    if (n) L.push('<b>total: ' + (p.valor * n).toFixed(2) + ' ' + p.moneda + '</b>');
+  } else L.push('sin precio cargado');
+  const id = 'o' + (++seqOp) + '-' + Date.now();
+  const norm = [];
+  if (n) norm.push(String(n));
+  if (bin) norm.push(bin);
+  if (comprador) norm.push(comprador);
+  pendientes.set(id, { tipo: 'vender', args: norm, ts: Date.now() });
+  await enviar(chatId, L.join('\n'), { reply_markup: { inline_keyboard: [[{ text: 'Confirmar', callback_data: 'op|ok|' + id }, { text: 'Cancelar', callback_data: 'op|no|' + id }]] } });
+}
+
+export async function resolverOperacion(chatId, accion, id) {
+  const p = pendientes.get(id);
+  if (!p) return { texto: 'Esa operacion ya se resolvio o expiro.' };
+  pendientes.delete(id);
+  if (Date.now() - p.ts > 30 * 60 * 1000) return { texto: 'Expiro (mas de 30 min). Repetila.' };
+  if (accion === 'no') return { texto: 'Cancelada. No se toco el stock.' };
+  if (p.tipo === 'vender') {
+    await cmdEntrega(chatId, p.args, aliasDe(chatId), true);
+    return { texto: 'Vendida. El .txt va en el mensaje de abajo.' };
+  }
+  return { texto: 'Listo.' };
+}
+/* === fin botones de venta === */

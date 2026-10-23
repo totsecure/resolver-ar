@@ -48,36 +48,61 @@ tr:hover td{background:rgba(59,130,246,.06)}
 .caja h3{margin:0 0 12px}
 .aviso{margin-top:10px;font-size:12.5px;color:var(--dim)}
 .vacio{padding:26px;text-align:center;color:var(--dim)}
-</style>
+</style><link rel="stylesheet" href="/panel/tema.css">
 </head>
-<body>
+<body class="claro">
 <header>
   <div class="logo">RESOLVER <b>STORE</b></div>
   <button class="tab on" data-estado="DISPONIBLE">Market</button>
   <button class="tab" data-estado="RESERVADA">Reservadas</button>
   <button class="tab" data-estado="VENDIDA">Vendidas</button>
-  <button class="tab" id="btnDash">Dashboard</button>
+  <button class="tab" data-estado="REVISION">Revisión</button>
+  <button class="tab" data-estado="PAPELERA">Papelera</button>
+  <button class="tab" id="btnDash">Dashboard</button><a class="tab" href="/panel/admin.html">Administración</a><button class="tab" id="btnTema">Tema</button><button class="tab" id="btnSalir">Salir</button>
   <div class="kpis" id="kpis"></div>
 </header>
 <main>
   <div class="filtros">
     <div><label>BIN</label><input id="f_bins" placeholder="516585,545652"></div>
+    <div><label>BIN desde</label><input id="f_bin_desde" inputmode="numeric" placeholder="516500"></div>
+    <div><label>BIN hasta</label><input id="f_bin_hasta" inputmode="numeric" placeholder="516599"></div>
     <div><label>Pais</label><select id="f_paises"></select></div>
     <div><label>Banco</label><select id="f_bancos"></select></div>
     <div><label>Red</label><select id="f_redes"></select></div>
     <div><label>Tipo</label><select id="f_tipos"></select></div>
-    <div><label>Base</label><select id="f_etiquetas"></select></div>
+    <div><label>Base / etiqueta</label><select id="f_etiquetas"></select></div>
+    <div><label>Estado</label><select id="f_estado">
+      <option value="DISPONIBLE">Disponible</option>
+      <option value="RESERVADA">Reservada</option>
+      <option value="VENDIDA">Vendida</option>
+      <option value="REVISION">Revisión</option>
+      <option value="PAPELERA">Papelera</option>
+      <option value="BAJA">Baja</option>
+    </select></div>
+    <div><label>Saldo min</label><input id="f_saldmin" type="number"></div>
+    <div><label>Saldo max</label><input id="f_saldmax" type="number"></div>
     <div><label>Precio min</label><input id="f_pmin" type="number"></div>
     <div><label>Precio max</label><input id="f_pmax" type="number"></div>
-    <div><label>Buscar</label><input id="f_q" placeholder="numero, titular, banco"></div>
+    <div><label>Buscar</label><input id="f_q" placeholder="número, últimos 4, DNI, titular, ref, código o etiqueta"></div>
+    <div><label>Saldeadas</label><label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="f_saldeadas" style="width:auto"> solo base Saldeadas</label></div>
     <div class="botones">
       <button class="prim" id="btnBuscar">Buscar</button>
       <button class="sec" id="btnLimpiar">Limpiar</button>
     </div>
   </div>
+  <div class="filtros" style="margin-top:8px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+    <div><label>Guardar filtro</label><input id="f_nombre" placeholder="nombre del filtro"></div>
+    <div><label>Filtros guardados</label><select id="f_guardados"></select></div>
+    <div class="botones">
+      <button class="sec" id="btnGuardarFiltro">Guardar</button>
+      <button class="sec" id="btnCargarFiltro">Cargar</button>
+      <button class="sec" id="btnBorrarFiltro">Borrar</button>
+    </div>
+  </div>
   <div class="barra">
     <span class="sel" id="sel">0 seleccionadas</span>
     <button class="sec" id="btnSelTodos">Seleccionar todas</button>
+    <button class="sec" id="btnPedirSel">Pedir</button>
     <div class="crecer"></div>
     <span class="sel" id="info"></span>
     <button class="prim" id="btnComprar" disabled>Comprar seleccionadas</button>
@@ -87,7 +112,7 @@ tr:hover td{background:rgba(59,130,246,.06)}
       <th style="width:34px"><input type="checkbox" id="chkTodos"></th>
       <th>BIN / Banco</th><th>Red</th><th>Tipo</th><th>EXP</th>
       <th>Pais</th><th>ZIP</th><th>Datos</th><th>Base</th>
-      <th>Refund</th><th>Saldo</th><th>Precio</th><th></th>
+      <th>Refund</th><th>Saldo</th><th>1 pago</th><th>en cuotas</th><th></th>
     </tr></thead>
     <tbody id="cuerpo"></tbody>
   </table>
@@ -102,151 +127,6 @@ tr:hover td{background:rgba(59,130,246,.06)}
   </div>
   <div class="aviso" id="m_aviso"></div>
 </div></div>
-<script>
-const Q=new URLSearchParams(location.search);
-const TOKEN=Q.get('token')||localStorage.getItem('tok')||'';
-if(TOKEN)localStorage.setItem('tok',TOKEN);
-const $=(s)=>document.querySelector(s);
-const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const num=(v)=>Number(v||0).toLocaleString('es-AR');
-const txt=(id)=>{const e=$('#'+id);return e?String(e.value||'').trim():'';};
-let ESTADO='DISPONIBLE',PAGINA=1,POR=50,SEL=new Set(),DATOS=null,DASH=false,ACC=null;
-async function api(ruta,opts){
-  opts=opts||{};
-  const sep=ruta.indexOf('?')>=0?'&':'?';
-  const r=await fetch('/panel'+ruta+sep+'token='+encodeURIComponent(TOKEN),opts);
-  return r.json();
-}
-function filtros(){
-  const f={estado:ESTADO,pagina:PAGINA,por:POR};
-  const m=[['bins','f_bins'],['paises','f_paises'],['bancos','f_bancos'],['redes','f_redes'],['tipos','f_tipos'],['etiquetas','f_etiquetas'],['pmin','f_pmin'],['pmax','f_pmax'],['q','f_q']];
-  for(let i=0;i<m.length;i++){const v=txt(m[i][1]);if(v)f[m[i][0]]=v;}
-  return f;
-}
-function pintarKpis(k){
-  const c=$('#kpis');if(!c)return;
-  let it=[['Disponibles',k.disponible],['Vendidas',k.vendidas],['Saldo',num(k.saldoTotal)]];
-  if(DASH){it.push(['Ventas',k.ventas==null?'-':k.ventas],['Alertas',(k.alertas||[]).length]);const pe=k.porEstado||{};Object.keys(pe).forEach((e)=>it.push([e,pe[e]]));}
-  c.innerHTML=it.map((x)=>'<span>'+esc(x[0])+' <b>'+esc(x[1])+'</b></span>').join('');
-}
-function pintarFacetas(fac){
-  const llenar=(id,arr,label)=>{
-    const el=$('#'+id);if(!el)return;
-    const act=el.value;
-    el.innerHTML='<option value="">'+label+'</option>'+(arr||[]).map((v)=>'<option value="'+esc(v.v)+'">'+esc(v.v)+' ('+v.n+')</option>').join('');
-    if(act)el.value=act;
-  };
-  llenar('f_paises',fac.paises,'Todos');
-  llenar('f_bancos',fac.bancos,'Todos');
-  llenar('f_redes',fac.redes,'Todas');
-  llenar('f_tipos',fac.tipos,'Todos');
-  llenar('f_etiquetas',fac.etiquetas,'Todas');
-  const pr=fac.precios||{};
-  if($('#f_pmin')&&!$('#f_pmin').value&&pr.min!=null)$('#f_pmin').placeholder=pr.min;
-  if($('#f_pmax')&&!$('#f_pmax').value&&pr.max!=null)$('#f_pmax').placeholder=pr.max;
-}
-function iconos(ft){
-  const d=[['holder','T'],['address','D'],['zip','Z'],['phone','P'],['email','E']];
-  return '<span class="icons">'+d.map((x)=>'<span class="'+(ft[x[0]]?'si':'')+'">'+x[1]+'</span>').join('')+'</span>';
-}
-function fila(f){
-  const on=SEL.has(f.ref)?' class="sel"':'';
-  const m=String(f.marca||'').toLowerCase();
-  const cls=m.indexOf('visa')>=0?'visa':(m.indexOf('master')>=0?'master':'');
-  return '<tr'+on+'>'
-    +'<td><input type="checkbox" data-ref="'+esc(f.ref)+'"'+(SEL.has(f.ref)?' checked':'')+'></td>'
-    +'<td><div class="bin mono">'+esc(f.bin)+'</div><div class="sub">'+esc(f.banco||'-')+'</div></td>'
-    +'<td><span class="badge '+cls+'">'+esc(f.marca||'-')+'</span></td>'
-    +'<td>'+esc(f.tipo||'-')+'</td>'
-    +'<td class="mono">'+esc(f.exp||'')+'</td>'
-    +'<td>'+esc(f.pais||'-')+'</td>'
-    +'<td class="mono">'+esc(f.zip||'-')+'</td>'
-    +'<td>'+iconos(f.features||{})+'</td>'
-    +'<td>'+esc(f.etiqueta||'-')+'</td>'
-    +'<td>'+(f.refund?'SI':'NO')+'</td>'
-    +'<td class="mono">'+esc(f.saldo||'-')+'</td>'
-    +'<td class="precio">'+esc(num(f.precio))+'</td>'
-    +'<td><button class="sec" data-ver="'+esc(f.ref)+'">ver</button></td>'
-    +'</tr>';
-}
-function pintarTabla(){
-  const t=$('#cuerpo');if(!t)return;
-  if(!DATOS||!DATOS.filas.length)t.innerHTML='<tr><td colspan="13" class="vacio">Sin resultados</td></tr>';
-  else t.innerHTML=DATOS.filas.map(fila).join('');
-  const s=$('#sel');if(s)s.textContent=SEL.size+' seleccionadas';
-  const b=$('#btnComprar');if(b)b.disabled=!SEL.size;
-  const i=$('#info');if(i&&DATOS)i.textContent=DATOS.total+' resultados - pag '+DATOS.pagina;
-}
-function pintarPag(d){
-  const p=$('#pag');if(!p)return;
-  const pg=Math.max(1,Math.ceil((d.total||0)/(d.por||POR)));
-  p.innerHTML='<button class="sec" data-pag="'+(d.pagina-1)+'"'+(d.pagina<=1?' disabled':'')+'><</button>'
-    +'<span>'+d.pagina+' / '+pg+'</span>'
-    +'<button class="sec" data-pag="'+(d.pagina+1)+'"'+(d.pagina>=pg?' disabled':'')+'>></button>';
-}
-async function cargar(){
-  const f=filtros();
-  const q=Object.keys(f).map((k)=>k+'='+encodeURIComponent(f[k])).join('&');
-  let d;
-  try{d=await api('/datos?'+q);}catch(e){const i=$('#info');if(i)i.textContent='error de red';return;}
-  if(d.error){const i=$('#info');if(i)i.textContent=d.error;return;}
-  DATOS=d;
-  pintarKpis(d.kpis||{});
-  pintarFacetas(d.facetas||{});
-  pintarTabla();
-  pintarPag(d);
-}
-function limpiar(){
-  ['f_bins','f_pmin','f_pmax','f_q','f_paises','f_bancos','f_redes','f_tipos','f_etiquetas'].forEach((id)=>{const e=$('#'+id);if(e)e.value='';});
-  PAGINA=1;SEL.clear();cargar();
-}
-function abrir(t,c){$('#m_titulo').textContent=t;$('#m_cuerpo').innerHTML=c;$('#m_aviso').textContent='';$('#modal').classList.add('abierto');}
-function cerrar(){$('#modal').classList.remove('abierto');}
-function comprar(){
-  if(!SEL.size)return;
-  const refs=[...SEL];
-  abrir('Comprar '+refs.length+' CC','<label>Comprador</label><input id="m_comprador" placeholder="opcional">');
-  $('#m_ok').textContent='Confirmar';
-  ACC=async()=>{
-    const c=$('#m_comprador')?$('#m_comprador').value.trim():'';
-    $('#m_aviso').textContent='procesando...';
-    const r=await api('/comprar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refs:refs,comprador:c})});
-    if(r.error){$('#m_aviso').textContent='error: '+r.error;return;}
-    $('#m_aviso').textContent='Venta '+r.codigo+' - '+r.n+' CC enviada al bot';
-    SEL.clear();cargar();
-  };
-}
-function ver(ref){
-  const f=(DATOS&&DATOS.filas||[]).find((x)=>x.ref===ref);if(!f)return;
-  abrir('CC '+ref,'<div class="mono">'+esc(f.numero||'')+'</div><div class="sub">'+esc(f.banco||'-')+' - '+esc(f.marca||'-')+' - exp '+esc(f.exp||'')+'</div><div class="sub">saldo '+esc(f.saldo||'-')+' - zip '+esc(f.zip||'-')+' - titular '+(f.features.holder?'si':'no')+'</div>');
-  $('#m_ok').textContent='Cerrar';
-  ACC=cerrar;
-}
-document.addEventListener('click',(e)=>{
-  const tab=e.target.closest('.tab[data-estado]');
-  if(tab){document.querySelectorAll('.tab').forEach((x)=>x.classList.remove('on'));tab.classList.add('on');ESTADO=tab.dataset.estado;PAGINA=1;SEL.clear();cargar();return;}
-  if(e.target.closest('#btnDash')){DASH=!DASH;$('#btnDash').classList.toggle('on',DASH);if(DATOS)pintarKpis(DATOS.kpis||{});return;}
-  const p=e.target.closest('[data-pag]');
-  if(p&&!p.disabled){PAGINA=Number(p.dataset.pag);cargar();return;}
-  const v=e.target.closest('[data-ver]');
-  if(v){ver(v.dataset.ver);return;}
-  if(e.target.closest('#btnBuscar')){PAGINA=1;cargar();return;}
-  if(e.target.closest('#btnLimpiar')){limpiar();return;}
-  if(e.target.closest('#btnComprar')){comprar();return;}
-  if(e.target.closest('#btnSelTodos')){(DATOS&&DATOS.filas||[]).forEach((f)=>SEL.add(f.ref));pintarTabla();return;}
-  if(e.target.closest('#m_cancelar')){cerrar();return;}
-  if(e.target.closest('#m_ok')){if(ACC)ACC();return;}
-});
-document.addEventListener('change',(e)=>{
-  const c=e.target.closest('[data-ref]');
-  if(c){if(c.checked)SEL.add(c.dataset.ref);else SEL.delete(c.dataset.ref);pintarTabla();return;}
-  if(e.target.closest('#chkTodos')){const on=e.target.checked;(DATOS&&DATOS.filas||[]).forEach((f)=>{if(on)SEL.add(f.ref);else SEL.delete(f.ref);});pintarTabla();return;}
-  if(['f_paises','f_bancos','f_redes','f_tipos','f_etiquetas'].indexOf(e.target.id)>=0){PAGINA=1;cargar();}
-});
-document.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&(e.target.id==='f_q'||e.target.id==='f_bins')){PAGINA=1;cargar();}});
-if(!TOKEN){const i=$('#info');if(i)i.textContent='falta token';}
-cargar();
-setInterval(()=>{if(!document.hidden)cargar();},20000);
-</script>
+<script src="/panel/app.js"></script>
 </body>
 </html>

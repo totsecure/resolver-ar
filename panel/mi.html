@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f4f6f8">
+<title>Mi cuenta · RESOLVER</title>
+<link rel="stylesheet" href="/panel/tema.css">
+<style>
+:root{--bg:#f4f6f8;--panel:#fff;--line:#dfe3e8;--txt:#101720;--dim:#5b6675;--acc:#2563eb;--ok:#16a34a;--bad:#dc2626;--warn:#d97706}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(16,23,32,.04)}
+.marca{font-weight:800;letter-spacing:.4px}
+.marca b{color:var(--acc)}
+header .der{margin-left:auto;display:flex;gap:8px;align-items:center}
+main{max-width:720px;margin:0 auto;padding:16px 16px 60px}
+.tarjeta{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+h1{font-size:20px;margin:0 0 4px}
+h2{font-size:15px;margin:0 0 10px}
+.sub{color:var(--dim);font-size:13px;margin:0}
+.fila{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.fila:last-child{border-bottom:0}
+.fila .k{color:var(--dim)}
+button{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;font-size:14px;cursor:pointer}
+button.sec{background:#f1f3f6;color:var(--txt);border:1px solid var(--line)}
+button.peligro{background:#fef2f2;color:var(--bad);border:1px solid #fecaca}
+button:disabled{opacity:.5}
+input{width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px;font-size:16px;margin:4px 0 10px}
+label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);font-weight:700}
+.msg{font-size:13px;color:var(--bad);min-height:18px}
+.msg.ok{color:var(--ok)}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#eff6ff;color:#1d4ed8}
+.badge.ok{background:#ecfdf5;color:#15803d}
+.badge.warn{background:#fffbeb;color:#b45309}
+.acciones{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.oculto{display:none!important}
+.secreto{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f1f3f6;border:1px solid var(--line);border-radius:10px;padding:12px;word-break:break-all;font-size:14px;margin:8px 0}
+.respaldo{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:#f1f3f6;border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:7px 4px;border-bottom:1px solid var(--line)}
+th{color:var(--dim);font-size:11px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<header>
+  <div class="marca">RESOLVER <b>STORE</b></div>
+  <div class="der">
+    <span class="badge" id="rol">—</span>
+    <button class="sec" id="salir">Salir</button>
+  </div>
+</header>
+<main>
+  <div class="tarjeta">
+    <h1 id="nombre">Mi cuenta</h1>
+    <p class="sub" id="usuario">—</p>
+    <div class="acciones" id="accionesAdmin"></div>
+  </div>
+
+  <div class="tarjeta oculto" id="forzado">
+    <h2>Activá el segundo factor</h2>
+    <p class="sub">Tu rol lo exige. Agregá el secreto a tu app de autenticación y confirmá el código.</p>
+    <div class="secreto" id="secretoForzado"></div>
+    <p class="sub"><a id="otpauthForzado" href="#">Abrir en la app</a></p>
+    <label for="codigoForzado">Código</label>
+    <input id="codigoForzado" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
+    <button id="btnForzado">Activar 2FA</button>
+    <div class="msg" id="msgForzado"></div>
+  </div>
+
+  <div class="tarjeta" id="tarjeta2fa">
+    <h2>Seguridad</h2>
+    <div class="fila"><span class="k">Segundo factor (TOTP)</span><span id="estado2fa">—</span></div>
+    <div class="fila"><span class="k">Códigos de respaldo</span><span id="respaldos">—</span></div>
+    <div class="acciones">
+      <button id="btn2fa">Activar 2FA</button>
+      <button class="sec" id="btnRespaldos">Ver/regenerar códigos</button>
+      <button class="sec" id="btnClave">Cambiar contraseña</button>
+    </div>
+    <div class="respaldo oculto" id="cajaRespaldos2"></div>
+    <div class="msg" id="msgResp"></div>
+    <div id="caja2fa" class="oculto" style="margin-top:12px">
+      <div class="secreto" id="secreto"></div>
+      <p class="sub"><a id="otpauth" href="#">Abrir en la app de autenticación</a></p>
+      <label for="codigo">Código de 6 dígitos</label>
+      <input id="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
+      <button id="btnActivar">Confirmar</button>
+      <div class="respaldo oculto" id="cajaRespaldos"></div>
+      <div class="msg" id="msg2fa"></div>
+    </div>
+    <div id="cajaClave" class="oculto" style="margin-top:12px">
+      <label for="actual">Contraseña actual</label>
+      <input id="actual" type="password" autocomplete="current-password">
+      <label for="nueva">Contraseña nueva (mínimo 8)</label>
+      <input id="nueva" type="password" autocomplete="new-password">
+      <button id="btnGuardarClave">Guardar</button>
+      <div class="msg" id="msgClave"></div>
+    </div>
+  </div>
+
+  <div class="tarjeta" id="tarjetaTelegram">
+    <h2>Telegram</h2>
+    <div class="fila"><span class="k">Estado</span><span id="tgEstado">—</span></div>
+    <p class="sub">La misma cuenta sirve para la web y el bot. Generá un código y mandale <code>/vincular CODIGO</code> al bot.</p>
+    <div class="acciones">
+      <button id="btnTg">Generar código</button>
+      <button class="sec" id="btnTgOff">Desvincular</button>
+    </div>
+    <div class="secreto oculto" id="tgCodigo"></div>
+    <div class="msg" id="msgTg"></div>
+  </div>
+
+  <div class="tarjeta" id="tarjetaTokens">
+    <h2>Tokens API</h2>
+    <p class="sub">Para consumir stock desde tu sistema. El token se muestra una sola vez; se envía como <code>Authorization: Bearer</code> o <code>x-api-token</code>.</p>
+    <div class="acciones"><input id="token_nombre" placeholder="nombre (ej. integración)"><button id="btnToken">Crear token</button></div>
+    <div class="secreto oculto" id="tokenNuevo"></div>
+    <div id="listaTokens" style="margin-top:10px"></div>
+    <div class="msg" id="msgToken"></div>
+  </div>
+
+  <div class="tarjeta" id="tarjetaSesiones">
+    <h2>Sesiones activas</h2>
+    <table><thead><tr><th>Desde</th><th>IP</th><th>Expira</th><th></th></tr></thead><tbody id="sesiones"></tbody></table>
+  </div>
+
+  <div class="tarjeta oculto" id="tarjetaVendedor">
+    <h2>Mi saldo</h2>
+    <div class="fila"><span class="k">Saldo disponible</span><b id="saldoVend">—</b></div>
+    <div class="fila"><span class="k">Límite diario</span><span id="limiteDia">—</span></div>
+    <div class="fila"><span class="k">Reservas simultáneas</span><span id="limiteSim">—</span></div>
+    <div class="acciones">
+      <a href="/catalogo"><button>Ir al catálogo</button></a>
+      <a href="/catalogo"><button class="sec">Cargar saldo</button></a>
+    </div>
+    <p class="sub" style="margin-top:8px">El catálogo, las reservas y las recargas están en la misma cuenta.</p>
+  </div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let CSRF = '';
+let YO = null;
+
+async function api(ruta, cuerpo, metodo) {
+  const r = await fetch(ruta, {
+    method: metodo || 'POST',
+    headers: { 'content-type': 'application/json', 'x-csrf-token': CSRF },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+  });
+  let j = null;
+  try { j = await r.json(); } catch (_) {}
+  return { status: r.status, j: j || {} };
+}
+function decir(sel, texto, ok) {
+  const e = $(sel);
+  if (!e) return;
+  e.textContent = texto || '';
+  e.classList.toggle('ok', Boolean(ok));
+}
+function fmt(f) { return f ? String(f).slice(0, 16).replace('T', ' ') : '—'; }
+
+function pintar() {
+  const u = YO.usuario;
+  $('#nombre').textContent = u.nombre || u.usuario;
+  $('#usuario').textContent = '@' + u.usuario + ' · desde ' + fmt(u.creado);
+  $('#rol').textContent = u.rol;
+  $('#estado2fa').innerHTML = YO.dosfa.activo
+    ? '<span class="badge ok">activo</span>'
+    : '<span class="badge warn">sin activar</span>';
+  $('#respaldos').textContent = YO.dosfa.activo ? YO.dosfa.respaldos + ' sin usar' : '—';
+  $('#btn2fa').classList.toggle('oculto', YO.dosfa.activo);
+  $('#tarjetaVendedor').classList.toggle('oculto', u.rol !== 'vendedor');
+  if (u.rol === 'admin' || u.rol === 'operador') {
+    $('#accionesAdmin').innerHTML = '<a href="/panel/"><button>Ir al panel</button></a>';
+  }
+  $('#forzado').classList.toggle('oculto', !YO.debeConfigurar2fa);
+  if (YO.debeConfigurar2fa) iniciarSetupForzado();
+}
+
+async function cargar() {
+  const r = await fetch('/api/auth/yo');
+  if (!r.ok) { location.href = '/login?next=' + encodeURIComponent(location.pathname); return; }
+  YO = await r.json();
+  CSRF = YO.csrf;
+  pintar();
+  cargarSesiones();
+  cargarTokens();
+  cargarVendedor();
+  cargarTelegram();
+}
+
+async function cargarTelegram() {
+  const { j } = await api('/api/telegram/estado', null, 'GET');
+  if (!j || !j.ok) return;
+  $('#tgEstado').innerHTML = j.vinculado
+    ? '<span class="badge ok">vinculado</span>'
+    : '<span class="badge warn">sin vincular</span>';
+  $('#btnTg').textContent = j.vinculado ? 'Generar otro código' : 'Generar código';
+}
+
+async function generarTg() {
+  const { j } = await api('/api/telegram/vincular', {});
+  if (!j || !j.ok) return decir('#msgTg', 'No pudimos generar el código.');
+  $('#tgCodigo').classList.remove('oculto');
+  $('#tgCodigo').innerHTML = '<b style="font-size:19px">' + esc(j.codigo) + '</b><br><span class="sub">Mandá al bot: /vincular ' + esc(j.codigo) + ' · vence ' + esc(String(j.expira).slice(11, 16)) + ' UTC</span>';
+  decir('#msgTg', 'Código generado. Se usa una sola vez.', true);
+}
+
+async function desvincularTg() {
+  const { j } = await api('/api/telegram/desvincular', {});
+  if (!j || !j.ok) return decir('#msgTg', 'No se pudo desvincular.');
+  $('#tgCodigo').classList.add('oculto');
+  decir('#msgTg', 'Chat desvinculado.', true);
+  cargarTelegram();
+}
+
+async function cargarVendedor() {
+  if (!YO || YO.usuario.rol !== 'vendedor') return;
+  const { j } = await api('/api/vendedor/perfil', null, 'GET');
+  if (!j || !j.ok || !j.perfil) return;
+  const p = j.perfil;
+  $('#saldoVend').textContent = '$ ' + Number(j.saldo || 0).toLocaleString('es-AR');
+  $('#limiteDia').textContent = p.limite_reservas_dia + ' por día';
+  $('#limiteSim').textContent = p.limite_simultaneas + ' a la vez';
+}
+
+async function cargarTokens() {
+  const { j } = await api('/api/tokens', null, 'GET');
+  if (!j || !j.ok) return;
+  $('#listaTokens').innerHTML = (j.tokens || []).map((t) =>
+    '<div class="fila"><span class="k">' + esc(t.nombre || 'sin nombre') + ' · ' + esc(t.prefijo || '') + ' · ' + esc(fmt(t.creado)) + (t.revocado ? ' · revocado' : '') + '</span>'
+    + (t.revocado ? '' : '<button class="sec" data-token-revocar="' + t.id + '">Revocar</button>') + '</div>').join('')
+    || '<p class="sub">Sin tokens.</p>';
+}
+
+async function crearToken() {
+  const nombre = ($('#token_nombre')?.value || '').trim();
+  const { j } = await api('/api/tokens', { nombre });
+  if (!j || !j.ok) return decir('#msgToken', j.error || 'No se pudo crear.', false);
+  $('#tokenNuevo').classList.remove('oculto');
+  $('#tokenNuevo').innerHTML = '<b style="user-select:all;word-break:break-all">' + esc(j.token) + '</b><p class="sub">Copialo ahora; no se vuelve a mostrar.</p>';
+  $('#token_nombre').value = '';
+  decir('#msgToken', 'Token creado.', true);
+  cargarTokens();
+}
+
+async function cargarSesiones() {
+  const { j } = await api('/api/auth/sesiones', null, 'GET');
+  const filas = j.sesiones || [];
+  $('#sesiones').innerHTML = filas.map((s) =>
+    '<tr><td>' + esc(fmt(s.creado)) + '</td><td>' + esc(s.ip || '—') + '</td><td>' + esc(fmt(s.expira)) +
+    '</td><td><button class="sec" data-revocar="' + esc(s.id) + '">Cerrar</button></td></tr>').join('')
+    || '<tr><td colspan="4" class="sub">Sin sesiones.</td></tr>';
+}
+
+async function iniciarSetupForzado() {
+  if ($('#secretoForzado').textContent) return;
+  const { j } = await api('/api/auth/2fa/iniciar', {});
+  if (!j.ok) { decir('#msgForzado', 'No pudimos iniciar el 2FA. Recargá la página.'); return; }
+  $('#secretoForzado').textContent = j.manual || j.secreto;
+  $('#otpauthForzado').href = j.otpauth;
+}
+
+async function iniciarSetup() {
+  if ($('#secreto').textContent) { $('#caja2fa').classList.remove('oculto'); return; }
+  const { j } = await api('/api/auth/2fa/iniciar', {});
+  if (!j.ok) return decir('#msg2fa', j.error === 'ya_activo' ? 'El 2FA ya está activo.' : 'No pudimos iniciar.');
+  $('#secreto').textContent = j.manual || j.secreto;
+  $('#otpauth').href = j.otpauth;
+  $('#caja2fa').classList.remove('oculto');
+  $('#codigo').focus();
+}
+
+async function activar() {
+  const codigo = $('#codigo').value.trim();
+  const { j } = await api('/api/auth/2fa/activar', { codigo });
+  if (!j.ok) return decir('#msg2fa', 'Código incorrecto.');
+  $('#cajaRespaldos').classList.remove('oculto');
+  $('#cajaRespaldos').innerHTML = (j.respaldo || []).map((c) => '<span>' + esc(c) + '</span>').join('');
+  decir('#msg2fa', '2FA activado. Guardá los códigos de respaldo.', true);
+  setTimeout(cargar, 1200);
+}
+
+async function activarForzado() {
+  const codigo = $('#codigoForzado').value.trim();
+  const { j } = await api('/api/auth/2fa/activar', { codigo });
+  if (!j.ok) return decir('#msgForzado', 'Código incorrecto.');
+  location.reload();
+}
+
+async function regenerarRespaldos() {
+  const clave = prompt('Contraseña actual:');
+  if (clave === null) return;
+  const codigo = prompt('Código TOTP actual o un código de respaldo:');
+  if (codigo === null) return;
+  const { j } = await api('/api/auth/2fa/respaldos', { clave, codigo });
+  if (!j || !j.ok) {
+    const m = { clave: 'Contraseña incorrecta.', codigo: 'Código incorrecto.', '2fa_inactivo': 'El 2FA no está activo.' };
+    return decir('#msgResp', m[j && j.error] || 'No se pudieron regenerar.');
+  }
+  $('#cajaRespaldos2').classList.remove('oculto');
+  $('#cajaRespaldos2').innerHTML = (j.respaldo || []).map((c) => '<span>' + esc(c) + '</span>').join('');
+  decir('#msgResp', 'Códigos nuevos. Los anteriores ya no sirven: guardalos.', true);
+  cargar();
+}
+
+async function guardarClave() {
+  const actual = $('#actual').value;
+  const nueva = $('#nueva').value;
+  if (nueva.length < 8) return decir('#msgClave', 'La nueva debe tener al menos 8 caracteres.');
+  const { j } = await api('/api/auth/clave', { actual, nueva });
+  if (!j.ok) return decir('#msgClave', j.error === 'clave_actual' ? 'La contraseña actual no coincide.' : (j.error || 'Error.'));
+  decir('#msgClave', 'Listo. Volvé a entrar con la nueva contraseña.', true);
+  setTimeout(() => { location.href = '/login'; }, 1200);
+}
+
+async function salir() {
+  await api('/api/auth/logout', {});
+  location.href = '/login';
+}
+
+document.addEventListener('click', async (e) => {
+  if (e.target.closest('#salir')) return salir();
+  if (e.target.closest('#btn2fa')) return iniciarSetup();
+  if (e.target.closest('#btnRespaldos')) return regenerarRespaldos();
+  if (e.target.closest('#btnActivar')) return activar();
+  if (e.target.closest('#btnForzado')) return activarForzado();
+  if (e.target.closest('#btnClave')) { $('#cajaClave').classList.toggle('oculto'); return; }
+  if (e.target.closest('#btnGuardarClave')) return guardarClave();
+  if (e.target.closest('#btnToken')) return crearToken();
+  const tr = e.target.closest('[data-token-revocar]');
+  if (tr) { await api('/api/tokens/' + tr.dataset.tokenRevocar + '/revocar', {}); cargarTokens(); return; }
+  if (e.target.closest('#btnTg')) return generarTg();
+  if (e.target.closest('#btnTgOff')) return desvincularTg();
+  const rev = e.target.closest('[data-revocar]');
+  if (rev) {
+    await api('/api/auth/sesiones/revocar', { id: Number(rev.dataset.revocar) });
+    cargarSesiones();
+  }
+});
+
+cargar();
+</script>
+</body>
+</html>

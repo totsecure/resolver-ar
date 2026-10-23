@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1018">
+<title>Entrar · RESOLVER</title>
+<link rel="stylesheet" href="/panel/tema.css">
+<style>
+:root{--bg:#f4f6f8;--panel:#fff;--line:#dfe3e8;--txt:#101720;--dim:#5b6675;--acc:#2563eb;--ok:#16a34a;--bad:#dc2626}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;padding:18px}
+.caja{width:100%;max-width:390px}
+.marca{font-size:20px;font-weight:800;letter-spacing:.5px;margin:0 0 4px}
+.marca b{color:var(--acc)}
+.sub{color:var(--dim);font-size:13px;margin:0 0 20px}
+.tarjeta{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 8px 30px rgba(16,23,32,.06)}
+label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);font-weight:700;margin:0 0 5px}
+input{width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:16px;color:var(--txt);margin:0 0 14px}
+input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+button{width:100%;background:var(--acc);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer}
+button:disabled{opacity:.5}
+button.sec{background:#f1f3f6;color:var(--txt);border:1px solid var(--line)}
+.msg{min-height:20px;font-size:13px;color:var(--bad);margin:12px 0 0}
+.msg.ok{color:var(--ok)}
+.oculto{display:none!important}
+h2{font-size:17px;margin:0 0 6px}
+.pista{color:var(--dim);font-size:13px;margin:0 0 16px}
+.codigo{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:20px;letter-spacing:2px;text-align:center;text-transform:uppercase}
+.secreto{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f1f3f6;border:1px solid var(--line);border-radius:10px;padding:12px;word-break:break-all;font-size:14px;margin-bottom:10px}
+.respaldo{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:#f1f3f6;border:1px solid var(--line);border-radius:10px;padding:10px;margin:10px 0}
+.pie{margin-top:14px;text-align:center;font-size:12px;color:var(--dim)}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="caja">
+  <div class="marca">RESOLVER <b>STORE</b></div>
+  <div class="sub">Acceso de vendedores y administración</div>
+
+  <div class="tarjeta" id="vistaLogin">
+    <h2>Entrar</h2>
+    <p class="pista">La misma cuenta sirve para la web y el bot.</p>
+    <label for="usuario">Usuario</label>
+    <input id="usuario" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus>
+    <label for="clave">Contraseña</label>
+    <input id="clave" type="password" autocomplete="current-password">
+    <button id="btnEntrar">Entrar</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="tarjeta oculto" id="vista2fa">
+    <h2>Código de verificación</h2>
+    <p class="pista">Abrí tu app de autenticación e ingresá el código de 6 dígitos. También podés usar un código de respaldo.</p>
+    <label for="codigo2fa">Código</label>
+    <input id="codigo2fa" class="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="20" placeholder="000000">
+    <button id="btn2fa">Verificar</button>
+    <button class="sec" id="btnVolver" style="margin-top:8px">Volver</button>
+    <div class="msg" id="msg2"></div>
+  </div>
+
+  <div class="tarjeta oculto" id="vistaSetup">
+    <h2>Activar 2FA</h2>
+    <p class="pista" id="setupPista">El rol que tenés exige segundo factor. Agregá este secreto a Google Authenticator, Authy o 1Password y confirmá el código.</p>
+    <div class="secreto" id="secreto"></div>
+    <p class="pista"><a id="otpauth" href="#">Abrir en la app de autenticación</a></p>
+    <label for="codigoSetup">Código de 6 dígitos</label>
+    <input id="codigoSetup" class="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
+    <button id="btnActivar">Activar 2FA</button>
+    <div class="msg" id="msg3"></div>
+  </div>
+
+  <div class="tarjeta oculto" id="vistaRespaldo">
+    <h2>Guardá estos códigos</h2>
+    <p class="pista">Son de un solo uso. Guardalos fuera del celular: si perdés el authenticator son la única forma de entrar.</p>
+    <div class="respaldo" id="respaldos"></div>
+    <button id="btnSeguir">Ya los guardé</button>
+  </div>
+
+  <div class="pie" id="pie"></div>
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+const Q = new URLSearchParams(location.search);
+const NEXT = Q.get('next') || '';
+let CSRF = sessionStorage.getItem('csrf') || '';
+let DEBE_SETUP = false;
+
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function ver(id) {
+  ['vistaLogin', 'vista2fa', 'vistaSetup', 'vistaRespaldo'].forEach((v) => {
+    document.getElementById(v).classList.toggle('oculto', v !== id);
+  });
+}
+function decir(sel, texto, ok) {
+  const e = $(sel);
+  if (!e) return;
+  e.textContent = texto || '';
+  e.classList.toggle('ok', Boolean(ok));
+}
+function destino(rol) {
+  if (NEXT && NEXT.startsWith('/')) return NEXT;
+  return (rol === 'admin' || rol === 'operador') ? '/panel/' : '/mi';
+}
+async function api(ruta, cuerpo) {
+  const r = await fetch(ruta, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-csrf-token': CSRF },
+    body: JSON.stringify(cuerpo || {}),
+  });
+  let j = null;
+  try { j = await r.json(); } catch (_) {}
+  return { status: r.status, j: j || {} };
+}
+async function prepararCsrf() {
+  if (CSRF) return;
+  const r = await fetch('/api/auth/csrf');
+  const j = await r.json();
+  CSRF = j.csrf || '';
+  sessionStorage.setItem('csrf', CSRF);
+}
+
+async function entrar() {
+  const usuario = $('#usuario').value.trim();
+  const clave = $('#clave').value;
+  if (!usuario || !clave) return decir('#msg', 'Completá usuario y contraseña.');
+  $('#btnEntrar').disabled = true;
+  decir('#msg', '');
+  try {
+    await prepararCsrf();
+    const { status, j } = await api('/api/auth/login', { usuario, clave });
+    if (!j.ok) {
+      decir('#msg', j.detalle || j.error || 'No pudimos entrar.');
+      $('#btnEntrar').disabled = false;
+      return;
+    }
+    CSRF = j.csrf || CSRF;
+    sessionStorage.setItem('csrf', CSRF);
+    if (j.necesita2fa) {
+      $('#clave').value = '';
+      ver('vista2fa');
+      $('#codigo2fa').focus();
+      return;
+    }
+    DEBE_SETUP = Boolean(j.debeConfigurar2fa);
+    if (DEBE_SETUP) return iniciarSetup();
+    location.href = destino(j.usuario.rol);
+  } catch (e) {
+    decir('#msg', 'Error de red.');
+    $('#btnEntrar').disabled = false;
+  }
+}
+
+async function verificar2fa() {
+  const codigo = $('#codigo2fa').value.trim();
+  if (!codigo) return decir('#msg2', 'Ingresá el código.');
+  $('#btn2fa').disabled = true;
+  const { j } = await api('/api/auth/2fa', { codigo });
+  if (!j.ok) {
+    decir('#msg2', 'Código incorrecto o vencido.');
+    $('#btn2fa').disabled = false;
+    return;
+  }
+  const yo = await fetch('/api/auth/yo').then((r) => r.json()).catch(() => null);
+  DEBE_SETUP = Boolean(yo && yo.debeConfigurar2fa);
+  if (DEBE_SETUP) return iniciarSetup();
+  location.href = destino(yo && yo.usuario ? yo.usuario.rol : 'vendedor');
+}
+
+async function iniciarSetup() {
+  ver('vistaSetup');
+  $('#setupPista').textContent = 'El rol que tenés exige segundo factor. Agregá este secreto a Google Authenticator, Authy o 1Password y confirmá el código.';
+  const { j } = await api('/api/auth/2fa/iniciar', {});
+  if (!j.ok) {
+    decir('#msg3', j.error === 'ya_activo' ? 'El 2FA ya está activo. Volvé a entrar.' : 'No pudimos iniciar el 2FA.');
+    return;
+  }
+  $('#secreto').textContent = j.manual || j.secreto;
+  $('#otpauth').href = j.otpauth;
+  $('#codigoSetup').focus();
+}
+
+async function activar2fa() {
+  const codigo = $('#codigoSetup').value.trim();
+  if (!codigo) return decir('#msg3', 'Ingresá el código de 6 dígitos.');
+  $('#btnActivar').disabled = true;
+  const { j } = await api('/api/auth/2fa/activar', { codigo });
+  if (!j.ok) {
+    decir('#msg3', j.error === 'sin_setup' ? 'La sesión de setup venció: recargá.' : 'Código incorrecto. Probá de nuevo.');
+    $('#btnActivar').disabled = false;
+    return;
+  }
+  $('#respaldos').innerHTML = (j.respaldo || []).map((c) => '<span>' + esc(c) + '</span>').join('');
+  ver('vistaRespaldo');
+}
+
+async function arrancar() {
+  $('#pie').textContent = 'resolver-ar · ' + new Date().getFullYear();
+  try {
+    const r = await fetch('/api/auth/yo');
+    if (r.ok) {
+      const yo = await r.json();
+      if (yo.paso2fa) { ver('vista2fa'); return; }
+      if (yo.debeConfigurar2fa) return iniciarSetup();
+      location.href = destino(yo.usuario.rol);
+      return;
+    }
+  } catch (_) {}
+  ver('vistaLogin');
+}
+
+$('#btnEntrar').addEventListener('click', entrar);
+$('#clave').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(); });
+$('#btn2fa').addEventListener('click', verificar2fa);
+$('#codigo2fa').addEventListener('keydown', (e) => { if (e.key === 'Enter') verificar2fa(); });
+$('#btnActivar').addEventListener('click', activar2fa);
+$('#codigoSetup').addEventListener('keydown', (e) => { if (e.key === 'Enter') activar2fa(); });
+$('#btnVolver').addEventListener('click', async () => {
+  try { await api('/api/auth/logout', {}); } catch (_) {}
+  sessionStorage.removeItem('csrf');
+  location.href = '/login';
+});
+$('#btnSeguir').addEventListener('click', () => { location.href = destino('admin'); });
+arrancar();
+</script>
+</body>
+</html>

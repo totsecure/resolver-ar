@@ -27,7 +27,9 @@ import {
   formatearCuit, cuitsPorDni,
 } from '../lib/padron.js';
 import { parsearTarjetas } from '../lib/parse-tarjetas.js';
-import { manejarStock } from './stock.js';
+import { manejarStock, resolverOperacion } from './stock.js';
+import { manejarVendedor, manejarVinculacion, esVendedorChat, ayudaVendedor, iniciarNotificaciones } from './vendedor.js';
+import { vinculadoA } from '../lib/vinculacion.js';
 
 /* Preferir IPv4: en esta red el AAAA de Telegram a veces cuelga. */
 dns.setDefaultResultOrder('ipv4first');
@@ -50,24 +52,37 @@ const HELP = [
   '/cuit &lt;cuit&gt; - consulta inversa por CUIT',
   '/basico &lt;dni&gt; - apellido, nombre, DNI, CUIT, CUIL, sexo, nacionalidad',
   '/ambig - DNIs con más de un CUIT',
-  '/random - DNI del pool',
-  '/random afip - DNI al azar del padrón',
+  '/random [afip] - DNI del pool; con afip, al azar del padrón',
   '',
   '<b>stock</b>',
   '/cargar - pegar lineas o .txt con leyenda /cargar',
   '/stock - resumen por BIN',
-  '/bin <bin> - listado y datos del BIN',
+  '/bin &lt;bin&gt; - listado y datos del BIN',
   '/full - todo el disponible en .txt',
-  '/cc <ref> - detalle y trazabilidad',
+  '/cc &lt;ref&gt; - detalle y trazabilidad',
   '/vender [n] [bin] [comprador] - vende y entrega .txt',
-  '/reentrega <codigo> - rearma la entrega',
-  '/devolver <refs> | /baja <refs>',
-  '/reservar <min> <refs> | /expirar',
-  '/saldo <ref> <disp> [total] | /etiqueta <ref> <txt>',
-  '/precio <bin> <valor> | /precios | /bininfo <bin>',
+  '/reentrega &lt;codigo&gt; - rearma la entrega',
+  '/devolver &lt;refs&gt; | /baja &lt;refs&gt;',
+  '/reservar &lt;min&gt; &lt;refs&gt; | /expirar',
+  '/saldo &lt;ref&gt; &lt;disp&gt; [total] | /etiqueta &lt;ref&gt; &lt;txt&gt;',
+  '/precio &lt;bin&gt; &lt;valor&gt; | /precios | /bininfo &lt;bin&gt;',
   '/exportar [csv|txt] | /movs [ref] | /stats | /alertas | /backup',
+  '',
+  '<b>atajos</b>',
+  '/v &lt;bin&gt; &lt;n&gt; - venta con confirmacion por boton',
+  '/c &lt;bin&gt; &lt;n&gt; - cotizar sin vender',
+  '/s /b /d /r /x /e /m /p /pl /al /st - alias de stock, bin, devolver, reservar, baja, entrega, movs, precio, precios, alertas, stats',
 ].join('\n');
 
+const COMANDOS = [
+  HELP,
+  '',
+  '<b>atajos sin comando</b>',
+  'Pegar lineas <code>numero|MM|YY|CVV</code> o mandar un .txt: carga el lote y devuelve el .txt',
+  'Mandar un DNI de 7 u 8 digitos: ficha del titular',
+  '',
+  '/comandos - esta lista completa',
+].join('\n');
 const PISTA = [
   'No encontré ni un DNI (7 u 8 dígitos) ni líneas de tarjetas.',
   '',
@@ -75,6 +90,16 @@ const PISTA = [
   '<code>4111111111111111|12|28|123</code>',
   'o mandá un .txt. También vale /start para ver los comandos.',
 ].join('\n');
+
+export const MENU = {
+  inline_keyboard: [[
+    { text: '📦 Stock', callback_data: 'menu|stock' },
+    { text: '🧾 Pedir', callback_data: 'menu|pedir' },
+    { text: '📋 Mis tarjetas', callback_data: 'menu|mis' },
+    { text: '💰 Saldo', callback_data: 'menu|saldo' },
+    { text: '❓ Ayuda', callback_data: 'menu|ayuda' },
+  ]],
+};
 
 const busquedas = new Map();
 let seqBusqueda = 0;
@@ -90,7 +115,9 @@ function tokenBusqueda(texto) {
 function permitido(chatId) {
   const lista = (process.env.TELEGRAM_ALLOW || '')
     .split(',').map((s) => s.trim()).filter(Boolean);
-  return lista.includes(String(chatId));
+  if (lista.includes(String(chatId))) return true;
+  /* Un vendedor vinculado entra aunque no este en TELEGRAM_ALLOW. */
+  try { return Boolean(vinculadoA(chatId)); } catch (_) { return false; }
 }
 
 function cargarEnv() {
@@ -245,6 +272,9 @@ function enviar(chatId, texto, extra = {}) {
     ...extra,
   });
 }
+
+/* Lo que consume bot/vendedor.js: transporte, nunca reglas de negocio. */
+const ctxBot = { enviar, escapeHtml };
 
 async function enviarDocumento(chatId, nombreArchivo, contenido, caption = '') {
   const url = `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendDocument`;
@@ -468,6 +498,27 @@ async function procesarCallback(cq, db) {
   const partes = String(cq.data || '').split('|');
   let render = null;
 
+  if (partes[0] === 'menu') {
+    const cmd = partes[1] || 'ayuda';
+    await api('answerCallbackQuery', { callback_query_id: cq.id }).catch(() => {});
+    if (cmd === 'ayuda') {
+      const texto = esVendedorChat(chatId) ? ayudaVendedor() : COMANDOS;
+      await enviar(chatId, escapeHtml(texto), { reply_markup: MENU });
+      return;
+    }
+    if (await manejarVendedor(chatId, cmd, [], '', ctxBot)) return;
+    if (await manejarStock(chatId, cmd, [], '')) return;
+    await enviar(chatId, 'Comando no disponible.', { reply_markup: MENU });
+    return;
+  }
+  if (partes[0] === 'vp') {
+    const cmd = partes[1];
+    const page = Number(partes[partes.length - 1]) || 1;
+    const extra = partes.slice(2, -1);
+    await api('answerCallbackQuery', { callback_query_id: cq.id }).catch(() => {});
+    await manejarVendedor(chatId, cmd, [...extra, String(page)], '', ctxBot);
+    return;
+  }
   if (partes[0] === 'nombre') {
     const token = partes[1];
     const offset = Math.max(0, Number(partes[2]) || 0);
@@ -482,6 +533,8 @@ async function procesarCallback(cq, db) {
     render = renderNombre(db, b.texto, offset, token);
   } else if (partes[0] === 'ambig') {
     render = renderAmbig(db, Math.max(0, Number(partes[1]) || 0));
+  } else if (partes[0] === 'op') {
+    render = await resolverOperacion(chatId, partes[1], partes[2]);
   } else {
     await api('answerCallbackQuery', { callback_query_id: cq.id }).catch(() => {});
     return;
@@ -523,6 +576,20 @@ async function avisarPrivado(chatId) {
 }
 
 export async function procesarUpdate(update, db) {
+  /* /comandos */
+  {
+    const _m = update?.message;
+    const _t = String(_m?.text || '').trim().toLowerCase().split('@')[0];
+    if (_t === '/comandos' || _t === '/comando' || _t === '/ayuda') {
+      const _c = _m?.chat?.id;
+      if (_c && permitido(_c)) {
+        if (esVendedorChat(_c)) await enviar(_c, escapeHtml(ayudaVendedor()), { reply_markup: MENU });
+        else await enviar(_c, COMANDOS, { reply_markup: MENU });
+        return;
+      }
+    }
+  }
+
   if (update?.callback_query) {
     await procesarCallback(update.callback_query, db);
     return;
@@ -532,12 +599,35 @@ export async function procesarUpdate(update, db) {
   if (!msg) return;
 
   const chatId = msg.chat?.id;
+
+  /* /vincular se atiende antes de la lista blanca: es el unico puente. */
+  const textoCrudo = typeof msg.text === 'string' ? msg.text.trim() : '';
+  if (/^\/vincular(?:@\w+)?(?:\s|$)/i.test(textoCrudo)) {
+    const codigo = textoCrudo.replace(/^\/vincular(?:@\w+)?\s*/i, '').trim();
+    await manejarVinculacion(chatId, codigo, ctxBot);
+    return;
+  }
+
   if (!permitido(chatId)) {
     await avisarPrivado(chatId);
     return;
   }
 
+  const vendedor = esVendedorChat(chatId);
+
+  if (vendedor && typeof msg.text === 'string') {
+    const cmd = String(msg.text).trim().split(/\s+/)[0].slice(1).split('@')[0].toLowerCase();
+    if (cmd === 'ayuda' || cmd === 'start' || cmd === 'help') {
+      await enviar(chatId, escapeHtml(ayudaVendedor()), { reply_markup: MENU });
+      return;
+    }
+  }
+
   if (msg.document) {
+    if (vendedor) {
+      await enviar(chatId, 'Los vendedores no cargan archivos por acá. Usá /pedir &lt;bin&gt; &lt;n&gt;.');
+      return;
+    }
     await procesarDocumento(msg);
     return;
   }
@@ -545,16 +635,22 @@ export async function procesarUpdate(update, db) {
 
   const p = parsearMensaje(msg.text);
 
+  if (vendedor && p.tipo !== 'comando') {
+    await enviar(chatId, 'Usá los comandos de vendedor:\n\n' + escapeHtml(ayudaVendedor()));
+    return;
+  }
+
   if (p.tipo === 'comando') {
+    if (await manejarVendedor(chatId, p.cmd, p.args, payloadComando(msg.text), ctxBot)) return;
     if (await manejarStock(chatId, p.cmd, p.args, payloadComando(msg.text))) return;
     if (p.cmd === 'start' || p.cmd === 'help') {
       log(`chat=${chatId} /${p.cmd}`);
-      await enviar(chatId, `${HELP}\n\nTu chat id: <code>${chatId}</code>`);
+      await enviar(chatId, `${HELP}\n\nTu chat id: <code>${chatId}</code>`, { reply_markup: MENU });
       return;
     }
     if (p.cmd === 'random') {
       const afip = String(p.args[0] || '').toLowerCase() === 'afip';
-      const dni = afip ? randomAfip(db) : (elegirDelPool(db) || randomAfip(db));
+      const dni = afip ? dniAlAzarPadron(db) : (dniAlAzarPool(db) || dniAlAzarPadron(db));
       if (!dni) {
         await enviar(chatId, 'No pude elegir un DNI.');
         return;
@@ -675,6 +771,9 @@ async function iniciar() {
   asegurarPool(db);
   sembrarPool(db);
 
+  /* Avisos al vendedor y canal de auditoria: una sola cola en stock.db. */
+  iniciarNotificaciones(ctxBot, Number(process.env.BOT_NOTIF_MS || 5000));
+
   if (!(process.env.TELEGRAM_ALLOW || '').trim()) {
     log('ERROR: falta TELEGRAM_ALLOW en datos/bot.env: el bot rechazara todos los chats');
   }
@@ -718,3 +817,47 @@ if (esMain) {
     process.exit(1);
   });
 }
+
+/* === random firme === */
+let _colDni = null, _colListo = false;
+let ultimoRandom = null;
+function colDni(db) {
+  if (_colListo) return _colDni;
+  _colListo = true;
+  try {
+    const cols = db.prepare("PRAGMA table_info(personas)").all().map((c) => String(c.name));
+    for (const k of ["dni", "DNI", "documento", "doc", "nro_doc", "nrodoc"]) { if (cols.indexOf(k) >= 0) { _colDni = k; break; } }
+  } catch (e) {}
+  return _colDni;
+}
+
+function dniAlAzarPadron(db) {
+  try {
+    const col = colDni(db) || "dni";
+    let max = 0;
+    try { const m = db.prepare("SELECT MAX(rowid) AS m FROM personas").get(); max = Number(m && m.m) || 0; } catch (e) {}
+    if (max > 0) {
+      for (let k = 0; k < 10; k++) {
+        const r = 1 + Math.floor(Math.random() * max);
+        const row = db.prepare("SELECT " + col + " AS d FROM personas WHERE rowid >= ? AND " + col + " IS NOT NULL ORDER BY rowid LIMIT 1").get(r);
+        if (row && row.d && String(row.d) !== String(ultimoRandom || "")) { ultimoRandom = row.d; return row.d; }
+      }
+    }
+    const row2 = db.prepare("SELECT " + col + " AS d FROM personas WHERE " + col + " IS NOT NULL ORDER BY RANDOM() LIMIT 1").get();
+    if (row2 && row2.d) ultimoRandom = row2.d;
+    return row2 ? row2.d : null;
+  } catch (e) { return null; }
+}
+
+function dniAlAzarPool(db) {
+  try {
+    const c = db.prepare("SELECT COUNT(*) AS n FROM pool_random").get();
+    if (!c || Number(c.n) < 2) return null;
+    const row = db.prepare("SELECT * FROM pool_random WHERE dni <> ? ORDER BY RANDOM() LIMIT 1").get(String(ultimoRandom || ""));
+    if (!row) return null;
+    for (const k of ["dni", "DNI", "documento", "doc"]) { if (row[k] != null && String(row[k]).trim()) { ultimoRandom = row[k]; return row[k]; } }
+    for (const v of Object.values(row)) { const t = String(v == null ? "" : v).trim(); if (/^[0-9]{7,8}$/.test(t)) { ultimoRandom = t; return t; } }
+    return null;
+  } catch (e) { return null; }
+}
+/* === fin random firme === */

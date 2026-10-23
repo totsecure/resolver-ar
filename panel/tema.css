@@ -1,0 +1,24 @@
+/* tema.css - variante clara del panel (body.claro). */
+body.claro{
+  --bg:#f4f6f8;--panel:#ffffff;--panel2:#f1f3f6;--line:#dfe3e8;
+  --txt:#101720;--dim:#5b6675;--acc:#2563eb;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;
+  background:#f4f6f8;color:#101720;
+}
+body.claro header{background:#ffffff;box-shadow:0 1px 0 rgba(16,23,32,.06)}
+body.claro table{background:#ffffff;box-shadow:0 1px 2px rgba(16,23,32,.05)}
+body.claro th{background:#f1f3f6;color:#5b6675}
+body.claro tr:hover td{background:rgba(37,99,235,.05)}
+body.claro input,body.claro select{background:#ffffff;color:#101720}
+body.claro .tab{color:#5b6675}
+body.claro .tab:hover{color:#101720}
+body.claro .tab.on{background:#2563eb;color:#ffffff}
+body.claro .visa{background:rgba(37,99,235,.12);color:#1d4ed8}
+body.claro .master{background:rgba(220,38,38,.12);color:#b91c1c}
+body.claro .precio{color:#1d4ed8}
+body.claro .icons span{background:#f1f3f6;color:#5b6675}
+body.claro .icons span.si{color:#16a34a;border-color:rgba(22,163,74,.45)}
+body.claro .modal{background:rgba(15,23,42,.45)}
+body.claro .caja{background:#ffffff}
+body.claro button.prim{background:#2563eb;color:#ffffff}
+body.claro button.sec{background:#f1f3f6;color:#101720}
+body.claro .badge{border-color:#dfe3e8}

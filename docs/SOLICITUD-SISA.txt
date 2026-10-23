@@ -1,0 +1,63 @@
+SOLICITUD DE CREDENCIALES SISA — LISTO PARA ENVIAR (A7)
+========================================================
+
+Para: soporte@sisa.msal.gov.ar
+Asunto: Solicitud de cuenta SISA y acceso a los servicios web CMDB (Padrón de Ciudadanos) y PUCO
+
+Cuerpo
+------
+Buen día. Solicito la creación de una cuenta de usuario SISA y la habilitación
+de los servicios web de consulta:
+
+  1) CMDB / Padrón de Ciudadanos
+     REST: https://sisa.msal.gov.ar/sisa/services/rest/cmdb/obtener
+     SOAP: https://sisa.msal.gov.ar/sisa/services/cmdbService (getCiudadano)
+     Campos que necesito: resultado, apellido, nombre, sexo, fechaNacimiento,
+     domicilio, localidad, provincia, código postal, fallecido.
+  2) PUCO
+     SOAP: https://sisa.msal.gov.ar/sisa/services/pucoService (getPuco)
+     REST: POST https://sisa.msal.gov.ar/sisa/services/rest/puco/{dni}
+           con {"usuario":"...","clave":"..."}
+
+Caso de uso
+-----------
+Sistema privado de venta y control de tarjetas. Antes de entregar una tarjeta se
+valida la identidad del titular (nombre, fecha de nacimiento, domicilio) para
+evitar suplantaciones y datos incompletos. No se usan los datos para publicidad
+ni se ceden a terceros. Se aplican medidas de seguridad y se conserva solo lo
+necesario, con caché para no repetir consultas.
+
+Volumen estimado
+----------------
+- 500 a 2.000 consultas por mes (crecimiento esperado).
+- Picos de hasta 20 consultas por minuto.
+- Se cachea el resultado por DNI para no repetir la misma consulta.
+
+Alternativa al correo de dominio público
+----------------------------------------
+Sé que SISA está regularizando cuentas con correos de dominio público. Puedo
+usar un correo institucional/empresarial como contacto y responsable de la
+cuenta, o el que SISA indique. Si hace falta, informo el referente institucional,
+el responsable de seguridad de la información y las medidas adoptadas (Ley 25.326).
+
+Consultas
+---------
+1. ¿Cuál es el circuito de alta (referente institucional, formulario, TAD)?
+2. ¿Existe un usuario/ambiente de prueba para CMDB y PUCO? Si no, ¿se puede
+   habilitar una cuota mínima de prueba?
+3. ¿Qué permisos hay que solicitar además del alta de usuario para consultar el
+   padrón de ciudadanos?
+4. ¿Hay límite de cuota o de requests por segundo?
+
+Quedo a disposición. Gracias.
+
+Datos técnicos ya verificados (2026-10-22)
+------------------------------------------
+- CMDB sin credenciales devuelve HTTP 200 con el schema completo en null y
+  resultado=ERROR_AUTENTICACION.
+- PUCO SOAP responde HTTP 200 y ERROR_AUTENTICACION con usuario/clave de prueba.
+  Namespace correcto: http://sisa.msal.gob.ar/services/1.0 (gob.ar, no gov.ar);
+  los hijos de getPuco van SIN namespace.
+- PUCO REST: usar POST con JSON; el GET devuelve 500 (bug del servidor).
+- No encontré usuario de prueba público para CMDB; solo hay credenciales
+  genéricas documentadas para otras APIs (ej. API550), no para el padrón.

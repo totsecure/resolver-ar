@@ -1,0 +1,96 @@
+MAIL PARA APISTORE / PCNT — PEDIDO DE TRIAL, HOST REAL Y PRECIOS
+================================================================
+
+Para: climbwithus@poincenot.com
+CC: mario.lopez@poincenot.com; privacidad@poincenot.com
+CCO: info@pcnt.io; contacto@pcnt.io; ventas@pcnt.io; comercial@pcnt.io; soporte@pcnt.io
+Asunto: Consulta comercial y técnica — API apistore (host real, trial, precios y trámite)
+
+Cuerpo
+------
+Buen día. Estoy interesado en la API de apistore, cuya documentación está
+publicada en https://apistore.pcnt.io, para validación de identidad en un
+sistema privado de venta y control de tarjetas en Argentina.
+
+La documentación indica que la API vive en https://apistore.pcnt.io, pero al
+probarla encuentro que:
+  - cualquier GET devuelve el HTML de la documentación (130 KB), incluso para
+    /v1/information/persons/30756789 y /v1/login/jwt;
+  - POST /v1/login/jwt devuelve 405 de nginx;
+  - api.pcnt.io, api.apistore.pcnt.io, app.pcnt.io, gateway.pcnt.io y
+    services.pcnt.io no resuelven por DNS;
+  - pcnt.io responde desde un parking de Cloudways (403) y
+    apistore.pcnt.io:8080 no conecta;
+  - apistore-dev.pcnt.io devuelve la misma documentación estática.
+Parece un sitio de documentación y no el gateway de la API.
+
+Les pido por favor:
+
+  1. La URL base real de la API (host y path) y el esquema de autenticación
+     definitivo: ¿POST /v1/login/jwt con username/password? ¿El header es
+     "Authorization: JWT <token>" o "Authorization: Bearer <token>"?
+     La documentación muestra JWT en la sección general y Bearer en el ejemplo
+     de barcode; necesito confirmar cuál acepta el gateway.
+
+  2. Un trial o credenciales de prueba para validar:
+     - GET /v1/information/person-renaper/{dni}/gender/{M|F}
+       (nacimiento, domicilio, ejemplar, emisión, vencimiento, fallecimiento,
+       id_tramite_principal)
+     - GET /v1/information/person/{cuit} (AFIP: birth_date, domicilio)
+     - POST /v1/information/barcode (procedure_number de 11 dígitos)
+     - GET /v1/information/persons/{dni} (lista de CUITs)
+
+  3. Precio por consulta y por volumen (por ejemplo 1.000, 10.000 y 100.000
+     consultas/mes), moneda, impuestos y si hay descuento por prepago.
+
+  4. Mínimo mensual o compromiso mínimo.
+
+  5. Límite de requests por segundo y por día. ¿Hay rate limit por cuenta,
+     por IP o por endpoint?
+
+  6. Si existe un endpoint por lote (batch) y su formato/límite. Nos interesa
+     resolver nacimiento y domicilio en bloque usando los CUITs del padrón.
+
+  7. Forma de pago y facturación (factura A/B, CUIT, plazo, orden de compra).
+
+  8. Pregunta técnica sobre el trámite:
+     Para el DNI 30756789 tenemos el trámite real 00744230016 (11 dígitos).
+     ¿El campo id_tramite_principal de
+     /v1/information/person-renaper/30756789/gender/M devuelve 744230016
+     (el mismo número sin los dos ceros de adelante)?
+     ¿O el endpoint de barcode es la única vía para obtener el trámite de 11?
+     ¿Pueden confirmar el valor exacto que devuelve hoy su API para ese DNI?
+     Esto define si podemos reconstruir el trámite con padStart(11,'0') o si
+     necesitamos la foto del documento.
+
+Uso previsto: consultas puntuales al vender una tarjeta y resolución en bloque
+de nacimiento/domicilio para los CUITs que ya tenemos del padrón AFIP, con
+caché permanente para no repetir el mismo documento. Volumen estimado inicial:
+500 a 2.000 consultas por mes, con posibilidad de crecer.
+
+Quedo atento a la URL de prueba y a las condiciones comerciales. Gracias.
+
+Notas para el dueño (no enviar)
+--------------------------------
+- PCNT es **Poincenot Technology Studio** (CUIT 30-71442303-3). La relación se
+  confirma por los productos de su ecosistema en los subdominios de pcnt.io
+  (onscore, trake, macro, bnpl, prisma) y por el CSS/logo de la doc
+  (onscore.css, logo-pcnt.svg).
+- Contactos públicos verificados:
+    web: https://poincenot.com
+    LinkedIn: https://www.linkedin.com/company/poincenot/
+    comercial: climbwithus@poincenot.com
+    CEO: mario.lopez@poincenot.com (ExportArgentina)
+    privacidad: privacidad@poincenot.com (registro AAIP)
+    teléfono AAIP: 810-345-5862
+    domicilio: Reconquista 1088, piso 12, CABA
+- MX de pcnt.io: Google Workspace (aspmx.l.google.com y alternativos). El
+  puerto 25 del Mac está bloqueado; smtp.gmail.com:587/465 pide autenticación,
+  así que no se pudo validar RCPT. Mandar a climbwithus@ y mario.lopez@, con
+  CCO a las casillas @pcnt.io, y ver cuáles rebotan.
+- No hay endpoint alternativo conocido: apistore.pcnt.io y apistore-dev.pcnt.io
+  sirven la misma doc estática. Certificados de transparencia (crt.sh) listan
+  subdominios viejos de PCNT (macro, prisma, bnpl, onscore) pero casi ninguno
+  resuelve hoy.
+- Cuando respondan, cargar APISTORE_USER / APISTORE_PASS en datos/server.env.
+  No commitear credenciales.

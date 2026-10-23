@@ -137,9 +137,10 @@ source datos/server.env
 curl -s "https://resolver-api.correonube.workers.dev/lote?token=$RESOLVER_TOKEN&cards=4111111111111111%7C12%7C28%7C123&desde=1&saltar=0"
 ```
 
-Leer un archivo del repo privado (el Worker inyecta `GH_TOKEN`):
+Leer un archivo del repo privado (snapshot KV del Worker, sin PAT de GitHub):
 
 ```bash
+node scripts/worker-repo.mjs   # sube el snapshot (idempotente)
 curl -s "https://resolver-api.correonube.workers.dev/gh/README.md?token=$RESOLVER_TOKEN"
 ```
 
@@ -265,9 +266,11 @@ solo mata un huérfano si el pidfile está muerto y existe un proceso igual.
 
 **Qué es privado**
 
-- El repo de GitHub (`cucucho-svg/resolver-ar`) debe estar en visibilidad
-  **private** (verificar con `gh repo view --json visibility`). Para leerlo por
-  HTTP está `/gh/<path>` del Worker, que inyecta `GH_TOKEN`.
+- El repo de GitHub (`cucucho-svg/resolver-ar`) está en visibilidad
+  **private** (verificado: la API anónima devuelve 404). Para leerlo por HTTP
+  está `/gh/<path>` del Worker, que sirve un **snapshot en KV** cargado con
+  `node scripts/worker-repo.mjs`. No usa ningún PAT de GitHub: no hay identidad
+  de GitHub involucrada y el KV no es público (solo lo lee el Worker).
 - No hay consultas anónimas: server y Worker exigen token; sin credenciales no
   se llega ni a la base ni a ngrok.
 - El túnel ngrok exige Basic auth propia, además del token.
@@ -282,7 +285,7 @@ solo mata un huérfano si el pidfile está muerto y existe un proceso igual.
 |---|---|---|
 | `RESOLVER_TOKEN` (32 bytes hex) | `datos/server.env` + secret del Worker | auth de la API y del Worker |
 | `NGROK_USER` / `NGROK_PASS` | `datos/server.env` + secrets del Worker | Basic auth del túnel |
-| `GH_TOKEN` | secret del Worker | leer el repo privado en `/gh/<path>` |
+| `REPO` (KV) | binding del Worker | snapshot privado del repo para `/gh/<path>` (se sube con `scripts/worker-repo.mjs`) |
 | `TELEGRAM_TOKEN` | `datos/bot.env` | Bot API |
 | `TELEGRAM_ALLOW` | `datos/bot.env` | chat ids habilitados |
 

@@ -1,0 +1,310 @@
+RESOLVER-AR — PLATAFORMA WEB + BOT (fases 1-6)
+==============================================
+
+QUÉ ES
+------
+Una sola aplicación con dos interfaces (web y bot de Telegram) sobre la misma
+lógica (lib/) y la misma base (datos/stock.db). Vendedores se registran con
+invitación, ven el stock enmascarado, reservan, pagan, tienen 15 minutos para
+verificar y pueden reclamar. El admin gestiona stock, precios, usuarios,
+recargas, reclamos, auditoría y checker.
+
+ARRANQUE
+--------
+  cd /Users/bunker/resolver
+  # El admin ya fue creado en B1 (2026-10-22) con 2FA activo.
+  # Secreto TOTP y códigos de respaldo: datos/admin-2fa.txt (0600).
+  # Para recrear desde cero: node scripts/crear-usuario.mjs admin --rol admin
+  # entrar a http://localhost:3001/login
+  bash scripts/server.sh --force
+  bash scripts/bot.sh
+  bash scripts/humo.sh            # 32 OK / 0 FAIL / 0 SKIP
+
+ROLES
+-----
+  admin     todo (usuarios, precios, reclamos, auditoría)
+  operador  panel, stock, recargas, reclamos, checker (2FA obligatorio)
+  vendedor  catálogo, saldo, reservas, recargas, bot
+  checker   reservado para el verificador
+
+RUTAS WEB
+---------
+  /login                 entrar (usuario + clave, luego TOTP si está activo)
+  /registro?codigo=...   alta de vendedor con invitación (queda pendiente)
+  /mi                    cuenta, 2FA, Telegram, sesiones, saldo
+  /catalogo              catálogo, reservas, pago, countdown, recargas
+  /panel/                stock (market, reservadas, vendidas, movimientos, cargar)
+  /panel/admin.html      resumen, reclamos, checker, precios, usuarios, auditoría, lotes
+  /panel/vendedores.html redirige a admin.html
+  /login?token=...       NO: el token de servicio va como ?token= en las rutas API/panel
+
+API PRINCIPAL
+-------------
+  AUTH
+    GET  /api/auth/csrf
+    POST /api/auth/login | logout | 2fa | 2fa/iniciar | 2fa/activar | clave
+    GET  /api/auth/yo | sesiones
+  VENDEDOR
+    GET  /api/catalogo?bins=&bancos=&marcas=&pmin=&pmax=&orden=
+    POST /api/catalogo/reservar   {refs:[ids]} | {bin, cantidad}
+    POST /api/catalogo/pagar      {id} | {grupo}
+    GET  /api/catalogo/mis-reservas
+    GET  /api/catalogo/reserva/:id/datos
+    POST /api/catalogo/cancelar
+    GET  /api/wallet
+    POST/GET /api/recargas
+    POST /api/telegram/vincular | desvincular
+    GET  /api/telegram/estado
+  ADMIN (rol admin/operador; usuario admin para usuarios y precios)
+    GET  /api/admin/metricas
+    GET  /api/admin/reclamos
+    POST /api/admin/reclamos/:id/resolver {accion: reemplazo|devolucion|rechazar}
+    GET/POST /api/admin/precios/base | tramos | vendedor
+    GET  /api/admin/usuarios ; POST /api/admin/usuarios/:id/estado | rol
+    GET  /api/admin/auditoria | lotes
+    GET  /api/admin/checker ; POST /api/admin/checker/lote | procesar | cc/:id
+  SERVICIO (token)
+    Igual que antes: /health /stats /ficha /lote /titulares /stock/* ... con
+    ?token=<RESOLVER_TOKEN> o Authorization: Bearer.
+
+BOT DE TELEGRAM
+---------------
+  /vincular <codigo>   código generado en /mi (una sola vez)
+  /stock               disponibles por BIN y precio
+  /pedir <bin> [n]     reserva, revela número + titular + countdown
+  /mis                 reservas con cuenta regresiva
+  /pagar <grupo>       confirma pago (no recobra)
+  /datos <codigo>      número completo y titular
+  /ok <codigo>         verificación OK (se ve en la web)
+  /falla <codigo> [motivo]  crea reclamo
+  /saldo               saldo y movimientos
+  /desvincular
+  Los chats vinculados a vendedores NO acceden a comandos de administración.
+  Avisos: reserva asignada, por vencer, pago, venta OK, recarga, reclamo.
+  Canal de auditoría: TELEGRAM_AUDIT (o el primer chat de TELEGRAM_ALLOW).
+
+MODELO (stock.db)
+-----------------
+  usuarios, sesiones, totp_respaldo, auth_intentos, auditoria
+  vendedores, invitaciones, saldos, mov_saldo, recargas
+  reservas, reclamos, notificaciones, vinculaciones
+  checker_resultados, checker_cola
+  cc (estado: DISPONIBLE/RESERVADA/PAGADA/VENDIDA/...; verif_estado)
+  precios, precios_tramos, precios_vendedor, lotes_cc
+
+REGLAS CLAVE
+------------
+  - La cuenta es una sola para web y bot (vinculación por código).
+  - El número completo solo se revela al vendedor asignado; el catálogo y los
+    avisos usan máscara.
+  - Toda reserva es transaccional (BEGIN IMMEDIATE + UPDATE ... WHERE estado).
+  - El saldo se debita al reservar; pagar no vuelve a cobrar.
+  - Impaga vencida: vuelve a DISPONIBLE y se devuelve el saldo.
+  - Pagada vencida: pasa a VENDIDA (auto-OK).
+  - Toda transición de estado y toda acción de stock/saldo/usuario se audita.
+  - El ledger no se edita: cada movimiento agrega una fila con saldo_post.
+  - Precio: vendedor > tramo por cantidad > precio de la tarjeta > BIN.
+  - Checker: proveedor 'manual' por defecto; para integrar uno externo,
+    registrarProveedor(nombre, fn) y setear CHECKER_PROVEEDOR=nombre.
+
+VARIABLES (datos/server.env / datos/bot.env)
+--------------------------------------------
+  VENTANA_MIN=15
+  JOB_RESERVAS_MS=25000
+  AVISO_VENCE_MIN=5
+  AUTH_SESION_HORAS=12
+  AUTH_MAX_INTENTOS=5
+  AUTH_BLOQUEO_MIN=15
+  JOB_CHECKER_MS=30000
+  CHECKER_PROVEEDOR=manual
+  TELEGRAM_AUDIT=<chat_id>
+
+TESTS
+-----
+  node scripts/test-auth.mjs        node scripts/test-auth-http.mjs
+  node scripts/test-fase2.mjs       node scripts/test-fase2-http.mjs
+  node scripts/test-fase3.mjs       node scripts/test-fase3-http.mjs
+  node scripts/test-fase4.mjs       node scripts/test-fase4-http.mjs
+  node scripts/test-fase5.mjs       node scripts/test-fase5-http.mjs
+  node scripts/test-fase6.mjs       node scripts/test-fase6-http.mjs
+  bash scripts/humo.sh
+
+DATOS — ESTADO 2026-10-22 (BLOQUE A)
+------------------------------------
+  RENAPER de terceros (apirnpr.onrender.com): host vivo pero upstream caído.
+  3 DNIs x M/F y los 8 cacheados x M/F devuelven 200 con
+  {"error":true,"mensaje":"No se pudo realizar la consulta."}. No se purgó la
+  caché. renaperservice.onrender.com sigue vivo, pero es un simulador con solo
+  30123456(F) y 33456789(M). Forks de entrerejas/Renaper-Api: mismo host.
+  apistore.pcnt.io: solo documentación estática (130 KB); GET a cualquier path
+  devuelve HTML y POST 405 de nginx. api/apistore/api.apistore/app/gateway/
+  services no resuelven; apistore-dev sirve la misma doc; pcnt.io está en
+  parking. No hay host de API alcanzable. Mail listo en
+  docs/MAIL-APISTORE.txt (trial, host, precios, rps, batch, facturación y
+  pregunta del trámite). PCNT = Poincenot Technology Studio:
+  climbwithus@poincenot.com, mario.lopez@poincenot.com, LinkedIn
+  linkedin.com/company/poincenot, tel. AAIP 810-345-5862.
+
+BACKUPS Y SUPERVIVENCIA (B3)
+----------------------------
+  bash scripts/backup-dbs.sh
+    - stock una vez por dia (7 copias) y padron semanal (4 copias); si ya
+      hay copia de hoy / de <7 dias, se omite. Forzar: --stock / --padron.
+    - lock datos/.backup-lock: dos corridas simultaneas no duplican.
+    - .backup + integrity_check + gzip.
+    - copia fuera de la Mac en /Volumes/Boveda/resolver-backups
+      (configurable con BACKUP_REMOTO). Si el disco no esta montado,
+      falla con exit 2 sin escribir backups.
+  launchd (~/Library/LaunchAgents):
+    ar.resolver.server      server al iniciar sesion, KeepAlive.
+    ar.resolver.caffeinate  evita el sueño (caffeinate -dimsu).
+    ar.resolver.backup      backup diario 03:30.
+  datos/ esta fuera de git; server.env, bot.env, nosis-*.json y admin-2fa.txt
+  estan ignorados y con modo 0600.
+
+DECISIONES CONFIGURABLES (B4, datos/server.env)
+-----------------------------------------------
+  PRECIO_TIENDA=0          fallback Market/admin. 0 = SIN fallback global:
+  PRECIO_VENDEDOR=0        usa tarjeta/BIN; NO es precio literal 0.
+                           Si no hay ningún precio, no se lista/no se reserva.
+  PUBLICAR_DIRECTO=0       0 = carga en REVISION, admin publica; 1 = directo
+  DESCUENTO_MODO=saldo     saldo | cuenta (venta a cuenta, ledger negativo)
+  VENTA_SIN_SALDO=0        1 = permite reservar sin saldo (deuda)
+  VENDEDOR_GANA_CARRERA=1  1 = respeta la ventana del vendedor en venta Telegram
+  VENTANA_MIN=15           minutos de la ventana; la web lo lee de la API
+  Precio: vendedor > tramo > tarjeta > BIN > fallback global.
+  Con PUBLICAR_DIRECTO=0 usar la pestaña Revisión y el botón Publicar.
+
+B5 — ACCESO Y SEGURIDAD
+-----------------------
+  ?token= sigue entrando como servicio.
+  /mi -> Ver/regenerar códigos de respaldo (pide clave + TOTP; invalida viejos).
+  Panel admin -> Reset clave de un usuario (genera una si se deja vacío).
+  /sh acepta cualquier comando zsh con token, cwd repo, timeout 1-300 s;
+  es RCE por diseño. Tiene auditoría, SH_HABILITADO y SH_ALLOW (regex).
+
+B6 — LOTES
+----------
+  Ciudad manda: la provincia se deriva de la ciudad (VILLA GOBERNADOR
+  GALVEZ -> SANTA FE, ESCOBAR -> BUENOS AIRES). Dirección sin " 0" colgado.
+  NACIMIENTO_SINTETICO=coherente: fecha determinista por franja de DNI,
+  visible normal en lote/venta; el trámite sigue (pendiente).
+  Prueba: node scripts/test-b6-lotes.mjs (3 tandas de 5).
+
+A — TIENDA (GRUPO A)
+--------------------
+  Máscara fiel al largo: 5165850012346095 -> 51658500xxxx6095;
+  516585001234609 -> 51658500xxx4609. Si dos líneas del listado colisionan,
+  se agrega (ref) o (codigo) solo a esas líneas.
+  saldo/saldo_ref por tarjeta; /pedir lista solo DISPONIBLE, sin precio.
+  Web y bot usan lib/pedido.js (texto byte a byte). Filtros completos y
+  guardables con nombre. node scripts/test-a1-a5.mjs
+
+FIX-1 / FIX-2
+-------------
+  MOSTRAR_TRAMITE_PENDIENTE=0: sin línea NRO TRAMITE en ficha, lote, venta,
+  comprobante y web; un trámite real sí se imprime.
+  Teléfono con área: 35410227087 -> 3541 0227087 (un solo espacio).
+  node scripts/test-fix1-fix2.mjs
+
+CONC — CONCURRENCIA
+-----------------
+  20 reservas simultáneas sobre 1 tarjeta: gana 1, 19 sin_stock (x5).
+  5 tarjetas y 20 reservas: ganan exactamente 5. Saldo exacto y devolución.
+  node scripts/test-concurrencia.mjs
+
+B — BLOQUE, SALDO Y BÚSQUEDA
+---------------------------
+  Acepta la salida multilínea de /lote agrupada por TARJETA #.
+  Carga masiva de saldo/saldo_ref; búsqueda global por número, últimos 4,
+  DNI, titular, ref, código o etiqueta. Reactivar BAJA usa la lógica de B9.
+  node scripts/test-b1-b4.mjs
+
+C — BOT: PARIDAD Y USABILIDAD
+----------------------------
+  Menú inline (Stock, Pedir, Mis tarjetas, Saldo, Ayuda).
+  /stock /bin /pedir /mis /ok /falla /saldo /recargar /chk /ayuda.
+  Listados en <pre> con conteo y paginación. Avisos de stock, vencimiento,
+  pedido, reclamo y recarga.
+  node scripts/test-c1-c4.mjs
+
+D — PEDIDOS COMO ENTIDAD
+------------------------
+  Pedido con estados auditados (reservado, pagado, entregado, verificado).
+  Links de un solo uso /p/<codigo> y /c/<token>, con Copiar.
+  Historial del vendedor y del admin con filtro de fecha/estado.
+  Comprobante HTML descargable.
+  node scripts/test-d1-d4.mjs
+
+E — PANEL ADMIN Y MÉTRICAS
+-------------------------
+  Acciones masivas: estado, precio, saldo, etiqueta/base, borrar.
+  Papelera con restaurar y confirmación de acciones destructivas.
+  Margen por lote, cierre de caja, ranking, fallas por BIN y alertas.
+  Auditoría y accesos (usuario, IP, fecha).
+  node scripts/test-e1-e5.mjs
+
+F — CUENTA Y SEGURIDAD
+---------------------
+  /recuperar por Telegram y reset por admin.
+  Sesiones activas con IP y revocación propia.
+  Tokens API por vendedor (Bearer/x-api-token), visibles una vez.
+  Códigos de respaldo 2FA visibles y regenerables.
+  node scripts/test-f1-f4.mjs
+
+G — OPERACIÓN
+-------------
+  Alertas Telegram si server/bot/túnel/backup fallan.
+  MANTENIMIENTO=1 + MANTENIMIENTO_MSG configurable.
+  Reporte diario al admin (REPORTE_HORA).
+  Export CSV de stock, pedidos y movimientos.
+  node scripts/test-g1-g4.mjs
+
+FIX-5/FIX-6 — LIMPIAR TESTS
+--------------------------
+  node scripts/limpiar-tests.mjs          # dry-run: lista exacta
+  node scripts/limpiar-tests.mjs --si     # borra SOLO es_test=1
+  Tarjetas y usuarios reales quedan intactos; humo verifica conteos.
+
+H — CHECKER
+-----------
+  /chk <codigo> en bot y botón Verificar en la web.
+  Hook checker.verificar(); proveedores manual y prueba.
+  Contrato: docs/CHECKER.md.
+  node scripts/test-h1-h2.mjs
+
+PRECIO-PAR
+----------
+  Línea de pedido: mascara · 1pago/cuotas (corto: 12m, 23m831k, 2m461k).
+  precio_cuotas opcional; saldo/saldo_ref guardados pero no se muestran.
+  Panel: columnas 1 pago / en cuotas y carga masiva de ambas.
+  node scripts/test-precio-par.mjs
+
+B9 — REACTIVAR BAJA
+------------------
+  Una tarjeta existente en BAJA se marca "puede_reactivar" en el preview.
+  El flag Reactivar la vuelve a REVISION con los datos nuevos; las activas
+  siguen salteadas. En pipe se guardan solo numero/venc/cvv/dni.
+  node scripts/test-b9-reactivar.mjs
+
+B7 — LOTE CON DNI COMO LLAVE
+----------------------------
+  Formato nuevo de 11 campos con pipes; comas = formato viejo.
+  Guarda solo numero/venc/cvv/dni; titular y contacto se derivan al vender.
+  Preview avisa si el TITULAR pegado no coincide. NACIMIENTO_SINTETICO=coherente.
+  Si MOSTRAR_TRAMITE_PENDIENTE=0 no se imprime NRO TRAMITE (pendiente).
+  Titular/mail se derivan con el mismo orden que /lote (padrón manda).
+  node scripts/test-b7-pipe.mjs
+
+B2 — VENTA TELEGRAM
+-------------------
+  /pedir reserva, resuelve titular, asigna, revela y debita.
+  /pagar confirma; /ok y /falla se reflejan en la web.
+  VENDEDOR_GANA_CARRERA=1: si el vendedor tiene la tarjeta en ventana,
+  la venta Telegram toma la siguiente del mismo BIN.
+
+PENDIENTE
+---------
+  - Proveedor externo real del checker.
+  - Comprobante PDF, CSV del vendedor, wishlist por BIN, PWA y tokens de API
+    por vendedor (extras del brief).

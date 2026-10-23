@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Alta de vendedor · RESOLVER</title>
+<link rel="stylesheet" href="/panel/tema.css">
+<style>
+:root{--bg:#f4f6f8;--panel:#fff;--line:#dfe3e8;--txt:#101720;--dim:#5b6675;--acc:#2563eb;--ok:#16a34a;--bad:#dc2626}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,sans-serif;padding:18px}
+.caja{max-width:430px;margin:0 auto}
+.marca{font-size:20px;font-weight:800;margin:0 0 4px}.marca b{color:var(--acc)}
+.sub{color:var(--dim);font-size:13px;margin:0 0 18px}
+.tarjeta{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 8px 30px rgba(16,23,32,.06)}
+label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);font-weight:700;margin:0 0 5px}
+input{width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px;font-size:16px;margin:0 0 12px}
+input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+button{width:100%;background:var(--acc);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer}
+button:disabled{opacity:.5}
+.msg{min-height:20px;font-size:13px;color:var(--bad);margin-top:12px}
+.msg.ok{color:var(--ok)}
+.oculto{display:none!important}
+a{color:var(--acc)}
+h2{font-size:17px;margin:0 0 6px}
+.fila{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fila label{margin-top:0}
+@media(max-width:420px){.fila{grid-template-columns:1fr;gap:0}}
+</style>
+</head>
+<body>
+<div class="caja">
+  <div class="marca">RESOLVER <b>STORE</b></div>
+  <div class="sub">Alta de vendedor con invitación</div>
+  <div class="tarjeta" id="formBox">
+    <h2>Crear cuenta</h2>
+    <p class="sub">Necesitás un código de invitación del administrador. La cuenta queda pendiente hasta que la apruebe.</p>
+    <label for="codigo">Código de invitación</label>
+    <input id="codigo" autocomplete="off" spellcheck="false" placeholder="XXXXX-XXXXX">
+    <label for="usuario">Usuario</label>
+    <input id="usuario" autocomplete="username" autocapitalize="none" spellcheck="false">
+    <label for="clave">Contraseña (mínimo 8)</label>
+    <input id="clave" type="password" autocomplete="new-password">
+    <label for="nombre">Nombre y apellido</label>
+    <input id="nombre" autocomplete="name">
+    <div class="fila">
+      <div><label for="dni">DNI</label><input id="dni" inputmode="numeric" autocomplete="off"></div>
+      <div><label for="telefono">Teléfono</label><input id="telefono" inputmode="tel" autocomplete="tel"></div>
+    </div>
+    <label for="alias">Alias / CBU</label>
+    <input id="alias" autocomplete="off" placeholder="alias.mp o CVU">
+    <button id="btn">Crear cuenta</button>
+    <div class="msg" id="msg"></div>
+    <p class="sub" style="margin:14px 0 0">¿Ya tenés cuenta? <a href="/login">Entrar</a></p>
+  </div>
+  <div class="tarjeta oculto" id="okBox">
+    <h2>Cuenta creada</h2>
+    <p class="sub" id="okTexto"></p>
+    <button id="btnIr">Ir a entrar</button>
+  </div>
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let CSRF = '';
+$('#codigo').value = new URLSearchParams(location.search).get('codigo') || '';
+
+async function preparar() {
+  const r = await fetch('/api/auth/csrf');
+  const j = await r.json();
+  CSRF = j.csrf;
+}
+function decir(t, ok) { $('#msg').textContent = t; $('#msg').classList.toggle('ok', Boolean(ok)); }
+
+async function crear() {
+  const cuerpo = {
+    codigo: $('#codigo').value.trim(), usuario: $('#usuario').value.trim(),
+    clave: $('#clave').value, nombre: $('#nombre').value.trim(),
+    dni: $('#dni').value.trim(), telefono: $('#telefono').value.trim(),
+    alias_cbu: $('#alias').value.trim(),
+  };
+  if (!cuerpo.codigo || !cuerpo.usuario || !cuerpo.clave || !cuerpo.nombre || !cuerpo.dni || !cuerpo.telefono || !cuerpo.alias_cbu) {
+    return decir('Completá todos los campos.');
+  }
+  if (cuerpo.clave.length < 8) return decir('La contraseña debe tener al menos 8 caracteres.');
+  $('#btn').disabled = true;
+  try {
+    if (!CSRF) await preparar();
+    const r = await fetch('/api/registro', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': CSRF },
+      body: JSON.stringify(cuerpo),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) {
+      decir(j.error === 'csrf' ? 'Recargá la página.' : (j.error === 'invitacion invalida o vencida' ? 'La invitación no sirve o ya fue usada.' : (j.error || 'No pudimos crear la cuenta.')));
+      $('#btn').disabled = false;
+      return;
+    }
+    $('#formBox').classList.add('oculto');
+    $('#okBox').classList.remove('oculto');
+    $('#okTexto').textContent = j.mensaje || 'Cuenta creada. Falta la aprobación del administrador.';
+  } catch (e) { decir('Error de red.'); $('#btn').disabled = false; }
+}
+
+$('#btn').addEventListener('click', crear);
+$('#btnIr').addEventListener('click', () => { location.href = '/login'; });
+preparar().catch(() => {});
+</script>
+</body>
+</html>
