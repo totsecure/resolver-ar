@@ -342,3 +342,13 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
   y todos los POST de `/api/admin/*`.
 - `tests/e2e/validacion.spec.js`: 8 tests (API por endpoint + unitarios de los
   esquemas). Suite total: **23 E2E en verde**.
+
+### 5f — Lighthouse en Playwright
+- `tests/e2e/lighthouse.spec.js` corre Lighthouse (desktop, sin throttling) dentro
+  de la suite contra `:3002`, con `chrome-launcher`.
+- Resultado: **performance 98 / accessibility 95**. Gate: accesibilidad >= 90.
+  Si performance baja de 90, el test imprime las oportunidades de Lighthouse
+  antes de tocar nada (no optimiza a ciegas).
+- Se silenció el warning de express-rate-limit sobre `trust proxy` permisivo:
+  el XFF lo controla el Worker; el límite sigue funcionando.
+- Suite final: **24 E2E**.

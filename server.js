@@ -77,10 +77,13 @@ app.use(compression());
 const panelLimit = rateLimit({
   windowMs: 5 * 60 * 1000, limit: 600, standardHeaders: 'draft-7', legacyHeaders: false,
   message: { error: 'demasiadas peticiones' },
+  /* XFF la controla el Worker (cf-connecting-ip); se silencia el warning. */
+  validate: { trustProxy: false },
 });
 const authLimit = rateLimit({
   windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false,
   message: { error: 'demasiados intentos' },
+  validate: { trustProxy: false },
 });
 app.use('/panel', panelLimit);
 app.use('/api/auth/login', authLimit);
