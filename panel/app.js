@@ -49,7 +49,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
 
   /* ---------- estado ---------- */
   var ESTADO = 'DISPONIBLE', PAGINA = 1, POR = 50, SEL = new Set(), DATOS = null, DASH = false, ACC = null;
-  var HIST = [], TODO_FILTRO = false;
+  var HIST = [], TODO_FILTRO = false, SIN_PRECIO = false;
   var CSRF = sessionStorage.getItem('csrf') || '';
   var CSRF_LISTO = (async function () {
     if (SERVICIO) return;
@@ -78,6 +78,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     var m = [['bins','f_bins'],['bin_desde','f_bin_desde'],['bin_hasta','f_bin_hasta'],['paises','f_paises'],['bancos','f_bancos'],['redes','f_redes'],['tipos','f_tipos'],['etiquetas','f_etiquetas'],['saldo_min','f_saldmin'],['saldo_max','f_saldmax'],['pmin','f_pmin'],['pmax','f_pmax'],['q','f_q']];
     for (var i = 0; i < m.length; i++) { var v = txt(m[i][1]); if (v) f[m[i][0]] = v; }
     if ($('#f_saldeadas') && $('#f_saldeadas').checked) f.saldeadas = '1';
+    if (SIN_PRECIO) f.sin_precio = '1';
     return f;
   }
 
@@ -167,7 +168,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
   var FILTRO_IDS = ['f_bins','f_bin_desde','f_bin_hasta','f_pmin','f_pmax','f_q','f_paises','f_bancos','f_redes','f_tipos','f_etiquetas','f_saldmin','f_saldmax','f_saldeadas','f_estado'];
   function limpiar() {
     FILTRO_IDS.forEach(function (id) { var e = $('#' + id); if (e) { if (e.type === 'checkbox') e.checked = false; else e.value = (id === 'f_estado' ? 'DISPONIBLE' : ''); } });
-    ESTADO = 'DISPONIBLE'; PAGINA = 1; SEL.clear(); TODO_FILTRO = false; cargar();
+    ESTADO = 'DISPONIBLE'; PAGINA = 1; SEL.clear(); TODO_FILTRO = false; SIN_PRECIO = false; cargar();
   }
 
   /* ---------- filtros guardados ---------- */
@@ -278,7 +279,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     var n = (DATOS && DATOS.kpis && DATOS.kpis.sinPrecio) || 0;
     if (ESTADO === 'DISPONIBLE' && n > 0) {
       b.style.display = 'block';
-      b.innerHTML = '<b>' + n + '</b> publicada(s) SIN PRECIO: no salen en Market ni en el bot. <button class="sec" id="spPrecioBin">Preciar por BIN</button> <button class="sec" id="spVer">Ver sin precio</button>';
+      b.innerHTML = '<b>' + n + '</b> publicada(s) SIN PRECIO: no salen en Market ni en el bot. <button class="sec" id="spPrecioBin">Preciar por BIN</button> <button class="sec" id="spVer">' + (SIN_PRECIO ? 'Ver todas' : 'Ver sin precio') + '</button>';
     } else b.style.display = 'none';
   }
   function ajustarBotones() {
@@ -392,7 +393,12 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     }
     if (t.closest('#revPubAll')) { selTodosFiltro().then(function () { setTimeout(function () { mutar('publicar', {}, { estado: function () { return 'REVISION'; } }); }, 80); }); return; }
     if (t.closest('#revPriceBin') || t.closest('#spPrecioBin')) { precioPorBin(); return; }
-    if (t.closest('#spVer')) { var fp = $('#f_pmax'); if (fp) fp.value = '0'; ESTADO = 'DISPONIBLE'; var fe2 = $('#f_estado'); if (fe2) fe2.value = 'DISPONIBLE'; PAGINA = 1; cargar(); return; }
+    if (t.closest('#spVer')) {
+      SIN_PRECIO = !SIN_PRECIO;
+      var fp = $('#f_pmax'); if (fp) fp.value = '';
+      ESTADO = 'DISPONIBLE'; var fe2 = $('#f_estado'); if (fe2) fe2.value = 'DISPONIBLE';
+      PAGINA = 1; cargar(); return;
+    }
     if (t.closest('#m_cancelar')) { cerrar(); return; }
     if (t.closest('#m_ok')) { if (ACC) ACC(); return; }
 

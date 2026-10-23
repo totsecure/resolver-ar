@@ -127,6 +127,41 @@ test('aviso de publicadas sin precio', async ({ page }) => {
   await expect(page.locator('#cuerpo tr')).toHaveCount(TOTALES.DISPONIBLE);
 });
 
+test('ver sin precio (toggle) y precio máximo sin NULL', async ({ page }) => {
+  await abrirPanel(page);
+
+  await expect(page.locator('#sinPrecio')).toContainText('5 publicada(s) SIN PRECIO');
+
+  // Activar: exactamente las 5 sin precio, con '-' en ambas columnas de precio.
+  await page.click('#spVer');
+  await esperarTotal(page, 5);
+  await expect(page.locator('#cuerpo tr')).toHaveCount(5);
+  const precios = await page.locator('#cuerpo tr td.precio').allTextContents();
+  expect(precios).toHaveLength(10);
+  expect(precios.every((t) => t.trim() === '-')).toBe(true);
+  await expect(page.locator('#spVer')).toHaveText('Ver todas');
+
+  // Apagar el toggle: vuelven las 8 y el pmax quedó limpio.
+  await page.click('#spVer');
+  await esperarTotal(page, TOTALES.DISPONIBLE);
+  await expect(page.locator('#f_pmax')).toHaveValue('');
+  await expect(page.locator('#spVer')).toHaveText('Ver sin precio');
+
+  // pmax sigue trayendo solo las que tienen precio (no las NULL).
+  await page.fill('#f_pmax', '30000');
+  await page.click('#btnBuscar');
+  await esperarTotal(page, 2);
+  await expect(page.locator('#cuerpo tr td.precio').first()).not.toHaveText('-');
+
+  await page.fill('#f_pmax', '20000');
+  await page.click('#btnBuscar');
+  await esperarTotal(page, 1);
+  await expect(page.locator('#cuerpo tr td.precio').first()).not.toHaveText('-');
+
+  await page.click('#btnLimpiar');
+  await esperarTotal(page, TOTALES.DISPONIBLE);
+});
+
 test('atajos /, a, A y Esc', async ({ page }) => {
   await abrirPanel(page);
 
