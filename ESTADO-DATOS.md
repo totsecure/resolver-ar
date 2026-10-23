@@ -405,3 +405,42 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
   FileVault. Para reinicios programados usar `sudo fdesetup authrestart`
   (pide credenciales y reinicia desbloqueando el volumen).
 - `ar.resolver.backup` y `ar.resolver.caffeinate` siguen como LaunchAgents.
+
+## Fase 6 — modelo de dominio implementado (2026-10-23)
+
+### Ledger de doble entrada
+- `lib/ledger.js`: `ledger_cuentas`, `ledger_asientos` (con `idem_key`),
+  `ledger_lineas` firmadas. Cada asiento debe sumar 0 o se rechaza.
+- `mov_saldo.asiento_id` (único) y backfill de **todo** el histórico; si la suma
+  del ledger no coincide con `saldos.saldo`, se crea `apertura:<uid>` contra
+  `patrimonio:apertura`.
+- `wallet.aplicarTx` escribe asiento + 2 líneas + mov_saldo en la misma
+  transacción. `catalogo.pagar` reconoce la venta moviendo
+  `reservas:pendientes -> ingresos:ventas` (idempotente por grupo).
+- Comisión = ingreso de plataforma; ajustes admin van a `ajustes:admin`.
+
+### Máquina de estados de pedidos
+- `TRANSICIONES` + `transicionValida()` en `lib/pedidos.js`. `estadoDeGrupo`
+  valida desde/hacia, rol y dueño, usa `UPDATE … WHERE estado=desde` y escribe
+  `pedido_eventos` con desde/hacia/actor/rol/motivo/ip.
+- Terminales: `vencido`, `cancelado`. `pagado -> verificado` permitido para
+  sistema (bot `/ok`); vendedor no puede cancelar pagado/entregado/verificado.
+- Callers actualizados con actor/rol (catalogo, vendedor-bot).
+
+### API keys
+- `api_tokens` suma `scopes`, `expira`, `rate_limit_min`, `ultimo_ip`,
+  `revocado_en`, `creado_por`. Catálogo cerrado de scopes en `auth.SCOPES`.
+- `crearApiToken` valida scopes; admin:* solo para rol admin; default mínimo
+  (`catalogo:read,wallet:read,pedidos:read`). Revocación con fecha.
+- `acceso()` exige el scope según ruta/método para tokens nuevos; los tokens
+  viejos sin scopes conservan acceso (compatibilidad).
+- Rate limit propio por token: 60/min en memoria, headers `RateLimit` y 429.
+
+### Invariantes
+- `scripts/verificar-invariantes.mjs` (read-only): asientos balanceados, líneas
+  huérfanas, saldos == ledger, mov_saldo linkeado, pedidos/eventos/cc coherentes,
+  reservas activas con vencimiento y scopes válidos.
+- Integrado a `verificar.js`: **31 OK / 0 FAIL**, incluye el test de invariantes.
+- Suite E2E: 28 tests (se agregaron los unitarios de transiciones y scopes).
+
+Backup previo a la migración del ledger: `datos/backups/pre-ledger.db`.

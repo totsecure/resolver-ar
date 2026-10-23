@@ -579,6 +579,17 @@ const tests = [
       db.close();
     }
   }],
+
+  ['invariantes de dominio (ledger, pedidos, API keys)', () => {
+    try {
+      execFileSync(process.execPath, [path.join(RAIZ, 'scripts', 'verificar-invariantes.mjs')], {
+        cwd: RAIZ, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (e) {
+      const salida = String((e.stdout || '') + (e.stderr || '') || e.message).trim().split('\n').slice(-8).join(' | ');
+      throw new Error(salida);
+    }
+  }],
 ];
 
 console.log('VERIFICACION OFFLINE — resolver-ar');

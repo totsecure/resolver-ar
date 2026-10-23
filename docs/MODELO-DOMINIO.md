@@ -1,7 +1,7 @@
 # MODELO DE DOMINIO — RESOLVER STORE
 
-Estado: **propuesta para revisión**. No hay código de Fase 6 todavía.
-Fecha: 2026-10-23 · Base: esquema real de `datos/stock.db`.
+Estado: **implementado** (2026-10-23). Decisiones aplicadas al final.
+Base: esquema real de `datos/stock.db`.
 
 ## 0. Lo que ya existe (punto de partida)
 
@@ -156,6 +156,7 @@ vencimiento, cancelación, doble venta y devolución.
 | `reservado` | `vencido` | job de expiración | libera tarjetas; revierte reserva |
 | `reservado` | `cancelado` | vendedor dueño, admin | libera tarjetas; revierte reserva |
 | `pagado` | `entregado` | sistema (generar enlaces), admin | tarjetas `PAGADA→VENDIDA`; enlaces de un uso |
+| `pagado` | `verificado` | sistema (auto-OK / bot) | tarjetas `PAGADA→VENDIDA`; verificación directa |
 | `pagado` | `reclamo` | vendedor dueño | abre reclamo; no libera tarjetas |
 | `pagado` | `cancelado` | **solo admin** | reembolso al wallet; tarjetas `ANULADA` |
 | `entregado` | `verificado` | checker/sistema, admin | marca verificación |
@@ -296,3 +297,15 @@ Objetivo de tiempo: < 2 s sobre la base actual.
 5. `verificar-invariantes.mjs` en `verificar.js`; correrlo también en humo.
 
 Cada punto con E2E, humo y verificar en verde y commit propio.
+
+
+## 6. Decisiones aplicadas
+
+- Comisión = ingreso de la plataforma (`comisiones:plataforma`). El flujo queda
+  listo, aunque hoy `vendedores.comision` no se use en ventas.
+- Cancelación después de pagado: solo admin y con reembolso al wallet.
+- Backfill: **todo** el histórico de `mov_saldo`, con asiento por movimiento; la
+  diferencia contra `saldos` se cubre con un asiento de apertura.
+- Moneda: ARS entera.
+- `pagado → verificado` se permite para el bot/auto-OK (comportamiento real del
+  bot `/ok`); no para vendedores.

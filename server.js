@@ -97,6 +97,26 @@ app.use('/panel', panelLimit);
 app.use('/api/auth/login', authLimit);
 app.use('/api/auth/2fa', authLimit);
 app.use('/api/registro', authLimit);
+/* Rate limit propio por API key (no por IP). Los tokens de servicio no cuentan. */
+const usoApiTokens = new Map();
+function limitarApiToken(req, res, next) {
+  const header = String(req.get('authorization') || '');
+  const raw = req.get('x-api-token') || (header.startsWith('Bearer ') ? header.slice(7).trim() : '');
+  if (!raw || raw === TOKEN) return next();
+  const hash = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 32);
+  const ahora = Date.now();
+  let e = usoApiTokens.get(hash);
+  if (!e || ahora - e.inicio >= 60000) { e = { inicio: ahora, n: 0 }; usoApiTokens.set(hash, e); }
+  e.n += 1;
+  if (usoApiTokens.size > 1000) {
+    for (const [k, v] of usoApiTokens) if (ahora - v.inicio >= 60000) usoApiTokens.delete(k);
+  }
+  res.setHeader('RateLimit-Policy', '60;w=60');
+  res.setHeader('RateLimit', 'limit=60, remaining=' + Math.max(0, 60 - e.n) + ', reset=60');
+  if (e.n > 60) { res.setHeader('Retry-After', '60'); return res.status(429).json({ error: 'rate_limit_token' }); }
+  next();
+}
+app.use(limitarApiToken);
 auth.migrar();
 wallet.migrar();
 vendedores.migrar();
@@ -180,7 +200,7 @@ function contexto(req) {
     || (String(req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim())
     || (typeof req.query.api_token === 'string' ? req.query.api_token : '');
   if (apiToken && apiToken !== process.env.RESOLVER_TOKEN) {
-    const u = auth.usuarioPorApiToken(apiToken);
+    const u = auth.usuarioPorApiToken(apiToken, req.ip);
     if (u) {
       return { tipo: 'api', rol: u.rol, usuario: auth.publico(u), crudo: u, sesion: null, token: null };
     }
@@ -225,6 +245,26 @@ function acceso(roles = null) {
     }
     if (roles && !roles.includes(ctx.rol)) {
       return res.status(403).json({ error: 'sin permiso', rol: ctx.rol });
+    }
+    /* API keys: scopes. Un token viejo sin scopes conserva acceso completo. */
+    if (ctx.tipo === 'api') {
+      const sc = ctx.crudo && Array.isArray(ctx.crudo.api_scopes) ? ctx.crudo.api_scopes : [];
+      if (sc.length) {
+        const ruta = req.path;
+        const metodo = req.method;
+        let need = null;
+        if (ruta.startsWith('/api/admin')) need = metodo === 'GET' ? 'admin:read' : 'admin:write';
+        else if (ruta.startsWith('/api/catalogo')) {
+          if (metodo === 'GET') need = 'catalogo:read';
+          else if (ruta.includes('/reservar')) need = 'catalogo:reserve';
+          else if (ruta.includes('/pagar')) need = 'catalogo:pay';
+          else need = 'catalogo:read';
+        } else if (ruta.startsWith('/api/wallet')) need = 'wallet:read';
+        else if (ruta.startsWith('/api/pedidos')) need = metodo === 'GET' ? 'pedidos:read' : 'pedidos:write';
+        if (need && !sc.includes(need)) {
+          return res.status(403).json({ error: 'scope_requerido', scope: need });
+        }
+      }
     }
     req.auth = ctx;
     next();
@@ -718,8 +758,8 @@ app.get('/api/tokens', soloSesion, (req, res) => {
 
 app.post('/api/tokens', soloSesion, csrf, (req, res) => {
   if (req.auth.tipo !== 'sesion') return res.status(403).json({ error: 'solo_sesion' });
-  try { res.status(201).json(auth.crearApiToken(req.auth.usuario.id, req.body?.nombre)); }
-  catch (e) { res.status(500).json({ error: String(e?.message || e) }); }
+  try { res.status(201).json(auth.crearApiToken(req.auth.usuario.id, req.body?.nombre, req.body?.scopes)); }
+  catch (e) { res.status(400).json({ error: String(e?.message || e) }); }
 });
 
 app.post('/api/tokens/:id/revocar', soloSesion, csrf, (req, res) => {
