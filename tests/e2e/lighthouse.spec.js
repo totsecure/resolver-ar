@@ -34,6 +34,10 @@ test('lighthouse: accesibilidad >= 90 y reporte de performance', async ({}, test
 
     testInfo.annotations.push({ type: 'lighthouse', description: 'performance=' + performance + ' accessibility=' + accesibilidad });
     console.log('Lighthouse panel: performance=' + performance + ' accessibility=' + accesibilidad);
+    for (const id of ['first-contentful-paint', 'largest-contentful-paint', 'total-blocking-time', 'cumulative-layout-shift', 'speed-index', 'mainthread-work-breakdown']) {
+      const a = lhr.audits[id];
+      if (a) console.log('  ' + id + ': ' + (a.displayValue || a.numericValue));
+    }
 
     if (performance < 90) {
       const oportunidades = Object.values(lhr.audits)

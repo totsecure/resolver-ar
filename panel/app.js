@@ -3,73 +3,7 @@
   'use strict';
 
   /* ---------- estilos propios ---------- */
-  var CSS = `
-/* ---------- shell ---------- */
-.icon{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;flex:0 0 auto}
-.layout{display:flex;min-height:100vh}
-.sidebar{width:240px;flex:0 0 240px;background:var(--panel);border-right:1px solid var(--line);position:sticky;top:0;height:100vh;overflow:auto;padding:16px 10px;display:flex;flex-direction:column;gap:14px;z-index:12}
-.sidebar-brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.4px;padding:2px 8px 10px;border-bottom:1px solid var(--line)}
-.brand-mark{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;background:var(--acc);color:#fff}
-.sidebar-nav{display:flex;flex-direction:column;gap:3px}
-.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);padding:10px 10px 4px}
-.nav-link{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:8px;padding:9px 10px;color:var(--dim);font-weight:600;font-size:13px;cursor:pointer;text-decoration:none}
-.nav-link:hover{background:var(--panel2);color:var(--txt)}
-.nav-link.on{background:var(--acc);color:#fff}
-.sidebar-foot{margin-top:auto;display:flex;align-items:center;gap:8px;color:var(--dim);font-size:11.5px;padding:8px 10px;border-top:1px solid var(--line)}
-.page{flex:1;min-width:0;display:block}
-main{width:100%;min-width:0}
-.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:11}
-.topbar .logo{font-weight:800;letter-spacing:.4px}
-.menu-btn{display:none;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid var(--line);border-radius:8px;cursor:pointer;color:var(--txt)}
-.menu-toggle{display:none}
-.sidebar-backdrop{display:none}
-@media (max-width:900px){
-  .sidebar{position:fixed;left:0;top:0;bottom:0;transform:translateX(-102%);transition:transform .2s ease;box-shadow:12px 0 40px rgba(0,0,0,.28)}
-  #menuToggle:checked ~ .layout .sidebar{transform:translateX(0)}
-  #menuToggle:checked ~ .layout .sidebar-backdrop{display:block;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:11}
-  .menu-btn{display:inline-flex}
-  .topbar{padding:8px 10px;gap:8px}
-  .topbar .logo{font-size:13px}
-  .topbar .kpis{order:10;width:100%;margin-left:0}
-}
-#cargarBox{display:none}
-#cargarBox textarea{width:100%;min-height:150px;background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:9px;font:12.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
-#cc_preview{margin-top:12px}
-#cc_preview table{font-size:12px}
-tr.cc-ok td:first-child{border-left:4px solid var(--ok)}
-tr.cc-dup td:first-child{border-left:4px solid var(--warn)}
-tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
-.cc-resumen{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0;color:var(--dim)}
-.cc-resumen b{color:var(--txt)}
-.cc-link{display:inline-block;margin-top:8px;color:rgb(147,197,253)}
-#barraAcciones{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-#sinPrecio{margin:10px 0;padding:10px 12px;border:1px solid var(--warn);border-radius:10px;background:rgba(245,158,11,.10);font-size:13px;display:none}
-#dashBox{margin-top:14px;display:none}
-#dashBox .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-#dashBox .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--dim);font-size:12px}
-#dashBox .card b{display:block;font-size:20px;margin-top:4px;color:var(--txt)}
-#revBanner{display:none;margin:10px 0;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);font-size:13px;line-height:1.5}
-#atajos{color:var(--dim);font-size:11.5px;margin-top:10px}
-#chipSinPrecio{border:1px solid var(--warn);background:rgba(245,158,11,.12);color:var(--warn);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer}
-#chipSinPrecio[hidden]{display:none}
-#chipSinPrecio.activo{background:var(--warn);color:rgb(17,22,32)}
-#chipSinPrecio .x{margin-left:4px;font-weight:900}
-#dashBox .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:12px}
-#dashBox .chartbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;height:250px;position:relative}
-#dashBox .chartbox h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim)}
-@media (max-width:860px){
-  header{gap:8px}
-  .kpis{width:100%;margin-left:0;gap:10px}
-  .tab{padding:6px 9px;font-size:12px}
-  .filtros{grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
-  main{padding:10px 10px 70px}
-  table{display:block;overflow-x:auto;white-space:nowrap}
-  .barra{flex-wrap:wrap}
-  .barra .crecer{margin-left:0}
-  #barraAcciones button{font-size:12px;padding:7px 10px}
-}
-`;
-  var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+  /* El CSS vive en /panel/panel.css (cargado en <head> para evitar CLS). */
 
   /* ---------- helpers ---------- */
   var Q = new URLSearchParams(location.search);
@@ -169,6 +103,10 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     llenar('f_redes', fac.redes, 'Todas');
     llenar('f_tipos', fac.tipos, 'Todos');
     llenar('f_etiquetas', fac.etiquetas, 'Todas');
+    ['f_paises', 'f_bancos', 'f_redes', 'f_tipos', 'f_etiquetas'].forEach(function (id) {
+      var el = $('#' + id);
+      if (el && el.tomselect) { try { el.tomselect.sync(); } catch (_) {} }
+    });
     var pr = fac.precios || {};
     if ($('#f_pmin') && !$('#f_pmin').value && pr.min != null) $('#f_pmin').placeholder = pr.min;
     if ($('#f_pmax') && !$('#f_pmax').value && pr.max != null) $('#f_pmax').placeholder = pr.max;
@@ -776,7 +714,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     box.innerHTML = '<div class="filtros" style="grid-template-columns:1fr">'
       + '<div><label>Nombre del lote</label><input id="cc_nombre" placeholder="lote octubre"></div>'
       + '<div><label>Pegar tarjetas (numero, venc MM/YY, CVV, titular, DNI, banco, 1 pago, en cuotas, nota)</label><textarea id="cc_texto" placeholder="4111111111111111,12/28,123,Juan Perez,30123456,Banco,150,180"></textarea></div>'
-      + '<div><label>O subir .txt / .csv</label><input type="file" id="cc_file" accept=".txt,.csv,text/plain"></div>'
+      + '<div><label>O subir .txt / .csv</label><input type="file" id="cc_file" accept=".txt,.csv,text/plain" aria-label="Archivo de tarjetas"></div>'
       + '<div class="botones"><button class="prim" id="cc_analizar">Analizar</button>'
       + '<button class="prim" id="cc_confirmar" disabled>Confirmar</button>'
       + '<span class="aviso" id="cc_info"></span></div>'
@@ -870,6 +808,50 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     });
   }
 
+  /* ---------- filtros: Tom Select + colapsable ---------- */
+  function initTomSelect() {
+    if (!window.TomSelect) return;
+    ['f_paises', 'f_bancos', 'f_redes', 'f_tipos', 'f_etiquetas', 'f_estado'].forEach(function (id) {
+      var el = $('#' + id);
+      if (!el || el.tomselect) return;
+      var lab = document.querySelector('label[for="' + id + '"]');
+      var nombre = lab ? lab.textContent.trim() : id;
+      try {
+        var ts = new TomSelect(el, {
+          allowEmptyOption: true, create: false, maxItems: 1, plugins: [],
+          onChange: function (v) {
+            el.value = v == null ? '' : v;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          },
+        });
+        el.setAttribute('aria-label', nombre);
+        if (ts.control_input) {
+          ts.control_input.setAttribute('aria-label', nombre);
+          ts.control_input.setAttribute('id', id + '-ts-input');
+        }
+      } catch (_) {}
+    });
+  }
+  function initFiltros() {
+    var box = $('#filtrosBox'); if (!box) return;
+    var ids = ['f_bins', 'f_bin_desde', 'f_bin_hasta', 'f_saldmin', 'f_saldmax', 'f_pmin', 'f_pmax', 'f_q', 'f_nombre'];
+    function activos() {
+      var n = ids.filter(function (id) { return txt(id); }).length;
+      if (txt('f_estado') && txt('f_estado') !== 'DISPONIBLE') n += 1;
+      if ($('#f_saldeadas') && $('#f_saldeadas').checked) n += 1;
+      return n;
+    }
+    function resumen() {
+      var n = activos();
+      var el = $('#filtrosActivos');
+      if (el) el.textContent = n ? n + ' activo' + (n === 1 ? '' : 's') : '';
+    }
+    if (window.innerWidth < 900 && activos() === 0) box.open = false;
+    resumen();
+    document.addEventListener('change', resumen);
+    document.addEventListener('click', resumen);
+  }
+
   /* ---------- tema / salir / logo ---------- */
   function montarTema() {
     var k = 'tema', b = document.body;
@@ -900,6 +882,8 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
 
   /* ---------- arranque ---------- */
   refrescarGuardados();
+  initTomSelect();
+  initFiltros();
   barraAcciones();
   montarMovs();
   montarCargar();

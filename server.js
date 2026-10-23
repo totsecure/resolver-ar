@@ -1323,7 +1323,7 @@ app.use('/panel/vendor', express.static(path.join(RAIZ, 'panel', 'vendor'), {
   maxAge: '1y', immutable: true, fallthrough: true,
 }));
 /* Static del panel detras del login. login.html y tema.css son publicos. */
-const PANEL_PUBLICOS = new Set(['/app.js', '/login.html', '/tema.css', '/login.js', '/mi.js']);
+const PANEL_PUBLICOS = new Set(['/app.js', '/panel.css', '/login.html', '/tema.css', '/login.js', '/mi.js']);
 app.use('/panel', (req, res, next) => {
   if (PANEL_PUBLICOS.has(req.path)) return next();
   /* Vendor: CSS/JS estáticos de terceros (MIT), sin datos ni endpoints. */

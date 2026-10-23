@@ -6,6 +6,7 @@
 <title>RESOLVER STORE</title>
 <link rel="stylesheet" href="/panel/vendor/tabler.min.css">
 <link rel="stylesheet" href="/panel/vendor/toastify.css">
+<link rel="stylesheet" href="/panel/vendor/tom-select.bootstrap5.min.css">
 <style>
 :root{--bg:rgb(9,12,18);--panel:rgb(17,22,32);--panel2:rgb(22,28,40);--line:rgb(39,47,63);--txt:rgb(226,232,240);--dim:rgb(148,163,184);--acc:rgb(59,130,246);--ok:rgb(34,197,94);--warn:rgb(245,158,11);--bad:rgb(239,68,68)}
 *{box-sizing:border-box}
@@ -51,11 +52,12 @@ tr:hover td{background:rgba(59,130,246,.06)}
 .aviso{margin-top:10px;font-size:12.5px;color:var(--dim)}
 .vacio{padding:26px;text-align:center;color:var(--dim)}
 </style><link rel="stylesheet" href="/panel/tema.css">
+<link rel="stylesheet" href="/panel/panel.css">
 </head>
 <body class="claro">
 <input type="checkbox" id="menuToggle" class="menu-toggle" hidden>
 <div class="layout">
-  <label class="sidebar-backdrop" for="menuToggle" aria-label="Cerrar menú"></label>
+  <label class="sidebar-backdrop" for="menuToggle" role="button" aria-label="Cerrar menú"></label>
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
       <span class="brand-mark"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-shield-lock"></use></svg></span>
@@ -73,19 +75,25 @@ tr:hover td{background:rgba(59,130,246,.06)}
       <a class="tab nav-link" href="/panel/admin.html"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-settings"></use></svg> Administración</a>
     </nav>
     <div class="sidebar-foot">
-      <span class="badge bg-blue-lt">v1.0</span>
+      <span class="badge text-bg-dark">v1.0</span>
       <span id="sidebarEstado">Operativo</span>
     </div>
   </aside>
   <div class="page">
     <header class="topbar">
-      <label class="menu-btn" for="menuToggle" aria-label="Abrir menú"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-menu-2"></use></svg></label>
+      <label class="menu-btn" for="menuToggle" role="button" aria-label="Abrir menú"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-menu-2"></use></svg></label>
       <div class="logo">RESOLVER <b>STORE</b></div>
       <div class="kpis" id="kpis"></div>
       <button class="btn btn-sm btn-outline-secondary" id="btnTema"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-moon"></use></svg> Tema</button>
       <button class="btn btn-sm btn-outline-secondary" id="btnSalir"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-logout"></use></svg> Salir</button>
     </header>
     <main>
+  <details class="card filtros-card" id="filtrosBox" open>
+    <summary class="filtros-head">
+      <span><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-filter"></use></svg> Filtros</span>
+      <span class="filtros-resumen" id="filtrosActivos"></span>
+    </summary>
+    <div class="filtros-body">
   <div class="filtros">
     <div><label for="f_bins">BIN</label><input id="f_bins" placeholder="516585,545652"></div>
     <div><label for="f_bin_desde">BIN desde</label><input id="f_bin_desde" inputmode="numeric" placeholder="516500"></div>
@@ -123,6 +131,8 @@ tr:hover td{background:rgba(59,130,246,.06)}
       <button class="sec" id="btnBorrarFiltro">Borrar</button>
     </div>
   </div>
+    </div>
+  </details>
   <div class="barra">
     <span class="sel" id="sel">0 seleccionadas</span>
     <button class="sec" id="btnSelTodos">Seleccionar todas</button>
@@ -157,6 +167,7 @@ tr:hover td{background:rgba(59,130,246,.06)}
 <script src="/panel/vendor/sweetalert2.all.min.js"></script>
 <script src="/panel/vendor/toastify.js"></script>
 <script src="/panel/vendor/hotkeys-js.min.js"></script>
+<script src="/panel/vendor/tom-select.complete.min.js"></script>
 <script src="/panel/app.js"></script>
 </body>
 </html>

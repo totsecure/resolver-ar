@@ -1,0 +1,80 @@
+/* panel.css — estilos del panel (shell, filtros, tabla, dashboard). */
+/* ---------- shell ---------- */
+.icon{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;flex:0 0 auto}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:240px;flex:0 0 240px;background:var(--panel);border-right:1px solid var(--line);position:sticky;top:0;height:100vh;overflow:auto;padding:16px 10px;display:flex;flex-direction:column;gap:14px;z-index:12}
+.sidebar-brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.4px;padding:2px 8px 10px;border-bottom:1px solid var(--line)}
+.brand-mark{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;background:var(--acc);color:#fff}
+.sidebar-nav{display:flex;flex-direction:column;gap:3px}
+.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);padding:10px 10px 4px}
+.nav-link{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:8px;padding:9px 10px;color:var(--dim);font-weight:600;font-size:13px;cursor:pointer;text-decoration:none}
+.nav-link:hover{background:var(--panel2);color:var(--txt)}
+.nav-link.on{background:var(--acc);color:#fff}
+.sidebar-foot{margin-top:auto;display:flex;align-items:center;gap:8px;color:var(--dim);font-size:11.5px;padding:8px 10px;border-top:1px solid var(--line)}
+.page{flex:1;min-width:0;display:block}
+main{width:100%;min-width:0}
+.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:11}
+.topbar .logo{font-weight:800;letter-spacing:.4px}
+.menu-btn{display:none;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid var(--line);border-radius:8px;cursor:pointer;color:var(--txt)}
+.menu-toggle{display:none}
+.sidebar-backdrop{display:none}
+/* ---------- filtros ---------- */
+.filtros-card{padding:0;overflow:hidden;margin-bottom:10px}
+.filtros-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;cursor:pointer;list-style:none;font-weight:700;font-size:13px}
+.filtros-head::-webkit-details-marker{display:none}
+.filtros-head::after{content:'⌄';color:var(--dim);font-size:16px;line-height:1}
+.filtros-card[open] .filtros-head::after{content:'⌃'}
+.filtros-head span{display:inline-flex;align-items:center;gap:8px}
+.filtros-resumen{font-weight:600;font-size:11.5px;color:var(--dim)}
+.filtros-body{padding:0 12px 12px}
+.filtros-body .filtros{background:transparent;border:0;padding:0}
+.filtros-body .filtros + .filtros{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.ts-wrapper .ts-control{border-radius:8px;min-height:38px;background:var(--bg);color:var(--txt);border-color:var(--line)}
+.ts-wrapper.focus .ts-control{border-color:var(--acc);box-shadow:none}
+.ts-dropdown{background:var(--panel);color:var(--txt);border-color:var(--line)}
+.ts-dropdown .option.active{background:var(--acc);color:#fff}
+@media (max-width:900px){
+  .sidebar{position:fixed;left:0;top:0;bottom:0;transform:translateX(-102%);transition:transform .2s ease;box-shadow:12px 0 40px rgba(0,0,0,.28)}
+  #menuToggle:checked ~ .layout .sidebar{transform:translateX(0)}
+  #menuToggle:checked ~ .layout .sidebar-backdrop{display:block;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:11}
+  .menu-btn{display:inline-flex}
+  .topbar{padding:8px 10px;gap:8px}
+  .topbar .logo{font-size:13px}
+  .topbar .kpis{order:10;width:100%;margin-left:0}
+}
+#cargarBox{display:none}
+#cargarBox textarea{width:100%;min-height:150px;background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:9px;font:12.5px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}
+#cc_preview{margin-top:12px}
+#cc_preview table{font-size:12px}
+tr.cc-ok td:first-child{border-left:4px solid var(--ok)}
+tr.cc-dup td:first-child{border-left:4px solid var(--warn)}
+tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
+.cc-resumen{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0;color:var(--dim)}
+.cc-resumen b{color:var(--txt)}
+.cc-link{display:inline-block;margin-top:8px;color:rgb(147,197,253)}
+#barraAcciones{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#sinPrecio{margin:10px 0;padding:10px 12px;border:1px solid var(--warn);border-radius:10px;background:rgba(245,158,11,.10);font-size:13px;display:none}
+#dashBox{margin-top:14px;display:none}
+#dashBox .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+#dashBox .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;color:var(--dim);font-size:12px}
+#dashBox .card b{display:block;font-size:20px;margin-top:4px;color:var(--txt)}
+#revBanner{display:none;margin:10px 0;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);font-size:13px;line-height:1.5}
+#atajos{color:var(--dim);font-size:11.5px;margin-top:10px}
+#chipSinPrecio{border:1px solid var(--warn);background:rgba(245,158,11,.12);color:var(--warn);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer}
+#chipSinPrecio[hidden]{display:none}
+#chipSinPrecio.activo{background:var(--warn);color:rgb(17,22,32)}
+#chipSinPrecio .x{margin-left:4px;font-weight:900}
+#dashBox .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:12px}
+#dashBox .chartbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;height:250px;position:relative}
+#dashBox .chartbox h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim)}
+@media (max-width:860px){
+  header{gap:8px}
+  .kpis{width:100%;margin-left:0;gap:10px}
+  .tab{padding:6px 9px;font-size:12px}
+  .filtros{grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
+  main{padding:10px 10px 70px}
+  table{display:block;overflow-x:auto;white-space:nowrap}
+  .barra{flex-wrap:wrap}
+  .barra .crecer{margin-left:0}
+  #barraAcciones button{font-size:12px;padding:7px 10px}
+}
