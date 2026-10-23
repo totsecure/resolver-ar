@@ -338,9 +338,9 @@ Hallazgos:
 - **FileVault**: los daemons eliminan el login gráfico, pero tras un corte de
   luz hace falta desbloquear el disco. Para reinicios programados:
   `sudo fdesetup authrestart`.
-- **Tabler**: se adoptó el CSS base. No se reescribió el panel componente por
-  componente ni se sumaron Grid.js, htmx, Alpine, uPlot, ninja-keys: la tabla y
-  la interacción actuales funcionan y están cubiertas por E2E.
+- **Tabler**: adoptado como base real del panel (shell, sidebar, filtros, tabla,
+  dashboard, dark mode y mobile). Siguen afuera Grid.js, htmx, Alpine, uPlot y
+  ninja-keys: la tabla propia funciona y está cubierta por E2E.
 - **Datasette 0.65.4**, no 1.x: la máquina tiene Python 3.9. Se instaló en un
   venv (`varios/datasette-venv`), fuera del Python del sistema.
 - **API keys viejas sin scopes**: conservan acceso completo por compatibilidad.

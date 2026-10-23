@@ -213,3 +213,16 @@ node scripts/verificar-invariantes.mjs      # ledger, pedidos, scopes
 node scripts/test-asientos.mjs              # un asiento por camino de saldo
 bash scripts/e2e.sh                         # 28 tests E2E
 ```
+
+## 8. Panel y assets estáticos
+
+- `panel/index.html` usa Tabler (`panel/vendor/tabler.min.css`) y `panel/panel.css`
+  para el shell/sidebar/tabla. `panel.css` es público (como `app.js`), porque el HTML
+  lo referencia sin token.
+- Scripts vendor se cargan al final del body; ApexCharts recién se descarga al abrir
+  Dashboard. El sprite `panel/vendor/iconos.svg` se genera con
+  `node scripts/iconos.mjs` (solo los iconos usados).
+- Cache: `/panel/vendor/*` es `immutable`; `panel.css`, `app.js` e `index.html` son
+  `no-cache` (se revalidan). Tras cambiar un asset propio, basta recargar.
+- Capturas de referencia: `docs/capturas/`. Para regenerarlas:
+  `node scripts/capturas.mjs despues` (usa `RESOLVER_TOKEN` de `datos/server.env`).

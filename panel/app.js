@@ -26,7 +26,7 @@
   function toast(msg, tipo) {
     if (window.Toastify) {
       Toastify({
-        text: msg, duration: 3200, gravity: 'bottom', position: 'right', close: true,
+        text: msg, duration: 3200, gravity: 'bottom', position: 'right', close: true, className: 'toast-resolver',
         style: { background: tipo === 'error' ? '#b91c1c' : '#15803d' },
       }).showToast();
       return;
@@ -123,21 +123,21 @@
     var cls = m.indexOf('visa') >= 0 ? 'visa' : (m.indexOf('master') >= 0 ? 'master' : '');
     var falta = f.sin_precio ? ' style="color:var(--warn)"' : '';
     return '<tr' + on + '>'
-      + '<td><input type="checkbox" data-id="' + esc(f.id) + '" aria-label="Seleccionar tarjeta ref ' + esc(f.ref) + '"' + (SEL.has(String(f.id)) ? ' checked' : '') + '></td>'
-      + '<td><div class="bin mono">' + esc(f.bin) + '</div><div class="sub">' + esc(f.banco || '-') + '</div></td>'
-      + '<td><span class="badge ' + cls + '">' + esc(f.marca || '-') + '</span></td>'
-      + '<td>' + esc(f.tipo || '-') + '</td>'
-      + '<td class="mono">' + esc(f.exp || '') + '</td>'
-      + '<td>' + esc(f.pais || '-') + '</td>'
-      + '<td class="mono">' + esc(f.zip || '-') + '</td>'
-      + '<td>' + iconos(f.features || {}) + '</td>'
-      + '<td>' + esc(f.etiqueta || '-') + '</td>'
-      + '<td>' + (f.refund ? 'SI' : 'NO') + '</td>'
-      + '<td><span class="badge-estado estado-' + esc(String(f.estado || ESTADO).toLowerCase()) + '">' + esc(f.estado || ESTADO) + '</span></td>'
-      + '<td class="mono saldo">' + esc(f.saldo || '-') + '</td>'
-      + '<td class="precio"' + falta + '>' + (f.precio == null ? '-' : esc(num(f.precio))) + '</td>'
-      + '<td class="precio"' + falta + '>' + esc(f.precio_cuotas == null ? '-' : num(f.precio_cuotas)) + '</td>'
-      + '<td><details class="acciones"><summary aria-label="Acciones"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-dots-vertical"></use></svg></summary>'
+      + '<td data-label=""><input type="checkbox" data-id="' + esc(f.id) + '" aria-label="Seleccionar tarjeta ref ' + esc(f.ref) + '"' + (SEL.has(String(f.id)) ? ' checked' : '') + '></td>'
+      + '<td data-label="BIN / Banco"><div class="bin mono">' + esc(f.bin) + '</div><div class="sub">' + esc(f.banco || '-') + '</div></td>'
+      + '<td data-label="Red"><span class="badge ' + cls + '">' + esc(f.marca || '-') + '</span></td>'
+      + '<td data-label="Tipo">' + esc(f.tipo || '-') + '</td>'
+      + '<td data-label="EXP" class="mono">' + esc(f.exp || '') + '</td>'
+      + '<td data-label="País">' + esc(f.pais || '-') + '</td>'
+      + '<td data-label="ZIP" class="mono">' + esc(f.zip || '-') + '</td>'
+      + '<td data-label="Datos">' + iconos(f.features || {}) + '</td>'
+      + '<td data-label="Base">' + esc(f.etiqueta || '-') + '</td>'
+      + '<td data-label="Refund">' + (f.refund ? 'SI' : 'NO') + '</td>'
+      + '<td data-label="Estado"><span class="badge-estado estado-' + esc(String(f.estado || ESTADO).toLowerCase()) + '">' + esc(f.estado || ESTADO) + '</span></td>'
+      + '<td data-label="Saldo" class="mono saldo">' + esc(f.saldo || '-') + '</td>'
+      + '<td data-label="1 pago" class="precio"' + falta + '>' + (f.precio == null ? '-' : esc(num(f.precio))) + '</td>'
+      + '<td data-label="En cuotas" class="precio"' + falta + '>' + esc(f.precio_cuotas == null ? '-' : num(f.precio_cuotas)) + '</td>'
+      + '<td data-label="" class="acciones-td"><details class="acciones"><summary aria-label="Acciones"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-dots-vertical"></use></svg></summary>'
       + '<div class="acciones-menu"><button class="sec" data-ver="' + esc(f.id) + '">Ver</button>'
       + '<button class="sec" data-pedir-id="' + esc(f.id) + '" data-pedir-bin="' + esc(f.bin) + '">Pedir</button></div></details></td>'
       + '</tr>';
@@ -319,7 +319,7 @@
   function bannerRevision() {
     var main = document.querySelector('main'); if (!main) return;
     var b = $('#revBanner');
-    if (!b) { b = document.createElement('div'); b.id = 'revBanner'; main.insertBefore(b, main.firstChild); }
+    if (!b) { b = document.createElement('div'); b.id = 'revBanner'; (document.getElementById('bannerSlot') || main).appendChild(b); }
     if (ESTADO !== 'REVISION') { b.style.display = 'none'; return; }
     var n = (DATOS && DATOS.total) || 0;
     b.style.display = 'block';
@@ -328,7 +328,7 @@
   function bannerSinPrecio() {
     var main = document.querySelector('main'); if (!main) return;
     var b = $('#sinPrecio');
-    if (!b) { b = document.createElement('div'); b.id = 'sinPrecio'; main.insertBefore(b, main.firstChild); }
+    if (!b) { b = document.createElement('div'); b.id = 'sinPrecio'; (document.getElementById('bannerSlot') || main).appendChild(b); }
     var n = (DATOS && DATOS.kpis && DATOS.kpis.sinPrecio) || 0;
     if (ESTADO === 'DISPONIBLE' && n > 0) {
       b.style.display = 'block';
@@ -866,9 +866,13 @@
   function montarTema() {
     var k = 'tema', b = document.body;
     function set(t) {
-      b.classList.toggle('claro', t !== 'oscuro');
+      var oscuro = t === 'oscuro';
+      b.classList.toggle('claro', !oscuro);
+      document.documentElement.setAttribute('data-bs-theme', oscuro ? 'dark' : 'light');
+      document.documentElement.style.colorScheme = oscuro ? 'dark' : 'light';
       try { localStorage.setItem(k, t); } catch (e) {}
-      var x = $('#btnTema'); if (x) x.textContent = b.classList.contains('claro') ? 'Oscuro' : 'Claro';
+      var x = $('#btnTema');
+      if (x) x.innerHTML = '<svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-' + (oscuro ? 'sun' : 'moon') + '"></use></svg> ' + (oscuro ? 'Claro' : 'Oscuro');
     }
     set(localStorage.getItem(k) || 'claro');
     var btn = $('#btnTema'); if (btn) btn.onclick = function () { set(b.classList.contains('claro') ? 'oscuro' : 'claro'); };

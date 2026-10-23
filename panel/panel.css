@@ -119,3 +119,50 @@ body.tiene-seleccion main{padding-bottom:96px}
 .dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
 .dash-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px}
 .dash-panel h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
+
+/* ---------- modales y toasts ---------- */
+.swal2-popup{background:var(--panel)!important;color:var(--txt)!important;border:1px solid var(--line)!important;border-radius:14px!important;box-shadow:0 24px 60px rgba(15,23,42,.35)!important}
+.swal2-title,.swal2-html-container{color:var(--txt)!important}
+.swal2-html-container label{display:block;text-align:left;margin:10px 0 2px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--dim)}
+.swal2-input,.swal2-select,.swal2-textarea{background:var(--bg)!important;color:var(--txt)!important;border:1px solid var(--line)!important;border-radius:8px!important;box-shadow:none!important}
+.swal2-input:focus,.swal2-select:focus{border-color:var(--acc)!important}
+.swal2-confirm{background:var(--acc)!important;border-radius:8px!important}
+.swal2-cancel{background:var(--panel2)!important;color:var(--txt)!important;border-radius:8px!important}
+.toast-resolver{border-radius:10px!important;box-shadow:0 12px 30px rgba(15,23,42,.28)!important;font-weight:700!important;font-size:12.5px!important}
+.caja{border-radius:14px!important}
+.modal .caja h3{font-size:16px}
+
+/* ---------- dark mode ---------- */
+[data-bs-theme="dark"] body{--bg:#090c12;--panel:#111620;--panel2:#161c28;--line:#272f3f;--txt:#e2e8f0;--dim:#94a3b8;--acc:#3b82f6;--ok:#22c55e;--warn:#f59e0b;--bad:#ef4444;background:#090c12;color:#e2e8f0}
+[data-bs-theme="dark"] .ts-control,[data-bs-theme="dark"] .ts-dropdown{background:#111620;color:#e2e8f0;border-color:#272f3f}
+[data-bs-theme="dark"] .badge-estado{filter:saturate(1.1) brightness(1.15)}
+[data-bs-theme="dark"] .dash-ico{background:rgba(59,130,246,.18);color:#93c5fd}
+[data-bs-theme="dark"] .acciones-menu{box-shadow:0 14px 40px rgba(0,0,0,.5)}
+[data-bs-theme="dark"] .caja,[data-bs-theme="dark"] .swal2-popup{box-shadow:0 24px 60px rgba(0,0,0,.55)}
+.banner-slot{min-height:46px}
+.banner-slot:empty{min-height:46px}
+html{scrollbar-gutter:stable}
+.banner-slot{min-height:62px}
+@media(min-width:901px){.topbar{height:58px;min-height:58px;overflow:hidden}}
+.banner-slot{position:relative;height:62px;min-height:62px;overflow:hidden}
+.banner-slot > #sinPrecio,.banner-slot > #revBanner{position:absolute;inset:0;margin:0;overflow:auto}
+.tabla-wrap{min-height:60vh}
+@media(max-width:767px){.tabla-wrap{min-height:0}}
+
+/* ---------- mobile: tabla en cards ---------- */
+@media (max-width:767px){
+  .tabla-wrap{overflow:visible;border:0;background:transparent;min-height:0;max-height:none}
+  .tabla-wrap table{display:block;background:transparent;box-shadow:none}
+  .tabla-wrap thead{display:none}
+  #cuerpo{display:grid;gap:10px}
+  #cuerpo tr{display:grid;grid-template-columns:1fr 1fr;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;padding:6px}
+  #cuerpo td{display:flex;align-items:center;justify-content:space-between;gap:10px;border:0;padding:6px 8px;font-size:12.5px;background:transparent!important}
+  #cuerpo td::before{content:attr(data-label);color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:800}
+  #cuerpo td:first-child{grid-column:1/-1;justify-content:flex-start}
+  #cuerpo td:first-child::before,#cuerpo td.acciones-td::before{display:none}
+  #cuerpo td[data-label="BIN / Banco"]{grid-column:1/-1}
+  #cuerpo td.acciones-td{grid-column:1/-1;justify-content:flex-end}
+  #cuerpo tr:hover td{background:transparent!important}
+  .acciones-menu{position:static;margin-top:6px;box-shadow:none}
+  .acciones{width:100%;display:flex;justify-content:flex-end}
+}

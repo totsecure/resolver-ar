@@ -20,7 +20,7 @@ test('lighthouse: accesibilidad >= 90 y reporte de performance', async ({}, test
       output: 'json',
       onlyCategories: ['performance', 'accessibility'],
       formFactor: 'desktop',
-      screenEmulation: { disabled: true },
+      screenEmulation: { mobile: false, width: 1440, height: 900, deviceScaleFactor: 1, disabled: false },
       throttling: {
         rttMs: 0, throughputKbps: 0, requestLatencyMs: 0,
         downloadThroughputKbps: 0, uploadThroughputKbps: 0, cpuSlowdownMultiplier: 1,
@@ -39,6 +39,10 @@ test('lighthouse: accesibilidad >= 90 y reporte de performance', async ({}, test
       if (a) console.log('  ' + id + ': ' + (a.displayValue || a.numericValue));
     }
 
+    const shifts = lhr.audits['layout-shifts'];
+    if (shifts && shifts.details && shifts.details.items) {
+      for (const it of shifts.details.items.slice(0, 3)) console.log('  shift: ' + JSON.stringify(it).slice(0, 900));
+    }
     if (performance < 90) {
       const oportunidades = Object.values(lhr.audits)
         .filter((a) => a.score !== null && a.score < 1 && a.details && a.details.type === 'opportunity')

@@ -484,3 +484,40 @@ Backup previo a la migración del ledger: `datos/backups/pre-ledger.db`.
 - `backup-dbs.sh` poda `_bak/` a 90 días y limita los dumps legacy de padrón a
   los 4 más nuevos, además de la retención ya existente (7 diarios + 4
   semanales de stock, 4 semanales de padrón).
+
+## Reconstrucción visual con Tabler (2026-10-23)
+
+Sub-pasos aplicados sobre `panel/` sin tocar lógica de negocio ni IDs:
+
+1. **Shell**: navbar superior sticky (`header.topbar`), sidebar (`#sidebar`) con items
+   `data-estado`, offcanvas mobile con `#menuToggle`, marca, KPIs, tema y salir.
+2. **Filtros**: card colapsable (`#filtrosBox`), resumen de filtros activos, Tom Select
+   en país/banco/red/tipo/base/estado (emite los mismos `change`).
+3. **Tabla**: header sticky dentro de `.tabla-wrap`, zebra/hover, badges por estado,
+   dropdown de acciones (`Ver`/`Pedir`) y contador.
+4. **Barra contextual**: fija abajo, visible con selección o historial de deshacer;
+   `body.tiene-seleccion` reserva espacio para no tapar la última fila.
+5. **Dashboard**: ApexCharts cargado en diferido (stock por estado, ventas/día,
+   top BIN) + cards KPI con iconos + últimas ventas. Se retiró Chart.js del vendor.
+6. **Modales/toasts**: SweetAlert2/Toastify restylados con variables del tema.
+7. **Dark mode**: `data-bs-theme` en `<html>`, persistido en `localStorage` y toggle
+   `#btnTema`; variables propias para sidebar/tabla/badges/Tom Select.
+8. **Mobile**: tabla en cards con `data-label` bajo 768px, sidebar offcanvas,
+   acciones alcanzables y sin scroll horizontal a 390/820/1440.
+
+Infra de UI:
+- El CSS propio salió de `app.js` a `panel/panel.css` (cargado en `<head>`); eliminó
+  el CLS de inyectar estilos después del primer paint. `/panel/panel.css` es público.
+- `scripts/iconos.mjs` genera `panel/vendor/iconos.svg` (47 símbolos) desde
+  `scripts/iconos-src/`; nada de sprite completo.
+- Vendor nuevo: `apexcharts.min.js` (8.4.1, MIT), `animate.min.css` (4.1.1, MIT),
+  `tom-select` (2.6.2, Apache-2.0) y `iconos.svg` (@tabler/icons 3.49.0, MIT).
+- Presupuesto: `panel/vendor/` = **1,86 MB** sin comprimir, por encima del objetivo
+  de ~1,5 MB. El excedente es ApexCharts (923 KB); Tabler 668 KB, SweetAlert2 77 KB,
+  Tom Select 66 KB, resto <80 KB. Con gzip/brotli la transferencia sigue siendo baja.
+  Si hace falta bajar el número, el camino es un bundle de Apex con solo
+  donut/bar/area compilado una vez y commiteado.
+- Tests nuevos: login real CSRF+2FA, assets vendor (no HTML/302), tema, mobile cards
+  + sidebar offcanvas. Suite: **32 E2E**.
+- Lighthouse (desktop 1440): **performance 100 / accessibility 96**; axe-core 0
+  violaciones críticas. Capturas en `docs/capturas/antes-*`, `paso1..paso8-*`.

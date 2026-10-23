@@ -201,6 +201,17 @@ test('dashboard carga ApexCharts en diferido', async ({ page }) => {
   await expect(page.locator('#dashBox')).toBeHidden();
 });
 
+test('toggle de tema cambia data-bs-theme', async ({ page }) => {
+  await abrirPanel(page);
+  await expect(page.locator('#btnTema')).toContainText('Oscuro');
+  await page.click('#btnTema');
+  await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'dark');
+  const fondo = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(fondo).toContain('9, 12, 18');
+  await page.click('#btnTema');
+  await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'light');
+});
+
 test('formulario de saldo con SweetAlert2 (sin prompt nativo)', async ({ page }) => {
   await abrirPanel(page);
 
@@ -288,6 +299,26 @@ test('responsive 390/820/1440 sin scroll horizontal y acciones alcanzables', asy
 
     const desborde = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(desborde, 'scroll horizontal a ' + ancho + 'px').toBeLessThanOrEqual(1);
+
+    if (ancho <= 767) {
+      const layout = await page.locator('#cuerpo tr').first().evaluate((tr) => getComputedStyle(tr).display);
+      expect(layout, 'cards mobile').toBe('grid');
+      const etiqueta = await page.locator('#cuerpo td[data-label="Saldo"]').first().evaluate((td) => getComputedStyle(td, '::before').content);
+      expect(etiqueta, 'data-label visible').toContain('Saldo');
+    }
+    if (ancho === 390) {
+      const sidebar = page.locator('#sidebar');
+      const antes = await sidebar.boundingBox();
+      expect(antes.x).toBeLessThan(0);
+      await page.locator('.menu-btn').click();
+      await page.waitForTimeout(300);
+      const abierto = await sidebar.boundingBox();
+      expect(abierto.x).toBeGreaterThanOrEqual(0);
+      await page.locator('.sidebar-backdrop').click({ position: { x: 380, y: 300 } });
+      await page.waitForTimeout(300);
+      const cerrado = await sidebar.boundingBox();
+      expect(cerrado.x).toBeLessThan(0);
+    }
 
     await marcarFila(page, 0);
     for (const sel of ['#btnComprar', '#btnSelTodos', '#btnPedirSel', '#btnCSV']) {
