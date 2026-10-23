@@ -135,14 +135,15 @@ node scripts/diag-join-idach.mjs 50
   publicadas sin precio.
 
 ## Fallas de humo.sh pendientes (infraestructura, no Fase 0/1)
-Baseline: 43 OK / 6 FAIL, idéntico antes y después de Fase 0/1.
-1. `tunel publico` — `https://action-early-pants.ngrok-free.dev` responde 404
+Estado tras Fase 1: **44 OK / 5 FAIL**. Las mismas fallas externas de la línea
+base, salvo el snapshot `/gh`, que ya se refrescó con `worker-repo.mjs`.
+
+1. `instancias unicas` — `server=1 bot=0 tunel=0`: el bot y el túnel no tienen
+   pidfile vivo, aunque el bot responde en Telegram.
+2. `tunel publico` — `https://action-early-pants.ngrok-free.dev` responde 404
    (túnel caído o URL rotada).
-2. `Worker publico` — `https://resolver-api.correonube.workers.dev` responde 404.
-3. `Worker sin token` — 404, consecuencia del Worker/túnel caído.
-4. `snapshot /gh` — el KV se desactualiza cuando cambian archivos; se refresca
-   con `node scripts/worker-repo.mjs`. Ya refrescado tras Fase 1.
+3. `Worker publico` — `https://resolver-api.correonube.workers.dev` responde 404.
+4. `Worker sin token` — 404, consecuencia del Worker/túnel caído.
 5. `bot getMe` — la API de Telegram responde OK pero el chequeo de pidfile da
-   `pid='-'` (el bot corre sin el pidfile que espera humo.sh).
-6. (agrupado con 1-3) el 404 del Worker hace fallar los tres chequeos públicos.
+   `pid='-'` (misma causa que el punto 1).
 No se tocaron en Fase 1.
