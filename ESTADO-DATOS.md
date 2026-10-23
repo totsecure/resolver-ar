@@ -129,21 +129,25 @@ node scripts/diag-join-idach.mjs 50
 - La instancia de test corre jobs y outbox; se fuerza `TELEGRAM_TOKEN=""` y
   `TELEGRAM_ALLOW=""` para que ningún test pueda mandar mensajes reales. El
   outbox igual se llena en `.e2e/stock.db` (descartable).
-- Bug detectado en el panel (NO corregido en esta fase, panel congelado): el
-  botón "Ver sin precio" (`#spVer`) setea `pmax=0` y la consulta usa
-  `PRECIO <= 0`, que descarta los `NULL`; devuelve 0 resultados en vez de las
-  publicadas sin precio.
+- Bug detectado en Fase 1 y **corregido**: el botón "Ver sin precio" (`#spVer`)
+  seteaba `pmax=0` y la consulta usaba `PRECIO <= 0`, que descarta los `NULL`.
+  Ahora hay un filtro dedicado `sin_precio=1` en `lib/panel.js` y el botón es un
+  toggle (`Ver sin precio` / `Ver todas`) que limpia `f_pmax`. `pmax` sigue
+  excluyendo las NULL. Cubierto por el test E2E "ver sin precio (toggle)".
 
-## Fallas de humo.sh pendientes (infraestructura, no Fase 0/1)
-Estado tras Fase 1: **44 OK / 5 FAIL**. Las mismas fallas externas de la línea
-base, salvo el snapshot `/gh`, que ya se refrescó con `worker-repo.mjs`.
+## humo.sh — estado (2026-10-23)
+**47 OK / 0 FAIL / 1 SKIP.** Cambios de expectativas, no de funcionalidad:
 
-1. `instancias unicas` — `server=1 bot=0 tunel=0`: el bot y el túnel no tienen
-   pidfile vivo, aunque el bot responde en Telegram.
-2. `tunel publico` — `https://action-early-pants.ngrok-free.dev` responde 404
-   (túnel caído o URL rotada).
-3. `Worker publico` — `https://resolver-api.correonube.workers.dev` responde 404.
-4. `Worker sin token` — 404, consecuencia del Worker/túnel caído.
-5. `bot getMe` — la API de Telegram responde OK pero el chequeo de pidfile da
-   `pid='-'` (misma causa que el punto 1).
-No se tocaron en Fase 1.
+- `instancias unicas`: ahora mide solo el server por pidfile. El bot y el túnel
+  se miden por respuesta real en sus propias secciones.
+- `tunel publico`: se consulta `/health?token=` siguiendo redirects (`curl -L`),
+  no el root. Si el túnel no está levantado, SKIP con motivo (no FAIL).
+- `Worker publico`: el root no tiene ruta; se consulta `/gh/README.md?token=`.
+- `Worker sin token`: `/gh/README.md` sin token debe dar 401.
+- `bot getMe`: ya no exige pidfile vivo; si la API responde `is_bot:true`, OK
+  (informa `pid='-'` si no hay pidfile).
+
+Estado real de infraestructura al cerrar el paso: el **túnel ngrok está caído**
+(no hay proceso ngrok y `action-early-pants.ngrok-free.dev` devuelve 404) y el
+bot no tiene proceso local, aunque su API responde. Por eso `tunel publico` da
+SKIP. Lo vigila `scripts/vigilar.sh` (Fase 2).
