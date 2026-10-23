@@ -323,20 +323,14 @@ else
   fail "/lote X-Ms" "http=${STATUS:-000} x-ms=${XMS:-'-'} tiempo=${TIEMPO:-'-'}s (limite 0.2s)"
 fi
 
-# 7) tunel publico: el root no responde 200; se mide /health con token siguiendo
-#    redirects. Si el tunel no esta levantado, SKIP con motivo (lo cubre vigilar.sh).
-URL=$(cat datos/tunel.url 2>/dev/null || true)
-if [ -z "$URL" ]; then
-  skip "tunel publico" "falta datos/tunel.url"
+# 7) tunel publico: se mide a traves del Worker (Worker -> ngrok -> server local).
+#    El host crudo de ngrok devuelve interstitial/404 sin basic auth; no sirve.
+CODE=$(curl -sL -o "$TMP" -w '%{http_code}' --max-time 20 \
+  "${WORKER_URL}/health?token=${TOKEN}" 2>/dev/null || true)
+if [ "$CODE" = "200" ] && grep -q '"ok":true' "$TMP"; then
+  ok "tunel publico" "Worker /health http=200"
 else
-  CODE=$(curl -sL -o "$TMP" -w '%{http_code}' --max-time 20 \
-    -u "$BASIC" -H 'ngrok-skip-browser-warning: 1' -H 'Accept: application/json' \
-    "${URL}/health?token=${TOKEN}" 2>/dev/null || true)
-  if [ "$CODE" = "200" ] && grep -q '"ok":true' "$TMP"; then
-    ok "tunel publico" "http=200 $URL"
-  else
-    skip "tunel publico" "sin backend: http=${CODE:-000} $URL (tunel caido o URL stale)"
-  fi
+  fail "tunel publico" "http=${CODE:-000} ${WORKER_URL}/health $(head -c 160 "$TMP")"
 fi
 
 # 8) Worker publico: el root no tiene ruta; se mide /gh/README.md con token.

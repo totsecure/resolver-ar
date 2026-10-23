@@ -147,10 +147,15 @@ node scripts/diag-join-idach.mjs 50
 - `bot getMe`: ya no exige pidfile vivo; si la API responde `is_bot:true`, OK
   (informa `pid='-'` si no hay pidfile).
 
-Estado real de infraestructura al cerrar el paso: el **túnel ngrok está caído**
-(no hay proceso ngrok y `action-early-pants.ngrok-free.dev` devuelve 404) y el
-bot no tiene proceso local, aunque su API responde. Por eso `tunel publico` da
-SKIP. Lo vigila `scripts/vigilar.sh` (Fase 2).
+Estado real de infraestructura al cerrar el paso: el **túnel ngrok estaba caído**
+(no había proceso ngrok y `action-early-pants.ngrok-free.dev` devolvía 404). Se
+levantó con `bash scripts/tunel.sh`: lo provee el agente **ngrok 3.37.6**
+(`/opt/homebrew/bin/ngrok`) con el dominio estático
+`action-early-pants.ngrok-free.dev` y basic auth, apuntando a `localhost:3001`.
+El check de humo ahora mide el túnel **a través del Worker** (`/health`), que es
+el camino real Worker -> ngrok -> server; el host crudo de ngrok no sirve sin
+basic auth. El bot sigue sin proceso local (su API responde), y `keepalive.sh`
+no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 
 ## Fase 2 — backups y monitoreo (2026-10-23)
 
