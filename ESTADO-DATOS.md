@@ -279,3 +279,23 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
   el checkbox de cada fila y en `#chkTodos`, y el rótulo "Saldeadas" ya no es un
   label sin control asociado.
 - Suite E2E final: **15 tests**.
+
+## Supervisor del túnel (2026-10-23)
+- `ar.resolver.tunel` (launchd) -> `scripts/tunel-foreground.sh`, que ejecuta
+  ngrok en **primer plano** con `exec`. `RunAtLoad`, `KeepAlive`,
+  `ThrottleInterval=10`, logs en `datos/tunel.log`. No hay loop de sleep ni
+  auto-relanzado dentro del script: el supervisor es launchd.
+- `keepalive.sh` queda como herramienta manual/legacy; no se usa para esto
+  porque es un `while true` con `sleep`.
+- Pruebas reales: `kill -9` a ngrok -> el túnel volvió en **6 s**; `kill -9` al
+  server -> volvió en **1 s**. `humo.sh` verde después, sin intervención.
+
+### Dominio de los LaunchAgents (importante para cortes de luz)
+- Todos los servicios (`server`, `tunel`, `litestream`, `vigilar`, `backup`,
+  `caffeinate`) están en `~/Library/LaunchAgents` = dominio **gui/$UID**.
+- **FileVault está activado** y no hay `autoLoginUser`.
+- Consecuencia: tras un reinicio o corte de luz, **nada arranca hasta que haya
+  login** (y con FileVault el auto-login no es posible).
+- Recomendación: mover los servicios a `/Library/LaunchDaemons` (dominio
+  `system`, arrancan sin login). Requiere `sudo` y ajustar rutas/entorno; no se
+  hizo en esta tanda porque necesita autorización y contraseña de admin.
