@@ -310,3 +310,56 @@ Hallazgos:
   FALLA y RECUPERADO.
 - `humo.sh` quedó **47 OK / 0 FAIL / 1 SKIP** (el SKIP es el túnel, realmente
   caído; lo cubre `vigilar.sh`).
+
+---
+
+## 10. Estado de ejecución real (2026-10-23)
+
+### Hecho
+
+| fase | estado | evidencia |
+|---|---|---|
+| 0 — preparación | hecho | `refs/`, `panel/vendor/`, snapshot `pre-repos.db`, `clonar-refs.sh` |
+| 1 — Playwright | hecho | `tests/e2e/panel.spec.js`; hoy la suite completa tiene **28 tests** |
+| 2 — backups/monitoreo | hecho | `backup-dbs.sh` + restore probado, `vigilar.sh` + alerta real |
+| 3 — UI | hecho (3a–3f) | Tabler, SweetAlert2/Toastify, chip sin precio, Chart.js diferido, hotkeys-js, responsive + axe |
+| 4 — Datasette | hecho | `127.0.0.1:3003`, `/datasette/*`, token = `RESOLVER_TOKEN`, 57 filas |
+| 5 — performance/seguridad | hecho (5a–5f) | compression, cache, helmet, rate limit + XFF del Worker, zod, Lighthouse 98/95 |
+| 6 — modelo de dominio | hecho | ledger doble entrada, máquina de pedidos, scopes de API keys, invariantes |
+| Ops | hecho | 5 servicios en LaunchDaemons `system`, túnel con supervisor launchd, `:3001` solo loopback |
+
+### Qué quedó afuera y por qué
+
+- **Litestream sobre `padron.db`**: es estática y pesa 1,43 GiB; tiene backup
+  semanal comprimido. Litestream se usa solo en `stock.db`.
+- **`ar.resolver.backup` y `ar.resolver.caffeinate`**: siguen como
+  LaunchAgents. El backup diario no arranca hasta login; se puede migrar con el
+  mismo patrón de `deploy/daemons/` si se quiere.
+- **FileVault**: los daemons eliminan el login gráfico, pero tras un corte de
+  luz hace falta desbloquear el disco. Para reinicios programados:
+  `sudo fdesetup authrestart`.
+- **Tabler**: se adoptó el CSS base. No se reescribió el panel componente por
+  componente ni se sumaron Grid.js, htmx, Alpine, uPlot, ninja-keys: la tabla y
+  la interacción actuales funcionan y están cubiertas por E2E.
+- **Datasette 0.65.4**, no 1.x: la máquina tiene Python 3.9. Se instaló en un
+  venv (`varios/datasette-venv`), fuera del Python del sistema.
+- **API keys viejas sin scopes**: conservan acceso completo por compatibilidad.
+  Las nuevas usan scopes; el rate limit por token es en memoria (60/min).
+- **Comisión**: la cuenta `comisiones:plataforma` y `wallet.comision()` existen,
+  pero hoy ninguna venta dispara comisión automática (el campo
+  `vendedores.comision` no se usa en el flujo de pago).
+- **Docker/Uptime Kuma**: no hay Docker en la máquina; monitoreo con
+  `vigilar.sh` + launchd + Telegram.
+- **Túnel**: estaba caído de verdad (sin proceso ngrok). Ahora corre bajo
+  `ar.resolver.tunel`; el Worker sigue siendo la entrada pública.
+
+### Verificación vigente
+
+```
+bash scripts/e2e.sh                     -> 28 passed
+node scripts/verificar.js               -> 32 OK / 0 FAIL
+bash scripts/humo.sh                    -> 48 OK / 0 FAIL / 0 SKIP
+node scripts/verificar-invariantes.mjs  -> 16 OK / 0 FAIL
+node scripts/test-asientos.mjs          -> 11 OK / 0 FAIL
+bash scripts/migrar-daemons.sh --verificar -> 0 fallas
+```

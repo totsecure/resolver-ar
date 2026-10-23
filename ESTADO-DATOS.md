@@ -444,3 +444,43 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - Suite E2E: 28 tests (se agregaron los unitarios de transiciones y scopes).
 
 Backup previo a la migración del ledger: `datos/backups/pre-ledger.db`.
+
+## Auditoría post-Fase 6 (2026-10-23)
+
+### Backfill del ledger (producción)
+- `ledger_asientos`: **0**; `ledger_lineas`: **0**; `mov_saldo`: **0**;
+  `saldos`: **0 usuarios**.
+- Asientos por tipo: ninguno. Movimientos ambiguos o sin parsear: **0**.
+- Asiento de apertura por diferencia: **0 pesos** (0 % del saldo total, que
+  también es 0).
+- La base real no tenía historial de wallet al momento de migrar; el primer
+  movimiento real generará su asiento. El mapeo tipo→contrapartida es
+  determinista y no parsea texto libre; `historico:sin_clasificar` quedó con 0
+  uso. Se agregó `devolucion_reclamo` al mapeo de `reservas:pendientes`.
+- Se verificó además que cada `saldo_post` histórico coincide con la suma
+  acumulada de `mov_saldo` (0 movimientos, 0 mismatch).
+
+### Rate limit vs. tests
+- El límite de 60/min por token **no aplica al token de servicio**: `humo.sh`,
+  `verificar.js` y los E2E usan `RESOLVER_TOKEN` y quedan exentos.
+- `/panel` tiene 600 req/5 min. 70 requests seguidos con token de servicio:
+  70×200, `RateLimit remaining=529`. Los E2E/humo/verificar corren de corrido
+  sin 429.
+- El límite por token aplica solo a API keys de usuarios (nuevas).
+
+### Caminos de saldo y asientos
+- Caminos productivos: `wallet.acreditar`, `wallet.debitar`, `wallet.ajustar`,
+  `wallet.comision`, `wallet.debitarForzado`, `recargas.revisar`,
+  `catalogo.reservar` (débito), `catalogo.pagar` (reconocimiento de venta),
+  `catalogo.cancelar`/`expirar`/doble venta (reembolsos) y
+  `reclamos.resolverAccion` (devolución), todos vía `aplicarTx`.
+- El único `UPDATE saldos` directo estaba en `scripts/test-e1-e5.mjs` (base
+  temporal); se reemplazó por `wallet.debitarForzado`, que emite asiento.
+- `scripts/test-asientos.mjs` prueba cada camino: asiento balanceado,
+  `mov_saldo.asiento_id` seteado y `saldos == ledger`. **11 OK / 0 FAIL**,
+  integrado a `verificar.js` (**32 OK**).
+
+### Retención
+- `backup-dbs.sh` poda `_bak/` a 90 días y limita los dumps legacy de padrón a
+  los 4 más nuevos, además de la retención ya existente (7 diarios + 4
+  semanales de stock, 4 semanales de padrón).

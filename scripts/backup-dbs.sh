@@ -164,6 +164,17 @@ podar "$LOCAL" "stock-semanal-" 4
 podar "$REMOTO" "stock-semanal-" 4
 podar "$LOCAL" "padron-semanal-" 4
 podar "$REMOTO" "padron-semanal-" 4
+# LEGACY: padron-YYYYMMDD-HHMMSS.db.gz (dumps manuales previos)
+podar "$LOCAL" "padron-2" 4
+podar "$REMOTO" "padron-2" 4
+
+# _bak/ no crece para siempre: se conservan 90 días.
+BAK_BORRADOS=0
+if [ -d "$RAIZ/_bak" ]; then
+  BAK_BORRADOS=$(find "$RAIZ/_bak" -type f -mtime +90 2>/dev/null | wc -l | tr -d ' ')
+  find "$RAIZ/_bak" -type f -mtime +90 -delete 2>/dev/null || true
+fi
+log "_bak: $BAK_BORRADOS archivo(s) >90 días eliminados"
 
 log "fin fallas=$FALLAS remoto=$REMOTO"
 if [ "$FALLAS" -eq 0 ]; then

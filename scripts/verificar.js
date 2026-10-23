@@ -590,6 +590,17 @@ const tests = [
       throw new Error(salida);
     }
   }],
+
+  ['asientos por camino de saldo', () => {
+    try {
+      execFileSync(process.execPath, [path.join(RAIZ, 'scripts', 'test-asientos.mjs')], {
+        cwd: RAIZ, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (e) {
+      const salida = String((e.stdout || '') + (e.stderr || '') || e.message).trim().split('\n').slice(-8).join(' | ');
+      throw new Error(salida);
+    }
+  }],
 ];
 
 console.log('VERIFICACION OFFLINE — resolver-ar');

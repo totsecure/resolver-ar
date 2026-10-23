@@ -76,7 +76,7 @@ try {
   check('E3 margen por lote', m.margenPorLote.some((x) => x.lote === 'LOTE-E' && x.margen === 40), JSON.stringify(m.margenPorLote));
   check('E3 cierre de caja', Array.isArray(m.cierreCaja) && m.cierreCaja.length >= 1 && m.ranking.length >= 1);
 
-  base().prepare('UPDATE saldos SET saldo=-5 WHERE usuario_id=?').run(uid);
+  wallet.debitarForzado(uid, 5, 'ajuste_forzado', 'test-e4', 'saldo negativo de prueba');
   const al = metricas.alertas({ umbral: 5, fallaMin: 1 });
   check('E4 alertas stock/saldo', (al.stockBajo || []).length >= 1 && (al.saldoNegativo || []).some((x) => x.usuario === 'eventa'));
   check('E4 alertas fallas/reclamos', Array.isArray(al.fallaAlta) && Array.isArray(al.reclamosVendedor));
