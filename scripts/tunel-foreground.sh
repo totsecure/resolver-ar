@@ -20,8 +20,8 @@ if [ -z "${NGROK_USER:-}" ] || [ -z "${NGROK_PASS:-}" ]; then
   echo "ERROR: faltan NGROK_USER/NGROK_PASS en datos/server.env"
   exit 1
 fi
-if ! command -v ngrok >/dev/null 2>&1; then
-  echo "ERROR: ngrok no está en PATH (/opt/homebrew/bin)"
+if [ ! -x /opt/homebrew/bin/ngrok ]; then
+  echo "ERROR: falta /opt/homebrew/bin/ngrok"
   exit 1
 fi
 
@@ -29,4 +29,4 @@ echo "== tunel-foreground $(date '+%Y-%m-%d %H:%M:%S') pid=$$ =="
 echo $$ > datos/tunel.pid
 printf '%s\n' "$URL" > datos/tunel.url
 
-exec ngrok http "$PUERTO" --url="$URL" --basic-auth="${NGROK_USER}:${NGROK_PASS}"
+exec /opt/homebrew/bin/ngrok http "$PUERTO" --url="$URL" --basic-auth="${NGROK_USER}:${NGROK_PASS}"

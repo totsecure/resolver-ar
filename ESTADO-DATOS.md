@@ -386,3 +386,22 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - Helmet no se aplica a `/datasette` (su HTML/JS inline usa su propio CSP).
 - Verificado: local 200, vía Worker 200, `cc` = 57 filas, sin token 403.
 - El plugin `datasette-auth-tokens` ya no usa `param`; solo Bearer.
+
+## Migración a LaunchDaemons (preparada; requiere sudo)
+- Los 5 plists para el dominio `system` están en `deploy/daemons/`:
+  `server`, `tunel`, `litestream`, `datasette`, `vigilar`.
+- Todos con `UserName=bunker`, `GroupName=staff`, `HOME=/Users/bunker`,
+  `PATH=/opt/homebrew/bin:/usr/local/bin:...`, `WorkingDirectory` y logs
+  absolutos. `KeepAlive` + `ThrottleInterval` (vigilar usa
+  `KeepAlive.SuccessfulExit=false` + `StartInterval=60` para no loopear).
+- Wrappers con binarios absolutos: `/usr/local/bin/node`,
+  `/opt/homebrew/bin/ngrok`, venv de Litestream/Datasette.
+- `scripts/migrar-daemons.sh` baja cada agente gui, guarda el plist viejo en
+  `_bak/`, instala el daemon, hace bootstrap y verifica salud + ownership.
+  **No se ejecutó todavía porque `sudo` pide contraseña.**
+  Comando: `sudo bash scripts/migrar-daemons.sh`
+- FileVault sigue activado: **tras un corte de luz hace falta desbloquear el
+  disco**; los daemons solo eliminan el login gráfico, no el desbloqueo de
+  FileVault. Para reinicios programados usar `sudo fdesetup authrestart`
+  (pide credenciales y reinicia desbloqueando el volumen).
+- `ar.resolver.backup` y `ar.resolver.caffeinate` siguen como LaunchAgents.
