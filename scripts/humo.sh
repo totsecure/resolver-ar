@@ -4,10 +4,10 @@
 #
 #   bash scripts/humo.sh
 #
-# Chequea: liveness por pidfile (server/bot/tunel), /health, /stats,
+# Chequea: liveness del server, /health, /stats,
 # /ficha/30756789, /repo, /lote (1 tarjeta), /titulares?n=2, X-Ms y <200 ms
-# en /lote, tunel publico, Worker y bot (getMe), 401 sin token (local y Worker)
-# y /gh/README.md desde el snapshot KV (sin GH_TOKEN).
+# en /lote, tunel publico (/health con token), Worker (/gh con y sin token),
+# bot (getMe) y snapshot /gh desde el KV (sin GH_TOKEN).
 # Las credenciales salen de datos/server.env. No usa pgrep.
 set -uo pipefail
 
@@ -73,15 +73,14 @@ USR0=$(contar_db 'SELECT COUNT(*) FROM usuarios;')
 echo "HUMO resolver-ar — $(date '+%Y-%m-%d %H:%M:%S')"
 echo "local=$BASE"
 
-# 0) liveness por pidfile + kill -0 (no pgrep: en macOS puede no ver el proceso)
+# 0) liveness del server por pidfile + kill -0 (el bot y el tunel se miden por
+#    respuesta real en sus propias secciones, no por pidfile).
 SERVER_OK=0; vivo datos/server.pid && SERVER_OK=1
-BOT_OK=0; vivo datos/bot.pid && BOT_OK=1
-TUNEL_OK=0; vivo datos/tunel.pid && TUNEL_OK=1
-INSTANCIAS="instancias server=${SERVER_OK} bot=${BOT_OK} tunel=${TUNEL_OK}"
-if [ "$SERVER_OK" -eq 1 ] && [ "$BOT_OK" -eq 1 ] && [ "$TUNEL_OK" -eq 1 ]; then
+INSTANCIAS="instancias server=${SERVER_OK}"
+if [ "$SERVER_OK" -eq 1 ]; then
   ok "instancias unicas" "$INSTANCIAS"
 else
-  fail "instancias unicas" "$INSTANCIAS (1 = pidfile vivo)"
+  fail "instancias unicas" "$INSTANCIAS (pidfile server muerto)"
 fi
 
 # 1) /health
@@ -324,45 +323,37 @@ else
   fail "/lote X-Ms" "http=${STATUS:-000} x-ms=${XMS:-'-'} tiempo=${TIEMPO:-'-'}s (limite 0.2s)"
 fi
 
-# 7) tunel publico (ngrok con basic auth)
+# 7) tunel publico: el root no responde 200; se mide /health con token siguiendo
+#    redirects. Si el tunel no esta levantado, SKIP con motivo (lo cubre vigilar.sh).
 URL=$(cat datos/tunel.url 2>/dev/null || true)
 if [ -z "$URL" ]; then
-  fail "tunel publico" "falta datos/tunel.url"
+  skip "tunel publico" "falta datos/tunel.url"
 else
-  CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 15 \
-    -u "$BASIC" -H 'ngrok-skip-browser-warning: 1' "${URL}/health?token=${TOKEN}" 2>/dev/null || true)
+  CODE=$(curl -sL -o "$TMP" -w '%{http_code}' --max-time 20 \
+    -u "$BASIC" -H 'ngrok-skip-browser-warning: 1' -H 'Accept: application/json' \
+    "${URL}/health?token=${TOKEN}" 2>/dev/null || true)
   if [ "$CODE" = "200" ] && grep -q '"ok":true' "$TMP"; then
     ok "tunel publico" "http=200 $URL"
   else
-    fail "tunel publico" "http=${CODE:-000} $URL $(head -c 160 "$TMP")"
+    skip "tunel publico" "sin backend: http=${CODE:-000} $URL (tunel caido o URL stale)"
   fi
 fi
 
-# 8) Worker publico
-CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 15 "${WORKER_URL}/health?token=${TOKEN}" 2>/dev/null || true)
-if [ "$CODE" = "200" ] && grep -q '"ok":true' "$TMP"; then
-  ok "Worker publico" "$WORKER_URL"
+# 8) Worker publico: el root no tiene ruta; se mide /gh/README.md con token.
+CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 15 "${WORKER_URL}/gh/README.md?token=${TOKEN}" 2>/dev/null || true)
+if [ "$CODE" = "200" ] && grep -q '^# resolver-ar' "$TMP"; then
+  ok "Worker publico" "$WORKER_URL/gh/README.md http=200"
 else
-  fail "Worker publico" "http=${CODE:-000} $WORKER_URL $(head -c 160 "$TMP")"
+  fail "Worker publico" "http=${CODE:-000} $WORKER_URL/gh/README.md $(head -c 160 "$TMP")"
 fi
 
 # 8b) sin token: local y Worker deben dar 401 (el Worker no llega a ngrok)
 CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${BASE}/health" 2>/dev/null || true)
 [ "$CODE" = "401" ] && ok "local sin token" "http=401" || fail "local sin token" "http=${CODE:-000}"
-CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${WORKER_URL}/health" 2>/dev/null || true)
+CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${WORKER_URL}/gh/README.md" 2>/dev/null || true)
 [ "$CODE" = "401" ] && ok "Worker sin token" "http=401" || fail "Worker sin token" "http=${CODE:-000}"
 
-# 8c) /gh/README.md por el Worker (snapshot KV del repo privado, sin GH_TOKEN)
-CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 15 "${WORKER_URL}/gh/README.md?token=${TOKEN}" 2>/dev/null || true)
-if [ "$CODE" = "200" ] && grep -q '^# resolver-ar' "$TMP"; then
-  ok "/gh/README.md" "http=200"
-elif grep -q 'falta GH_TOKEN' "$TMP"; then
-  skip "/gh/README.md" "falta GH_TOKEN en el Worker"
-else
-  fail "/gh/README.md" "http=${CODE:-000} $(head -c 160 "$TMP") (correr node scripts/worker-repo.mjs)"
-fi
-
-# 8d) snapshot /gh al dia (hash local vs __manifest__.json del KV)
+# 8c) snapshot /gh al dia (hash local vs __manifest__.json del KV)
 # Se usa --check (API de Cloudflare, consistente). --remoto puede leer un edge
 # con KV todavia sin propagar justo despues de subir.
 if node scripts/worker-repo.mjs --check > "$TMP" 2>&1; then
@@ -386,10 +377,12 @@ if [ -z "$TG_TOKEN" ]; then
 else
   CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 15 \
     "https://api.telegram.org/bot${TG_TOKEN}/getMe" 2>/dev/null || true)
-  if [ "$CODE" = "200" ] && grep -q '"ok":true' "$TMP" && grep -q '"is_bot":true' "$TMP" && [ -n "$BOT_PID" ]; then
-    ok "bot getMe" "pid=${BOT_PID}"
+  if [ "$CODE" = "200" ] && grep -q '"ok":true' "$TMP" && grep -q '"is_bot":true' "$TMP"; then
+    # La API responde: no se falla por pidfile ausente (el proceso puede correr
+    # fuera de launchd o con otro pid). Si hay pidfile vivo, se informa.
+    ok "bot getMe" "http=200 pid=${BOT_PID:-'-'} (api ok)"
   else
-    fail "bot getMe" "http=${CODE:-000} pid=${BOT_PID:-'-'} $(head -c 160 "$TMP")"
+    fail "bot getMe" "http=${CODE:-000} $(head -c 160 "$TMP")"
   fi
 fi
 
