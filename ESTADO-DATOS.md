@@ -313,3 +313,10 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
 - Resto del panel (`index.html`, `app.js`, HTML/JS/CSS propios):
   `Cache-Control: no-cache` + ETag, para no servir código viejo.
 - Verificado con curl en producción y E2E 15/15.
+
+### 5c — helmet
+- `helmet` (MIT) con defaults. CSP permisivo en lo necesario: `style-src`
+  incluye `'unsafe-inline'` (el panel usa `<style>` y SweetAlert2 inyecta
+  estilos) y se desactiva `upgrade-insecure-requests` para http local.
+- Verificado en producción: CSP, `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy` y HSTS presentes. E2E 15/15 (incluye descarga CSV con CSP).

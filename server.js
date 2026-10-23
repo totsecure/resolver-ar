@@ -1,5 +1,6 @@
 import express from 'express';
 import compression from 'compression';
+import helmet from 'helmet';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -52,6 +53,14 @@ const app = express();
 app.disable('x-powered-by');
 /* Detras de ngrok/Worker el protocolo y la IP real llegan por headers. */
 app.set('trust proxy', true);
+/* Cabeceras seguras. CSP: se permite el <style> inline del panel y los data:
+ * URIs de Tabler; no hay scripts inline (todo es /panel/app.js y vendor/).
+ * Se desactiva upgrade-insecure-requests para que funcione en http local. */
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: { 'upgrade-insecure-requests': null },
+  },
+}));
 /* Compresión global (gzip/br según Accept-Encoding). */
 app.use(compression());
 auth.migrar();
