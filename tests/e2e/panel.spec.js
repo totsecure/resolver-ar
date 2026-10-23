@@ -170,6 +170,22 @@ test('ver sin precio (toggle) y precio máximo sin NULL', async ({ page }) => {
   await esperarTotal(page, TOTALES.DISPONIBLE);
 });
 
+test('chip de sin precio con contador y apagado', async ({ page }) => {
+  await abrirPanel(page);
+
+  const chip = page.locator('#chipSinPrecio');
+  await expect(chip).toBeVisible();
+  await expect(chip).toContainText('5');
+
+  await chip.click();
+  await esperarTotal(page, 5);
+  await expect(chip).toHaveClass(/activo/);
+
+  await chip.click();
+  await esperarTotal(page, TOTALES.DISPONIBLE);
+  await expect(chip).not.toHaveClass(/activo/);
+});
+
 test('formulario de saldo con SweetAlert2 (sin prompt nativo)', async ({ page }) => {
   await abrirPanel(page);
 

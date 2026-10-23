@@ -243,3 +243,10 @@ no está corriendo: el túnel quedó levantado a mano, sin supervisor.
     CSV, etc.).
 - E2E: 11 tests. Se agregó un test del form de saldo y un detector de diálogos
   nativos (si aparece uno, el test falla). Publicar verifica el toast.
+
+### 3c — chip de sin precio
+- Chip `#chipSinPrecio` en la barra de acciones, con contador `#chipSinPrecioN` y
+  estado activo; visible si hay publicadas sin precio o si el filtro está activo.
+- Click = mismo toggle que el banner ("Ver sin precio" / "Ver todas"); apaga el
+  filtro y limpia `f_pmax`. `limpiar()` también lo resetea.
+- E2E: chip visible con 5, activa 5 filas, se apaga y vuelven las 8 (12 tests).

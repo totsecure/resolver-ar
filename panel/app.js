@@ -22,6 +22,10 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
 #dashBox .card b{display:block;font-size:20px;margin-top:4px;color:var(--txt)}
 #revBanner{display:none;margin:10px 0;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);font-size:13px;line-height:1.5}
 #atajos{color:var(--dim);font-size:11.5px;margin-top:10px}
+#chipSinPrecio{border:1px solid var(--warn);background:rgba(245,158,11,.12);color:var(--warn);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer}
+#chipSinPrecio[hidden]{display:none}
+#chipSinPrecio.activo{background:var(--warn);color:rgb(17,22,32)}
+#chipSinPrecio .x{margin-left:4px;font-weight:900}
 @media (max-width:860px){
   header{gap:8px}
   .kpis{width:100%;margin-left:0;gap:10px}
@@ -191,6 +195,7 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     if (d.error) { var i2 = $('#info'); if (i2) i2.textContent = d.error; return; }
     DATOS = d;
     pintarKpis(d.kpis || {});
+    actualizarChipSinPrecio();
     pintarFacetas(d.facetas || {});
     pintarTabla();
     pintarPag(d);
@@ -317,6 +322,20 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
   }
 
   /* ---------- banners ---------- */
+  function actualizarChipSinPrecio() {
+    var chip = $('#chipSinPrecio'); if (!chip) return;
+    var n = (DATOS && DATOS.kpis && DATOS.kpis.sinPrecio) || 0;
+    chip.hidden = !(n > 0 || SIN_PRECIO);
+    chip.classList.toggle('activo', !!SIN_PRECIO);
+    chip.title = SIN_PRECIO ? 'Quitar el filtro de sin precio' : 'Ver publicadas sin precio';
+    var numEl = $('#chipSinPrecioN'); if (numEl) numEl.textContent = n;
+  }
+  function alternarSinPrecio() {
+    SIN_PRECIO = !SIN_PRECIO;
+    var fp = $('#f_pmax'); if (fp) fp.value = '';
+    ESTADO = 'DISPONIBLE'; var fe = $('#f_estado'); if (fe) fe.value = 'DISPONIBLE';
+    PAGINA = 1; cargar();
+  }
   function bannerRevision() {
     var main = document.querySelector('main'); if (!main) return;
     var b = $('#revBanner');
@@ -447,12 +466,8 @@ tr.cc-bad td:first-child{border-left:4px solid var(--bad)}
     }
     if (t.closest('#revPubAll')) { selTodosFiltro().then(function () { setTimeout(function () { mutar('publicar', {}, { estado: function () { return 'REVISION'; } }); }, 80); }); return; }
     if (t.closest('#revPriceBin') || t.closest('#spPrecioBin')) { precioPorBin(); return; }
-    if (t.closest('#spVer')) {
-      SIN_PRECIO = !SIN_PRECIO;
-      var fp = $('#f_pmax'); if (fp) fp.value = '';
-      ESTADO = 'DISPONIBLE'; var fe2 = $('#f_estado'); if (fe2) fe2.value = 'DISPONIBLE';
-      PAGINA = 1; cargar(); return;
-    }
+    if (t.closest('#spVer')) { alternarSinPrecio(); return; }
+    if (t.closest('#chipSinPrecio')) { alternarSinPrecio(); return; }
     if (t.closest('#m_cancelar')) { cerrar(); return; }
     if (t.closest('#m_ok')) { if (ACC) ACC(); return; }
 
