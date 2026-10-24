@@ -71,10 +71,11 @@ export async function manejarVendedor(chatId, cmd, args, payload, ctx) {
   const arg0 = args[0] != null ? String(args[0]) : '';
   const arg1 = args[1] != null ? String(args[1]) : '';
   const esBin = /^\d{5,8}$/.test(arg0);
-  const esNumeroSuelto = /^\d{1,4}$/.test(arg0) && !/^\d+$/.test(arg1);
+  const esNumeroSuelto = /^\d{1,4}$/.test(arg0);
 
   if (c === 'pedir') {
-    if (arg0 === '' || /^(saldeadas|base)$/i.test(arg0) || esBin) {
+    const conCantidad = esBin && /^\d+$/.test(arg1); /* /pedir <bin> <n> = reserva */
+    if ((arg0 === '' || /^(saldeadas|base)$/i.test(arg0) || esBin) && !conCantidad) {
       const filtro = arg0 || 'base';
       const r = pedidoTexto({ filtro });
       for (const pagina of r.paginas) {
@@ -83,10 +84,10 @@ export async function manejarVendedor(chatId, cmd, args, payload, ctx) {
       if (r.n === 0 && esBin && esVend) vb.suscribirStock(chatId, filtro);
       return true;
     }
-    /* arg0 es número corto (1..4 dígitos): posición de saldeada.
-     * Vendedor con 2do arg numérico sigue siendo reserva -> cae abajo. */
-    if (esNumeroSuelto && !esVend) return false; /* lo maneja manejarStock */
-    if (esNumeroSuelto && esVend) return false; /* el vendedor también usa posición */
+    /* arg0 es número corto (1..4 dígitos) sin cantidad: posición de saldeada.
+     * Lo maneja manejarStock (envía la #n y la vende) tanto para admin como
+     * para vendedor. */
+    if (esNumeroSuelto) return false;
   }
 
   const u = vinculado;
