@@ -581,7 +581,7 @@ import {
   setSaldo as sSetSaldo, setEtiqueta as sSetEtiqueta, reservar as sReservar,
   expirarReservas as sExpirar, stats as sStats, alertas as sAlertas, precios as sPrecios,
   setPrecio as sSetPrecio, porCodigo as sPorCodigo, exportar as sExportar,
-  purgar as sPurgar, backup as sBackup,
+  purgar as sPurgar, backup as sBackup, saldeadas as sSaldeadas,
 } from './lib/stock.js';
 import { lookup as binLookup } from './lib/bininfo.js';
 
@@ -1261,6 +1261,10 @@ app.get('/stock', soloLectura, envolver((req) => {
 }));
 
 app.get('/stock/listado', soloLectura, envolver((req) => ({ texto: sListado({ refs: qs(req, 'refs') === '1' }) })));
+app.get('/stock/saldeadas', soloLectura, async (req, res) => {
+  try { res.json(await sSaldeadas({ todo: qs(req, 'todo') === '1' })); }
+  catch (e) { res.status(500).json({ error: String(e?.message || e) }); }
+});
 app.get('/stock/stats', soloLectura, envolver(() => sStats()));
 app.get('/stock/alertas', soloLectura, envolver((req) => ({ alertas: sAlertas(num(qs(req, 'umbral', 2), 2)) })));
 app.get('/stock/bin/:bin', soloLectura, envolver((req) => ({ bin: req.params.bin, texto: sListarBin(req.params.bin, { refs: true }) })));

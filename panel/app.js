@@ -59,7 +59,7 @@
   /* ---------- estado ---------- */
   var ESTADO = 'DISPONIBLE', PAGINA = 1, POR = 50, SEL = new Set(), DATOS = null, DASH = false, ACC = null;
   var SIN_PUSH = false, ULTIMO_ID = null;
-  var HIST = [], TODO_FILTRO = false, SIN_PRECIO = false;
+  var HIST = [], TODO_FILTRO = false, SIN_PRECIO = false, ORDEN = '';
   var CSRF = sessionStorage.getItem('csrf') || '';
   var CSRF_LISTO = (async function () {
     if (SERVICIO) return;
@@ -89,6 +89,7 @@
     for (var i = 0; i < m.length; i++) { var v = txt(m[i][1]); if (v) f[m[i][0]] = v; }
     if ($('#f_saldeadas') && $('#f_saldeadas').checked) f.saldeadas = '1';
     if (SIN_PRECIO) f.sin_precio = '1';
+    if (ORDEN) f.orden = ORDEN;
     return f;
   }
 
@@ -157,7 +158,7 @@
   }
   function pintarTabla() {
     var t = $('#cuerpo'); if (!t) return;
-    if (!DATOS || !DATOS.filas.length) t.innerHTML = '<tr><td colspan="15" class="vacio">Sin resultados</td></tr>';
+    if (!DATOS || !DATOS.filas.length) t.innerHTML = vacioTabla(); 
     else t.innerHTML = DATOS.filas.map(fila).join('');
     var s = $('#sel'); if (s) s.textContent = SEL.size + ' seleccionadas' + (TODO_FILTRO ? ' (todo el filtro)' : '');
     var b = $('#btnComprar'); if (b) b.disabled = !SEL.size;
@@ -165,6 +166,37 @@
     var i = $('#info'); if (i && DATOS) i.textContent = DATOS.total + ' resultados - pag ' + DATOS.pagina;
     var ct = $('#chkTodos');
     if (ct && DATOS) ct.checked = DATOS.filas.length > 0 && DATOS.filas.every(function (f) { return SEL.has(String(f.id)); });
+    pintarOrden();
+  }
+  /* Indicador de orden en los encabezados clickeables. */
+  function pintarOrden() {
+    var porCol = { bin: 'bin', saldo: 'saldo', precio: 'precio', caro: 'precio', nuevo: '' };
+    var colActiva = porCol[ORDEN] || '';
+    Array.prototype.forEach.call(document.querySelectorAll('th[data-col]'), function (th) {
+      th.classList.remove('orden-asc', 'orden-desc');
+      th.style.cursor = ['bin', 'saldo', 'precio'].includes(th.dataset.col) ? 'pointer' : '';
+      if (colActiva && th.dataset.col === colActiva) {
+        th.classList.add(ORDEN === 'caro' ? 'orden-desc' : 'orden-asc');
+      }
+    });
+  }
+  /* Mensaje de vacío con acción según por qué está vacío. */
+  function vacioTabla() {
+    var k = (DATOS && DATOS.kpis) || {};
+    var acciones = [];
+    if (ESTADO === 'DISPONIBLE' && (k.revision || 0) > 0) acciones.push('<button class="prim" id="vacRevision">Publicar las ' + k.revision + ' en Revisión</button>');
+    if (ESTADO === 'DISPONIBLE' && (k.sinPrecio || 0) > 0) acciones.push('<button class="sec" id="vacPrecio">Preciar ' + k.sinPrecio + ' sin precio</button>');
+    if ((k.borradas || 0) > 0) acciones.push('<button class="sec" id="vacBorradas">Ver ' + k.borradas + ' borradas</button>');
+    if (tieneFiltros()) acciones.push('<button class="sec" id="vacLimpiarFiltros">Limpiar filtros</button>');
+    var msg = ESTADO === 'PAPELERA' ? 'La papelera está vacía.' : 'Sin resultados.';
+    return '<tr><td colspan="15" class="vacio">' + msg
+      + (acciones.length ? '<div class="vacio-acciones">' + acciones.join(' ') + '</div>' : '') + '</td></tr>';
+  }
+  function tieneFiltros() {
+    var ids = ['f_bins', 'f_bin_desde', 'f_bin_hasta', 'f_pmin', 'f_pmax', 'f_q', 'f_paises', 'f_bancos', 'f_redes', 'f_tipos', 'f_etiquetas', 'f_niveles', 'f_venc', 'f_saldmin', 'f_saldmax'];
+    for (var i = 0; i < ids.length; i++) { var e = $('#' + ids[i]); if (e && e.value) return true; }
+    if ($('#f_saldeadas') && $('#f_saldeadas').checked) return true;
+    return SIN_PRECIO;
   }
   function pintarPag(d) {
     var p = $('#pag'); if (!p) return;
@@ -274,7 +306,12 @@
     var ctx = $('#barraContextual'); if (!ctx) return;
     var visible = SEL.size > 0 || TODO_FILTRO || HIST.length > 0;
     ctx.hidden = !visible;
+    /* Sin selección pero con undo: la barra solo ofrece deshacer/cerrar. */
+    ctx.classList.toggle('solo-undo', SEL.size === 0 && !TODO_FILTRO && HIST.length > 0);
     document.body.classList.toggle('tiene-seleccion', visible);
+    /* Reserva el alto real de la barra para no tapar la tabla. */
+    var main = document.querySelector('main');
+    if (main) main.style.paddingBottom = visible ? (ctx.offsetHeight + 24) + 'px' : '';
   }
   function pintarUndo() {
     var b = $('#btnDeshacer'); if (!b) return;
@@ -414,10 +451,22 @@
     var main = document.querySelector('main'); if (!main) return;
     var b = $('#revBanner');
     if (!b) { b = document.createElement('div'); b.id = 'revBanner'; (document.getElementById('bannerSlot') || main).appendChild(b); }
-    if (ESTADO !== 'REVISION') { b.style.display = 'none'; return; }
-    var n = (DATOS && DATOS.total) || 0;
-    b.style.display = 'block';
-    b.innerHTML = '<b>' + n + '</b> tarjeta(s) en Revision: todavia NO se venden. Marca las que quieras (o Todo el filtro) y toca Publicar. <button class="prim" id="revPubAll">Publicar todas</button> <button class="sec" id="revPriceBin">Precio por BIN</button>';
+    if (ESTADO === 'REVISION') {
+      var n = (DATOS && DATOS.total) || 0;
+      b.style.display = 'block';
+      b.innerHTML = '<b>' + n + '</b> tarjeta(s) en Revisión: todavía NO se venden. Marcá las que quieras (o usá «Todo el filtro») y tocá Publicar. '
+        + '<button class="prim" id="revPubAll">Publicar todas</button> <button class="sec" id="revPriceBin">Precio por BIN</button>';
+      return;
+    }
+    /* En Market/otras pestañas: avisar si hay revisiones esperando publicarse. */
+    var k = (DATOS && DATOS.kpis) || {};
+    if (ESTADO === 'DISPONIBLE' && (k.revision || 0) > 0 && !(k.disponible > 0)) {
+      b.style.display = 'block';
+      b.innerHTML = 'Tenés <b>' + k.revision + '</b> tarjeta(s) cargadas en Revisión, por eso Market está vacío. '
+        + '<button class="prim" id="revIr">Ir a Revisión</button>';
+      return;
+    }
+    b.style.display = 'none';
   }
   function bannerSinPrecio() {
     var main = document.querySelector('main'); if (!main) return;
@@ -477,6 +526,12 @@
     ESTADO = 'DISPONIBLE'; var fe = $('#f_estado'); if (fe) fe.value = 'DISPONIBLE';
     PAGINA = 1; SEL.clear(); TODO_FILTRO = false;
     Array.prototype.forEach.call(document.querySelectorAll('.tab[data-estado]'), function (x) { x.classList.toggle('on', x.dataset.estado === 'DISPONIBLE'); });
+    cargar();
+  }
+  function irRevision() {
+    ESTADO = 'REVISION'; var fe = $('#f_estado'); if (fe) fe.value = 'REVISION';
+    PAGINA = 1; SEL.clear(); TODO_FILTRO = false;
+    Array.prototype.forEach.call(document.querySelectorAll('.tab[data-estado]'), function (x) { x.classList.toggle('on', x.dataset.estado === 'REVISION'); });
     cargar();
   }
   function ajustarBotones() {
@@ -766,28 +821,42 @@
   }
 
   /* ---------- barra de acciones ---------- */
+  /* Barra compacta de UNA fila: acciones primarias del estado + grupos
+   * desplegables. Antes eran ~18 botones sueltos que tapaban la tabla. */
   function barraAcciones() {
-    var barra = document.querySelector('.barra'); if (!barra || $('#barraAcciones')) return;
-    var b = document.createElement('span'); b.id = 'barraAcciones';
-    b.innerHTML = '<button class="sec" id="btnReservar">Reservar</button>'
-      + '<button class="sec" id="btnPublicar">Publicar</button>'
-      + '<button class="sec" id="btnDevolver">Devolver</button>'
-      + '<button class="sec" id="btnBaja">Baja</button>'
+    var ctx = document.getElementById('barraContextual'); if (!ctx || $('#barraAcciones')) return;
+    var b = document.createElement('div'); b.id = 'barraAcciones';
+    b.innerHTML =
+      '<span class="bc-sel" id="sel">0 seleccionadas</span>'
+      + '<button class="sec" id="bcSelTodos">Todo el filtro</button>'
+      + '<span class="bc-sep"></span>'
+      + '<button class="sec bc-accion" id="btnPublicar">Publicar</button>'
+      + '<button class="sec bc-accion" id="btnDevolver">Devolver</button>'
+      + '<button class="sec bc-accion" id="btnReservar">Reservar</button>'
+      + '<button class="sec bc-accion" id="btnBaja">Baja</button>'
+      + '<button class="sec bc-accion" id="btnBorrar">A papelera</button>'
+      + '<button class="sec bc-accion" id="btnRestaurar">Restaurar</button>'
+      + '<details class="bc-menu bc-m-precio"><summary class="sec">Precio ▾</summary>'
+      + '<div class="bc-menu-body">'
       + '<button class="sec" id="btnPrecio">1 pago</button>'
       + '<button class="sec" id="btnPrecioCuotas">En cuotas</button>'
       + '<button class="sec" id="btnPrecioCuotasBin">Cuotas por BIN</button>'
-      + '<button class="sec" id="btnPrecioMasivo">Precios…</button>'
+      + '<button class="sec" id="btnPrecioMasivo">Precios…</button></div></details>'
+      + '<details class="bc-menu bc-m-datos"><summary class="sec">Datos ▾</summary>'
+      + '<div class="bc-menu-body">'
       + '<button class="sec" id="btnEtiqueta">Etiqueta/Base</button>'
       + '<button class="sec" id="btnSaldo">Saldo</button>'
       + '<button class="sec" id="btnEstado">Estado</button>'
-      + '<button class="sec" id="btnBorrar">A papelera</button>'
-      + '<button class="sec" id="btnRestaurar">Restaurar</button>'
+      + '<button class="sec" id="btnInvertir">Invertir</button></div></details>'
+      + '<details class="bc-menu bc-m-mas"><summary class="sec">Más ▾</summary>'
+      + '<div class="bc-menu-body">'
+      + '<button class="sec" id="btnCopiarSel">Copiar bloque</button>'
       + '<button class="sec" id="btnCSV">CSV</button>'
-      + '<button class="sec" id="btnDeshacer" disabled>Deshacer</button>'
-      + '<button class="sec" id="btnInvertir">Invertir</button>'
-      + '<button class="sec" id="btnLimpiarSel">Limpiar selección</button>';
-    var ctx = document.getElementById('barraContextual') || barra;
-    ctx.insertBefore(b, ctx.querySelector('#btnComprar') || null);
+      + '<button class="sec" id="btnDeshacer" disabled>Deshacer</button></div></details>'
+      + '<span class="bc-crecer"></span>'
+      + '<button class="prim" id="btnComprar" disabled>Vender</button>'
+      + '<button class="bc-x" id="bcCerrar" title="Deseleccionar (Esc)" aria-label="Deseleccionar">×</button>';
+    ctx.appendChild(b);
     var main = document.querySelector('main');
     if (main && !$('#atajos')) {
       var h = document.createElement('div'); h.id = 'atajos';
@@ -801,8 +870,27 @@
     var t = e.target;
     var tab = t.closest('.tab[data-estado]');
     if (tab) { Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) { x.classList.remove('on'); }); tab.classList.add('on'); ESTADO = tab.dataset.estado; var fe = $('#f_estado'); if (fe) fe.value = ESTADO; PAGINA = 1; SEL.clear(); TODO_FILTRO = false; cargar(); return; }
+    if (t.closest('#btnSaldeadas')) {
+      fetch('/stock/saldeadas?token=' + encodeURIComponent(TOKEN)).then(function (r) { return r.json(); }).then(function (j) {
+        var texto = (j && j.texto) || 'No hay saldeadas disponibles.';
+        abrir('Saldeadas', '<pre id="m_pedido" style="white-space:pre-wrap;font:12.5px/1.45 ui-monospace,Menlo,monospace;max-height:60vh;overflow:auto;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px">' + esc(texto) + '</pre><div style="margin-top:8px"><button class="sec" id="m_copiar">Copiar</button></div>');
+        $('#m_ok').textContent = 'Cerrar'; ACC = cerrar;
+      }).catch(function () { toast('No se pudo cargar saldeadas', 'error'); });
+      return;
+    }
     if (t.closest('#btnDash')) { DASH = !DASH; $('#btnDash').classList.toggle('on', DASH); if (DATOS) pintarKpis(DATOS.kpis || {}); if (DASH) dashboard(); else if ($('#dashBox')) $('#dashBox').style.display = 'none'; return; }
     var p = t.closest('[data-pag]'); if (p && !p.disabled) { PAGINA = Number(p.dataset.pag); cargar(); return; }
+    var oc = t.closest('th[data-col]');
+    if (oc) {
+      var col = oc.dataset.col;
+      var mapa = { bin: 'bin', saldo: 'saldo', precio: 'precio' };
+      if (mapa[col]) {
+        if (col === 'precio') ORDEN = ORDEN === 'precio' ? 'caro' : 'precio';
+        else if (col === 'saldo') ORDEN = ORDEN === 'saldo' ? 'nuevo' : 'saldo';
+        else ORDEN = ORDEN === 'bin' ? 'nuevo' : 'bin';
+        PAGINA = 1; pintarOrden(); cargar(); return;
+      }
+    }
     var v = t.closest('[data-ver]'); if (v) { ver(v.dataset.ver); return; }
     var pd = t.closest('[data-pedir-id]'); if (pd) { pedir(null, pd.dataset.pedirBin); return; }
     var cp = t.closest('[data-copiar]');
@@ -820,14 +908,14 @@
       return;
     }
     if (t.closest('#btnPedirSel')) { var l = ids(); if (!l.length) { toast('Nada seleccionado', 'error'); return; } pedir(l); return; }
-    if (t.closest('#btnSelTodos')) { selTodosFiltro(); return; }
+    if (t.closest('#btnSelTodos') || t.closest('#bcSelTodos')) { selTodosFiltro(); return; }
     if (t.closest('#btnCSV')) { exportar(); return; }
     if (t.closest('#btnDeshacer')) { deshacer(); return; }
     if (t.closest('#btnInvertir')) {
       (DATOS && DATOS.filas || []).forEach(function (f) { var id = String(f.id); if (SEL.has(id)) SEL.delete(id); else SEL.add(id); });
       TODO_FILTRO = false; pintarTabla(); return;
     }
-    if (t.closest('#btnLimpiarSel')) { SEL.clear(); TODO_FILTRO = false; pintarTabla(); return; }
+    if (t.closest('#btnLimpiarSel') || t.closest('#bcCerrar')) { SEL.clear(); TODO_FILTRO = false; pintarTabla(); return; }
     if (t.closest('#btnBuscar')) { PAGINA = 1; cargar(); return; }
     if (t.closest('#btnGuardarFiltro')) { guardarFiltro(); return; }
     if (t.closest('#btnCargarFiltro')) { cargarFiltro(); return; }
@@ -839,6 +927,11 @@
       comprar(); return;
     }
     if (t.closest('#revPubAll')) { selTodosFiltro().then(function () { setTimeout(function () { mutar('publicar', {}, { estado: function () { return 'REVISION'; } }); }, 80); }); return; }
+    if (t.closest('#revIr')) { irRevision(); return; }
+    if (t.closest('#vacRevision')) { irRevision(); return; }
+    if (t.closest('#vacPrecio')) { precioPorBin(); return; }
+    if (t.closest('#vacBorradas')) { verBorradas(); return; }
+    if (t.closest('#vacLimpiarFiltros')) { limpiar(); return; }
     if (t.closest('#revPriceBin') || t.closest('#spPrecioBin')) { precioPorBin(); return; }
     if (t.closest('#spVer')) { alternarSinPrecio(); return; }
     if (t.closest('#borrRestaurarTodas')) { e.preventDefault(); restaurarTodas(); return; }
@@ -1117,14 +1210,20 @@
         var reac = $('#cc_reactivar');
         var r = await post('/cc/confirmar', { texto: texto(), nombre: $('#cc_nombre').value, reactivar: !!(reac && reac.checked) });
         if (r.error) { $('#cc_info').textContent = 'error: ' + r.error; return; }
-        pintarC(r, true); $('#cc_info').textContent = 'confirmado: ' + r.nuevas + ' cargadas';
+        pintarC(r, true);
+        var quedan = Number(r.nuevas || 0) + Number(r.reactivadas_count || 0);
+        $('#cc_info').innerHTML = quedan
+          ? '✅ ' + quedan + ' cargadas en <b>Revisión</b> (todavía no se venden). <button class="prim" id="cc_irRevision">Ir a Revisión y publicar</button>'
+          : 'confirmado: ' + Number(r.nuevas || 0) + ' cargadas';
         $('#cc_confirmar').disabled = true;
+        cargar();
       } catch (e) { $('#cc_info').textContent = 'error de red'; }
     }
     document.addEventListener('click', function (e) {
       if (e.target.id === 'btnCargar') { var on = box.style.display === 'none' || !box.style.display; mostrar(on); e.target.classList.toggle('on', on); return; }
       if (e.target.id === 'cc_analizar') { analizar(); return; }
       if (e.target.id === 'cc_confirmar') { confirmar(); return; }
+      if (e.target.id === 'cc_irRevision') { irRevision(); return; }
     });
     document.addEventListener('change', function (e) {
       if (e.target.id === 'cc_reactivar') { var n = Number(e.target.dataset.nuevas || 0); $('#cc_confirmar').disabled = !(n > 0 || e.target.checked); return; }
@@ -1224,6 +1323,7 @@
   initFiltros();
   initColumnas();
   barraAcciones();
+  window.addEventListener('resize', function () { actualizarBarraContextual(); });
   montarMovs();
   montarCargar();
   montarTema();

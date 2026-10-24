@@ -55,6 +55,10 @@ tr:hover td{background:rgba(59,130,246,.06)}
 .caja h3{margin:0 0 12px}
 .aviso{margin-top:10px;font-size:12.5px;color:var(--dim)}
 .vacio{padding:26px;text-align:center;color:var(--dim)}
+.vacio-acciones{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+th[data-col="bin"],th[data-col="saldo"],th[data-col="precio"]{user-select:none}
+th.orden-asc::after{content:" ▲";font-size:9px;opacity:.6}
+th.orden-desc::after{content:" ▼";font-size:9px;opacity:.6}
 </style><link rel="stylesheet" href="/panel/tema.css">
 <link rel="stylesheet" href="/panel/panel.css">
 </head>
@@ -75,6 +79,7 @@ tr:hover td{background:rgba(59,130,246,.06)}
       <button class="tab nav-link" data-estado="REVISION"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-clock"></use></svg> Revisión</button>
       <button class="tab nav-link" data-estado="PAPELERA"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-trash"></use></svg> Papelera</button>
       <div class="nav-label">Herramientas</div>
+      <button class="tab nav-link" id="btnSaldeadas"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-coin"></use></svg> Saldeadas</button>
       <button class="tab nav-link" id="btnDash"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-chart-pie"></use></svg> Dashboard</button>
       <a class="tab nav-link" href="/panel/admin.html"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-settings"></use></svg> Administración</a>
     </nav>
@@ -171,26 +176,21 @@ tr:hover td{background:rgba(59,130,246,.06)}
       </div>
     </details>
     <div class="crecer"></div>
-    <span class="sel" id="info"></span>
+    <span class="sel" id="info" aria-live="polite"></span>
   </div>
   <div class="tabla-wrap">
-  <table class="table table-vcenter table-sm table-striped card-table">
+  <table class="table table-vcenter table-sm table-striped card-table" aria-label="Tarjetas del filtro actual">
     <thead><tr>
-      <th style="width:34px"><input type="checkbox" id="chkTodos" aria-label="Seleccionar todas las filas de la página"></th>
-      <th data-col="bin">BIN / Banco</th><th data-col="marca">Red</th><th data-col="tipo">Tipo</th><th data-col="exp">EXP</th>
-      <th data-col="pais">Pais</th><th data-col="zip">ZIP</th><th data-col="datos">Datos</th><th data-col="base">Base</th>
-      <th data-col="refund">Refund</th><th data-col="estado">Estado</th><th data-col="saldo">Saldo</th><th data-col="precio">1 pago</th><th data-col="cuotas">en cuotas</th><th></th>
+      <th scope="col" style="width:34px"><input type="checkbox" id="chkTodos" aria-label="Seleccionar todas las filas de la página"></th>
+      <th scope="col" data-col="bin">BIN / Banco</th><th scope="col" data-col="marca">Red</th><th scope="col" data-col="tipo">Tipo</th><th scope="col" data-col="exp">EXP</th>
+      <th scope="col" data-col="pais">Pais</th><th scope="col" data-col="zip">ZIP</th><th scope="col" data-col="datos">Datos</th><th scope="col" data-col="base">Base</th>
+      <th scope="col" data-col="refund">Refund</th><th scope="col" data-col="estado">Estado</th><th scope="col" data-col="saldo">Saldo</th><th scope="col" data-col="precio">1 pago</th><th scope="col" data-col="cuotas">en cuotas</th><th scope="col"></th>
     </tr></thead>
     <tbody id="cuerpo"></tbody>
   </table>
   </div>
   <div class="pag" id="pag"></div>
-  <div class="barra-contextual" id="barraContextual" hidden>
-    <span class="sel" id="sel">0 seleccionadas</span>
-    <div class="crecer"></div>
-    <button class="sec" id="btnCopiarSel">Copiar bloque</button>
-    <button class="prim" id="btnComprar" disabled>Comprar seleccionadas</button>
-  </div>
+  <div class="barra-contextual" id="barraContextual" hidden></div>
 </main>
   </div>
 </div>

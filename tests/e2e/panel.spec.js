@@ -58,6 +58,13 @@ async function confirmarSwal(page) {
   await page.locator('.swal2-confirm').click();
 }
 
+/* Abre el menú desplegable de la barra contextual que contiene el botón. */
+async function abrirMenu(page, idBoton) {
+  const det = page.locator('#barraAcciones .bc-menu', { has: page.locator(idBoton) });
+  const abierto = await det.evaluate((d) => d.open).catch(() => false);
+  if (!abierto) await det.locator('summary').click();
+}
+
 test('carga de las cinco pestañas con el total del fixture', async ({ page }) => {
   await abrirPanel(page);
 
@@ -278,9 +285,10 @@ test('selección con rango, invertir y limpiar', async ({ page }) => {
   await page.locator('#cuerpo tr').nth(0).locator('input[data-id]').click();
   await page.locator('#cuerpo tr').nth(3).locator('input[data-id]').click({ modifiers: ['Shift'] });
   await expect(page.locator('#sel')).toHaveText('4 seleccionadas');
+  await abrirMenu(page, '#btnInvertir');
   await page.click('#btnInvertir');
   await expect(page.locator('#sel')).toHaveText('4 seleccionadas');
-  await page.click('#btnLimpiarSel');
+  await page.click('#bcCerrar');
   await expect(page.locator('#sel')).toHaveText('0 seleccionadas');
 });
 
@@ -316,6 +324,7 @@ test('estado de filtros y pestaña sobrevive al refresh', async ({ page }) => {
 test('precio masivo con preview y confirmación', async ({ page }) => {
   await abrirPanel(page);
   await marcarFila(page, 0);
+  await abrirMenu(page, '#btnPrecioMasivo');
   await page.click('#btnPrecioMasivo');
   await page.fill('#pm_p1', '7777');
   await page.locator('.swal2-confirm').click();
@@ -324,6 +333,18 @@ test('precio masivo con preview y confirmación', async ({ page }) => {
   await page.locator('.swal2-confirm').click();
   await expect(page.locator('.toastify')).toContainText('Precios aplicados');
   await expect(page.locator('#cuerpo tr').first().locator('[data-edit="precio_num"]')).toContainText('7.777');
+});
+
+test('saldeadas: web y server devuelven el mismo texto', async ({ page }) => {
+  await abrirPanel(page);
+  await page.click('#btnSaldeadas');
+  await expect(page.locator('#m_pedido')).toContainText('Saldeadas');
+  await expect(page.locator('#m_pedido')).toContainText('120000/150000');
+  const enModal = await page.locator('#m_pedido').textContent();
+  const token = process.env.E2E_TOKEN || '';
+  const delServer = await page.evaluate(async (t) => (await (await fetch('/stock/saldeadas?token=' + encodeURIComponent(t))).json()).texto, token);
+  expect(enModal.trim()).toBe(delServer.trim());
+  await page.click('#m_cancelar');
 });
 
 test('copiar PAN por fila y bloque por selección', async ({ page, context }) => {
@@ -338,6 +359,7 @@ test('copiar PAN por fila y bloque por selección', async ({ page, context }) =>
 
   await marcarFila(page, 0);
   await marcarFila(page, 1);
+  await abrirMenu(page, '#btnCopiarSel');
   await page.click('#btnCopiarSel');
   const bloque = await page.evaluate(() => navigator.clipboard.readText());
   expect(bloque.split('\n').length).toBe(2);
@@ -347,6 +369,7 @@ test('formulario de saldo con SweetAlert2 (sin prompt nativo)', async ({ page })
   await abrirPanel(page);
 
   await marcarFila(page, 0);
+  await abrirMenu(page, '#btnSaldo');
   await page.click('#btnSaldo');
   await expect(page.locator('#sw_saldo_disp')).toBeVisible();
   await page.fill('#sw_saldo_disp', '777');
@@ -399,6 +422,7 @@ test('publicar desde Revisión y deshacer', async ({ page }) => {
 
   await irATab(page, 'DISPONIBLE', TOTALES.DISPONIBLE + 2);
 
+  await page.locator('#barraAcciones .bc-menu').last().locator('summary').click(); // menú Más
   await page.click('#btnDeshacer');
   await esperarTotal(page, TOTALES.DISPONIBLE);
 
@@ -409,6 +433,7 @@ test('exportar CSV con el encabezado esperado', async ({ page }) => {
   await abrirPanel(page);
   await marcarFila(page, 0);
 
+  await abrirMenu(page, '#btnCSV');
   const [descarga] = await Promise.all([
     page.waitForEvent('download'),
     page.click('#btnCSV'),
@@ -452,7 +477,7 @@ test('responsive 390/820/1440 sin scroll horizontal y acciones alcanzables', asy
     }
 
     await marcarFila(page, 0);
-    for (const sel of ['#btnComprar', '#btnSelTodos', '#btnPedirSel', '#btnCSV']) {
+    for (const sel of ['#btnComprar', '#btnSelTodos', '#btnPedirSel']) {
       const el = page.locator(sel);
       await expect(el, sel + ' a ' + ancho + 'px').toBeVisible();
       await el.scrollIntoViewIfNeeded();
@@ -461,6 +486,10 @@ test('responsive 390/820/1440 sin scroll horizontal y acciones alcanzables', asy
       expect(caja.x).toBeGreaterThanOrEqual(0);
       expect(caja.x + caja.width).toBeLessThanOrEqual(ancho + 1);
     }
+    // CSV vive dentro del menú "Más": lo abrimos y verificamos.
+    await page.locator('#barraAcciones .bc-menu').last().locator('summary').click();
+    await expect(page.locator('#btnCSV')).toBeVisible();
+    await page.keyboard.press('Escape');
   }
 });
 
