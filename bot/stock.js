@@ -131,6 +131,29 @@ async function cmdSaldeadas(chat, args) {
   else await enviarDoc(chat, 'saldeadas-' + fechaArchivo() + '.txt', texto + '\n', 'Saldeadas');
 }
 
+/* /pedir N — envía la tarjeta N (igual que /saldeadas) completa y la marca VENDIDA. */
+async function cmdPedir(chat, args, quien) {
+  const primero = String((args || [])[0] || '').trim();
+  /* /pedir sin número (o "saldeadas"): lista como /saldeadas. */
+  if (!/^\d+$/.test(primero)) return cmdSaldeadas(chat, args);
+  const n = Number(primero);
+  if (!Number.isFinite(n) || n < 1) { await enviar(chat, 'Uso: /pedir <numero>  (mirá la lista con /saldeadas)'); return; }
+  const j = await pedir('/stock/pedir', {}, { n: String(n), usuario: quien, chat_id: String(chat), comprador: '' });
+  if (j && j.error === 'no_encontrada') { await enviar(chat, 'No existe la #' + n + '. Mirá /saldeadas.'); return; }
+  if (j && j.error) { await enviar(chat, 'No se pudo pedir la #' + n + ': ' + esc(j.error)); return; }
+  await enviarDoc(chat, 'tarjeta-' + n + '.txt', (j.bloque || '') + '\n', 'Venta ' + (j.codigo || ''));
+  await enviar(chat, '✅ #' + n + ' enviada y marcada VENDIDA' + (j.codigo ? ' (' + esc(j.codigo) + ')' : '') + '.\nSi el cliente se queja: /revisar ' + n);
+}
+
+/* /revisar N — el cliente se quejó: la saca de la venta y la manda a REVISION. */
+async function cmdRevisar(chat, args, quien) {
+  const n = Number((args || [])[0]);
+  if (!Number.isFinite(n) || n < 1) { await enviar(chat, 'Uso: /revisar <numero>'); return; }
+  const j = await pedir('/stock/revisar', {}, { n: String(n), usuario: quien, chat_id: String(chat) });
+  if (j && j.error) { await enviar(chat, 'No se pudo enviar la #' + n + ' a revisión: ' + esc(j.error)); return; }
+  await enviar(chat, '🔎 #' + n + ' enviada a REVISION (salida de la venta). La revisás en la web.');
+}
+
 async function cmdFull(chat) {
   const j = await pedir('/stock/listado', { refs: '1' });
   if (!j.texto) { await enviar(chat, 'No hay CC disponibles.'); return; }
@@ -282,7 +305,7 @@ async function cmdBinInfo(chat, args) {
   await enviarPre(chat, lineas.join('\n'));
 }
 
-const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas']);
+const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar']);
 
 /* === atajos === */
 const ALIAS = {
@@ -291,6 +314,7 @@ const ALIAS = {
   al: 'alertas', st: 'stats', et: 'etiqueta', sa: 'saldo', bi: 'bininfo',
   re: 'reentrega', ca: 'cargar', f: 'full', ex: 'exportar',
   sal: 'saldeadas', sd: 'saldeadas',
+  q: 'pedir', pd: 'pedir', rv: 'revisar', dead: 'revisar', queja: 'revisar',
 };
 COMANDOS.add('cotizar');
 COMANDOS.add('venta');
@@ -336,6 +360,8 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'cotizar') await cmdCotizar(chatId, args);
     else if (c === 'full') await cmdFull(chatId);
     else if (c === 'saldeadas') await cmdSaldeadas(chatId, args);
+    else if (c === 'pedir') await cmdPedir(chatId, args, quien);
+    else if (c === 'revisar') await cmdRevisar(chatId, args, quien);
     else if (c === 'cc') await cmdCc(chatId, args);
     else if (c === 'movs') await cmdMovs(chatId, args);
     else if (c === 'vender') await cmdVenderConBoton(chatId, args, quien);

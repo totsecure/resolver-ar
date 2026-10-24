@@ -109,7 +109,8 @@ try {
 d.prepare("UPDATE usuarios SET totp_secret=?, totp_activo=1, totp_pendiente=NULL WHERE usuario='e2e-admin'")
   .run('JBSWY3DPEHPK3PXP');
 
-d.prepare("UPDATE cc SET etiqueta='Saldeadas' WHERE titular='E2E-01'").run();
+/* Saldeadas del fixture: varias para probar /saldeadas y /pedir N sin agotarlas. */
+d.prepare("UPDATE cc SET etiqueta='Saldeadas' WHERE titular IN ('E2E-01','E2E-02','E2E-03')").run();
 
 /* Vencimientos para los tests de A2. */
 d.prepare("UPDATE cc SET dias_para_vencer=20, vencida=0 WHERE titular='E2E-05'").run();

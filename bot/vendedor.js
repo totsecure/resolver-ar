@@ -13,7 +13,7 @@ function log(msg) {
   try { fs.appendFileSync(RUTA_LOG, new Date().toISOString() + ' vendedor ' + msg + '\n'); } catch (_) {}
 }
 
-const CMD = new Set(['stock', 'bin', 'pedir', 'mis', 'saldo', 'pagar', 'datos', 'ok', 'falla', 'chk', 'recargar', 'recuperar', 'ayuda', 'start', 'help', 'comandos', 'desvincular']);
+const CMD = new Set(['stock', 'bin', 'pedir', 'revisar', 'mis', 'saldo', 'pagar', 'datos', 'ok', 'falla', 'chk', 'recargar', 'recuperar', 'ayuda', 'start', 'help', 'comandos', 'desvincular']);
 
 export function esVendedorChat(chatId) {
   try { return vb.esVendedor(chatId); } catch (_) { return false; }
@@ -59,18 +59,37 @@ export async function manejarVendedor(chatId, cmd, args, payload, ctx) {
   }
 
   /* /pedir <bin|saldeadas|base> es un listado (sin precio), igual en web y bot.
-   * /pedir <bin> <n> conserva la reserva directa del flujo anterior. */
-  if (c === 'pedir' && !(args[1] && /^\d+$/.test(args[1]))) {
-    const filtro = args[0] || 'base';
-    const r = pedidoTexto({ filtro });
-    for (const pagina of r.paginas) {
-      await ctx.enviar(chatId, '<pre>' + ctx.escapeHtml(pagina) + '</pre>');
+   * /pedir <bin> <n> conserva la reserva directa del flujo anterior.
+   * Para un chat NO vendedor (admin), /pedir <n> lo maneja manejarStock:
+   * envía la #n de la lista de saldeadas y la marca VENDIDA. */
+  const vinculado = vinculacion.vinculadoA(chatId);
+  const esVend = vinculado && vinculado.rol === 'vendedor';
+  /* /pedir, dos usos:
+   *  - listado: /pedir [bin|saldeadas|base]  -> lo resuelve acá (web y bot iguales)
+   *  - admin:   /pedir <n>                   -> manejarStock envía la #n y vende
+   * Un vendedor con /pedir <bin> <n> reserva (flujo histórico). */
+  const arg0 = args[0] != null ? String(args[0]) : '';
+  const arg1 = args[1] != null ? String(args[1]) : '';
+  const esBin = /^\d{5,8}$/.test(arg0);
+  const esNumeroSuelto = /^\d{1,4}$/.test(arg0) && !/^\d+$/.test(arg1);
+
+  if (c === 'pedir') {
+    if (arg0 === '' || /^(saldeadas|base)$/i.test(arg0) || esBin) {
+      const filtro = arg0 || 'base';
+      const r = pedidoTexto({ filtro });
+      for (const pagina of r.paginas) {
+        await ctx.enviar(chatId, '<pre>' + ctx.escapeHtml(pagina) + '</pre>');
+      }
+      if (r.n === 0 && esBin && esVend) vb.suscribirStock(chatId, filtro);
+      return true;
     }
-    if (r.n === 0 && /^\d{6,8}$/.test(filtro)) vb.suscribirStock(chatId, filtro);
-    return true;
+    /* arg0 es número corto (1..4 dígitos): posición de saldeada.
+     * Vendedor con 2do arg numérico sigue siendo reserva -> cae abajo. */
+    if (esNumeroSuelto && !esVend) return false; /* lo maneja manejarStock */
+    if (esNumeroSuelto && esVend) return false; /* el vendedor también usa posición */
   }
 
-  const u = vinculacion.vinculadoA(chatId);
+  const u = vinculado;
   if (!u || u.rol !== 'vendedor') return false;
 
   if (!CMD.has(c)) {
@@ -86,6 +105,7 @@ export async function manejarVendedor(chatId, cmd, args, payload, ctx) {
     else if (c === 'stock') r = vb.stock(chatId, pagina);
     else if (c === 'bin') r = vb.bin(chatId, args[0], pagina);
     else if (c === 'pedir') r = vb.pedir(chatId, args[0], args[1]);
+    else if (c === 'revisar') r = vb.revisar(chatId, args[0]);
     else if (c === 'mis') r = vb.mis(chatId, pagina);
     else if (c === 'saldo') r = vb.saldo(chatId, pagina);
     else if (c === 'pagar') r = vb.pagar(chatId, args[0]);

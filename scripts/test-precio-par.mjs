@@ -40,8 +40,8 @@ try {
   card('5165850000000002', 2461000, null);
   card('5165850000000003', null, null);
   const txt = pedidoTexto({ filtro: '516585' }).texto;
-  check('pedido par formateado', /· 12m\/23m831k/.test(txt) && /· 2m461k/.test(txt) && txt.includes('51658500xxxx0003'), txt);
-  check('sin saldo en la línea', !/saldo/i.test(txt) && !/· 1500/.test(txt));
+  check('pedido par formateado', /- 12m\/23m831k/.test(txt) && /- 2m461k/.test(txt) && txt.includes('51658500xxxx0003'), txt);
+  check('sin saldo en la línea', !/saldo/i.test(txt) && !/- 1500/.test(txt));
 
   const numCarga = stock.demoNumero('516585', 16);
   const carga = stock.cargar(numCarga + ',12/28,321,Titular Test,30111222,Banco,12000000,23831000', { flexible: true, fase: 'confirmar', lote: 'TEST' });

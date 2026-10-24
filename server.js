@@ -581,8 +581,9 @@ import {
   setSaldo as sSetSaldo, setEtiqueta as sSetEtiqueta, reservar as sReservar,
   expirarReservas as sExpirar, stats as sStats, alertas as sAlertas, precios as sPrecios,
   setPrecio as sSetPrecio, porCodigo as sPorCodigo, exportar as sExportar,
-  purgar as sPurgar, backup as sBackup, saldeadas as sSaldeadas,
+  purgar as sPurgar, backup as sBackup, saldeadas as sSaldeadas, bloqueDe as sBloqueDe, revisar as sRevisar,
 } from './lib/stock.js';
+import { saldeadasLista, saldeadaPorNumero } from './lib/pedido.js';
 import { lookup as binLookup } from './lib/bininfo.js';
 
 const qs = (req, k, d) => (typeof req.query[k] === 'string' ? req.query[k] : d);
@@ -1265,6 +1266,36 @@ app.get('/stock/saldeadas', soloLectura, async (req, res) => {
   try { res.json(await sSaldeadas({ todo: qs(req, 'todo') === '1' })); }
   catch (e) { res.status(500).json({ error: String(e?.message || e) }); }
 });
+/* Saldeada por número de posición (mismo número que muestra /saldeadas). */
+app.get('/stock/saldeada/:n', soloLectura, (req, res) => {
+  const item = saldeadaPorNumero(num(req.params.n, 0));
+  if (!item) return res.status(404).json({ error: 'no_encontrada', n: num(req.params.n, 0) });
+  const cc = sBuscar(String(item.ref != null ? item.ref : item.id))[0] || null;
+  res.json({ ok: true, n: item.n, item, bloque: cc ? sBloqueDe(cc, item.n) : null, cc: cc ? publico(cc) : null });
+});
+/* Pedir la N: la envía y la marca VENDIDA (sale de la lista). */
+app.post('/stock/pedir', soloLectura, (req, res) => {
+  const n = num(qs(req, 'n'), 0);
+  const item = saldeadaPorNumero(n);
+  if (!item) return res.status(404).json({ error: 'no_encontrada', n });
+  const r = sVender({ refs: [String(item.numero)], usuario: qs(req, 'usuario'), chat_id: qs(req, 'chat_id'), comprador: qs(req, 'comprador') });
+  if (!r.codigo || !r.ccs.length) return res.status(409).json({ error: 'no_vendible', n });
+  const bloque = sBloqueDe(r.ccs[0], n);
+  res.json({ ok: true, n, codigo: r.codigo, bloque });
+});
+/* Si el cliente se queja: saca la CC (por posición N, ref o últimos dígitos) y
+ * la manda a REVISION para revisarla a mano. */
+app.post('/stock/revisar', soloLectura, (req, res) => {
+  const n = num(qs(req, 'n'), 0);
+  const ref = qs(req, 'ref');
+  let ccs = [];
+  if (n) { const item = saldeadaPorNumero(n); if (item) ccs = [sBuscar(String(item.numero))[0]].filter(Boolean); }
+  else if (ref) ccs = sBuscar(String(ref));
+  if (!ccs.length) return res.status(404).json({ error: 'no_encontrada' });
+  const refs = ccs.map((c) => c.numero);
+  const hechas = sRevisar(refs, qs(req, 'usuario'), qs(req, 'chat_id'));
+  res.json({ ok: true, n: hechas.length });
+});
 app.get('/stock/stats', soloLectura, envolver(() => sStats()));
 app.get('/stock/alertas', soloLectura, envolver((req) => ({ alertas: sAlertas(num(qs(req, 'umbral', 2), 2)) })));
 app.get('/stock/bin/:bin', soloLectura, envolver((req) => ({ bin: req.params.bin, texto: sListarBin(req.params.bin, { refs: true }) })));
@@ -1275,7 +1306,7 @@ app.get('/stock/porcodigo/:codigo', soloLectura, envolver((req) => ({ ccs: sPorC
 app.get('/stock/precios', soloLectura, envolver(() => ({ precios: sPrecios() })));
 app.get('/stock/precio', soloLectura, envolver((req) => sSetPrecio(qs(req, 'bin'), num(qs(req, 'valor', 0), 0), qs(req, 'moneda'))));
 app.get('/stock/cargar', soloLectura, envolver((req) => sCargar(qs(req, 'texto', ''), { ...quien(req), etiqueta: qs(req, 'etiqueta') })));
-app.post('/stock/cargar', soloLectura, envolver((req) => sCargar(String(req.body?.texto || qs(req, 'texto', '')), { ...quien(req), etiqueta: qs(req, 'etiqueta') })));
+app.post('/stock/cargar', soloLectura, envolver((req) => sCargar(String(req.body?.texto || qs(req, 'texto', '')), { ...quien(req), etiqueta: qs(req, 'etiqueta'), flexible: true })));
 app.get('/stock/vender', soloLectura, envolver((req) => sVender({ ...quien(req), bin: qs(req, 'bin'), cantidad: num(qs(req, 'cantidad', 1), 1), modo: qs(req, 'modo'), refs: refsDe(qs(req, 'refs')), comprador: qs(req, 'comprador'), codigo: qs(req, 'codigo') })));
 app.get('/stock/entrega', soloLectura, envolver((req) => {
   const r = sEntrega({ ...quien(req), bin: qs(req, 'bin'), cantidad: num(qs(req, 'cantidad', 1), 1), modo: qs(req, 'modo'), refs: refsDe(qs(req, 'refs')), comprador: qs(req, 'comprador'), formato: qs(req, 'formato'), desde: num(qs(req, 'desde', 1), 1), saltar: num(qs(req, 'saltar', 0), 0) });
