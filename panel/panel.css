@@ -166,3 +166,7 @@ html{scrollbar-gutter:stable}
   .acciones-menu{position:static;margin-top:6px;box-shadow:none}
   .acciones{width:100%;display:flex;justify-content:flex-end}
 }
+.txt-bad{color:var(--bad)}
+.txt-warn{color:var(--warn)}
+.estado-vencida{background:rgba(239,68,68,.16);color:#b91c1c;border-color:rgba(239,68,68,.4)}
+td.mono.vencida{color:var(--bad);font-weight:700}

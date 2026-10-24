@@ -23,6 +23,12 @@
     etiqueta: 'Etiqueta actualizada', saldo: 'Saldo actualizado', borrar: 'A la papelera',
     restaurar: 'Restauradas', borrarDef: 'Borradas', estado: 'Estado actualizado',
   };
+  function copiar(texto, msg) {
+    if (!texto) { toast('No hay datos para copiar', 'error'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(function () { toast(msg || 'Copiado'); }).catch(function () { toast('No se pudo copiar', 'error'); });
+    } else { toast('No se pudo copiar', 'error'); }
+  }
   function toast(msg, tipo) {
     if (window.Toastify) {
       Toastify({
@@ -78,7 +84,7 @@
   /* ---------- filtros ---------- */
   function filtros() {
     var f = { estado: txt('f_estado') || ESTADO, pagina: PAGINA, por: POR };
-    var m = [['bins','f_bins'],['bin_desde','f_bin_desde'],['bin_hasta','f_bin_hasta'],['paises','f_paises'],['bancos','f_bancos'],['redes','f_redes'],['tipos','f_tipos'],['etiquetas','f_etiquetas'],['saldo_min','f_saldmin'],['saldo_max','f_saldmax'],['pmin','f_pmin'],['pmax','f_pmax'],['q','f_q']];
+    var m = [['bins','f_bins'],['bin_desde','f_bin_desde'],['bin_hasta','f_bin_hasta'],['paises','f_paises'],['bancos','f_bancos'],['redes','f_redes'],['tipos','f_tipos'],['etiquetas','f_etiquetas'],['venc','f_venc'],['niveles','f_niveles'],['saldo_min','f_saldmin'],['saldo_max','f_saldmax'],['pmin','f_pmin'],['pmax','f_pmax'],['q','f_q']];
     for (var i = 0; i < m.length; i++) { var v = txt(m[i][1]); if (v) f[m[i][0]] = v; }
     if ($('#f_saldeadas') && $('#f_saldeadas').checked) f.saldeadas = '1';
     if (SIN_PRECIO) f.sin_precio = '1';
@@ -87,7 +93,8 @@
 
   function pintarKpis(k) {
     var c = $('#kpis'); if (!c) return;
-    var it = [['Disponibles', k.disponible], ['Vendidas', k.vendidas], ['Saldo', num(k.saldoTotal)], ['Sin precio', k.sinPrecio]];
+    var it = [['Disponibles', k.disponible], ['Vendidas', k.vendidas], ['Sin precio', k.sinPrecio]];
+    if (Number(k.saldoTotal || 0) !== 0) it.splice(2, 0, ['Saldo', num(k.saldoTotal)]);
     if (DASH) { it.push(['Ventas', k.ventas == null ? '-' : k.ventas], ['Alertas', (k.alertas || []).length]); paresEstado(k).forEach(function (p) { it.push([p[0], p[1]]); }); }
     c.innerHTML = it.map(function (x) { return '<span>' + esc(x[0]) + ' <b>' + esc(x[1]) + '</b></span>'; }).join('');
   }
@@ -103,6 +110,7 @@
     llenar('f_redes', fac.redes, 'Todas');
     llenar('f_tipos', fac.tipos, 'Todos');
     llenar('f_etiquetas', fac.etiquetas, 'Todas');
+    llenar('f_niveles', fac.niveles, 'Todos');
     ['f_paises', 'f_bancos', 'f_redes', 'f_tipos', 'f_etiquetas'].forEach(function (id) {
       var el = $('#' + id);
       if (el && el.tomselect) { try { el.tomselect.sync(); } catch (_) {} }
@@ -112,8 +120,10 @@
     if ($('#f_pmax') && !$('#f_pmax').value && pr.max != null) $('#f_pmax').placeholder = pr.max;
   }
   function iconos(ft) {
-    var d = [['holder','T'],['address','D'],['zip','Z'],['phone','P'],['email','E']];
-    return '<span class="icons">' + d.map(function (x) { return '<span class="' + (ft[x[0]] ? 'si' : '') + '">' + x[1] + '</span>'; }).join('') + '</span>';
+    var d = [['holder','T','Titular'],['address','D','Dirección'],['zip','Z','ZIP'],['phone','P','Teléfono'],['email','E','Email']];
+    return '<span class="icons">' + d.map(function (x) {
+      return '<span class="' + (ft[x[0]] ? 'si' : '') + '" title="' + x[2] + (ft[x[0]] ? ': sí' : ': no') + '">' + x[1] + '</span>';
+    }).join('') + '</span>';
   }
 
   /* ---------- tabla (seleccion por ID) ---------- */
@@ -121,25 +131,27 @@
     var on = SEL.has(String(f.id)) ? ' class="sel"' : '';
     var m = String(f.marca || '').toLowerCase();
     var cls = m.indexOf('visa') >= 0 ? 'visa' : (m.indexOf('master') >= 0 ? 'master' : '');
-    var falta = f.sin_precio ? ' style="color:var(--warn)"' : '';
+    var falta = f.sin_precio ? ' style="color:var(--dim)"' : '';
     return '<tr' + on + '>'
       + '<td data-label=""><input type="checkbox" data-id="' + esc(f.id) + '" aria-label="Seleccionar tarjeta ref ' + esc(f.ref) + '"' + (SEL.has(String(f.id)) ? ' checked' : '') + '></td>'
-      + '<td data-label="BIN / Banco"><div class="bin mono">' + esc(f.bin) + '</div><div class="sub">' + esc(f.banco || '-') + '</div></td>'
+      + '<td data-label="BIN / Banco"><div class="bin mono">' + esc(f.bin) + '</div><div class="sub">' + esc(f.banco || '-') + (f.nivel ? ' · ' + esc(f.nivel) : '') + '</div></td>'
       + '<td data-label="Red"><span class="badge ' + cls + '">' + esc(f.marca || '-') + '</span></td>'
       + '<td data-label="Tipo">' + esc(f.tipo || '-') + '</td>'
-      + '<td data-label="EXP" class="mono">' + esc(f.exp || '') + '</td>'
+      + '<td data-label="EXP" class="mono' + (f.vencida ? ' vencida' : '') + '">' + esc(f.exp || '') + (f.vencida ? ' ⚠' : '') + '</td>'
       + '<td data-label="País">' + esc(f.pais || '-') + '</td>'
       + '<td data-label="ZIP" class="mono">' + esc(f.zip || '-') + '</td>'
       + '<td data-label="Datos">' + iconos(f.features || {}) + '</td>'
       + '<td data-label="Base">' + esc(f.etiqueta || '-') + '</td>'
       + '<td data-label="Refund">' + (f.refund ? 'SI' : 'NO') + '</td>'
-      + '<td data-label="Estado"><span class="badge-estado estado-' + esc(String(f.estado || ESTADO).toLowerCase()) + '">' + esc(f.estado || ESTADO) + '</span></td>'
+      + '<td data-label="Estado"><span class="badge-estado estado-' + esc(String(f.estado || ESTADO).toLowerCase()) + '">' + esc(f.estado || ESTADO) + '</span>' + (f.vencida ? ' <span class="badge-estado estado-vencida">VENCIDA</span>' : '') + (f.sin_precio ? ' <span class="badge-estado estado-revision">SIN PRECIO</span>' : '') + '</td>'
       + '<td data-label="Saldo" class="mono saldo">' + esc(f.saldo || '-') + '</td>'
       + '<td data-label="1 pago" class="precio"' + falta + '>' + (f.precio == null ? '-' : esc(num(f.precio))) + '</td>'
       + '<td data-label="En cuotas" class="precio"' + falta + '>' + esc(f.precio_cuotas == null ? '-' : num(f.precio_cuotas)) + '</td>'
       + '<td data-label="" class="acciones-td"><details class="acciones"><summary aria-label="Acciones"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-dots-vertical"></use></svg></summary>'
       + '<div class="acciones-menu"><button class="sec" data-ver="' + esc(f.id) + '">Ver</button>'
-      + '<button class="sec" data-pedir-id="' + esc(f.id) + '" data-pedir-bin="' + esc(f.bin) + '">Pedir</button></div></details></td>'
+      + '<button class="sec" data-pedir-id="' + esc(f.id) + '" data-pedir-bin="' + esc(f.bin) + '">Pedir</button>'
+      + '<button class="sec" data-copiar="pan" data-id="' + esc(f.id) + '">Copiar PAN</button>'
+      + '<button class="sec" data-copiar="linea" data-id="' + esc(f.id) + '">Copiar línea</button></div></details></td>'
       + '</tr>';
   }
   function pintarTabla() {
@@ -156,6 +168,7 @@
   function pintarPag(d) {
     var p = $('#pag'); if (!p) return;
     var pg = Math.max(1, Math.ceil((d.total || 0) / (d.por || POR)));
+    p.style.display = pg > 1 ? '' : 'none';
     p.innerHTML = '<button class="sec" data-pag="' + (d.pagina - 1) + '"' + (d.pagina <= 1 ? ' disabled' : '') + '>&lt;</button>'
       + '<span>' + d.pagina + ' / ' + pg + '</span>'
       + '<button class="sec" data-pag="' + (d.pagina + 1) + '"' + (d.pagina >= pg ? ' disabled' : '') + '>&gt;</button>';
@@ -177,7 +190,7 @@
     bannerSinPrecio();
     if ($('#dashBox') && $('#dashBox').style.display !== 'none') dashboard();
   }
-  var FILTRO_IDS = ['f_bins','f_bin_desde','f_bin_hasta','f_pmin','f_pmax','f_q','f_paises','f_bancos','f_redes','f_tipos','f_etiquetas','f_saldmin','f_saldmax','f_saldeadas','f_estado'];
+  var FILTRO_IDS = ['f_bins','f_bin_desde','f_bin_hasta','f_pmin','f_pmax','f_q','f_paises','f_bancos','f_redes','f_tipos','f_etiquetas','f_niveles','f_venc','f_saldmin','f_saldmax','f_saldeadas','f_estado'];
   function limpiar() {
     FILTRO_IDS.forEach(function (id) { var e = $('#' + id); if (e) { if (e.type === 'checkbox') e.checked = false; else e.value = (id === 'f_estado' ? 'DISPONIBLE' : ''); } });
     ESTADO = 'DISPONIBLE'; PAGINA = 1; SEL.clear(); TODO_FILTRO = false; SIN_PRECIO = false; cargar();
@@ -329,10 +342,17 @@
     var main = document.querySelector('main'); if (!main) return;
     var b = $('#sinPrecio');
     if (!b) { b = document.createElement('div'); b.id = 'sinPrecio'; (document.getElementById('bannerSlot') || main).appendChild(b); }
-    var n = (DATOS && DATOS.kpis && DATOS.kpis.sinPrecio) || 0;
-    if (ESTADO === 'DISPONIBLE' && n > 0) {
+    var k = (DATOS && DATOS.kpis) || {};
+    var n = k.sinPrecio || 0;
+    var venc = k.vencidas || 0;
+    var porVencer = k.porVencer || 0;
+    if (ESTADO === 'DISPONIBLE' && (n > 0 || venc > 0 || porVencer > 0)) {
       b.style.display = 'block';
-      b.innerHTML = '<b>' + n + '</b> publicada(s) SIN PRECIO: no salen en Market ni en el bot. <button class="sec" id="spPrecioBin">Preciar por BIN</button> <button class="sec" id="spVer">' + (SIN_PRECIO ? 'Ver todas' : 'Ver sin precio') + '</button>';
+      var partes = [];
+      if (n > 0) partes.push('<b>' + n + '</b> ' + (n === 1 ? 'publicada' : 'publicadas') + ' SIN PRECIO: no salen en Market ni en el bot.');
+      if (venc > 0) partes.push('<b class="txt-bad">' + venc + '</b> ' + (venc === 1 ? 'vencida' : 'vencidas') + '.');
+      if (porVencer > 0) partes.push('<b class="txt-warn">' + porVencer + '</b> por vencer en 30 días.');
+      b.innerHTML = partes.join(' ') + (n > 0 ? ' <button class="sec" id="spPrecioBin">Preciar por BIN</button> <button class="sec" id="spVer">' + (SIN_PRECIO ? 'Ver todas' : 'Ver sin precio') + '</button>' : '');
     } else b.style.display = 'none';
   }
   function ajustarBotones() {
@@ -520,6 +540,20 @@
     var p = t.closest('[data-pag]'); if (p && !p.disabled) { PAGINA = Number(p.dataset.pag); cargar(); return; }
     var v = t.closest('[data-ver]'); if (v) { ver(v.dataset.ver); return; }
     var pd = t.closest('[data-pedir-id]'); if (pd) { pedir(null, pd.dataset.pedirBin); return; }
+    var cp = t.closest('[data-copiar]');
+    if (cp) {
+      var f = (DATOS && DATOS.filas || []).find(function (x) { return String(x.id) === String(cp.dataset.id); });
+      if (!f) return;
+      copiar(cp.dataset.copiar === 'pan' ? String(f.numero || '') : [f.numero, f.mes, f.anio, f.cvv].join('|'), 'Copiado');
+      return;
+    }
+    if (t.closest('#btnCopiarSel')) {
+      var l = ids(); if (!l.length) { toast('Nada seleccionado', 'error'); return; }
+      var lineas = (DATOS && DATOS.filas || []).filter(function (x) { return SEL.has(String(x.id)); })
+        .map(function (x) { return [x.numero, x.mes, x.anio, x.cvv].join('|'); });
+      copiar(lineas.join('\n'), 'Copiado (' + lineas.length + ')');
+      return;
+    }
     if (t.closest('#btnPedirSel')) { var l = ids(); if (!l.length) { toast('Nada seleccionado', 'error'); return; } pedir(l); return; }
     if (t.closest('#btnSelTodos')) { selTodosFiltro(); return; }
     if (t.closest('#btnCSV')) { exportar(); return; }
@@ -821,7 +855,7 @@
   /* ---------- filtros: Tom Select + colapsable ---------- */
   function initTomSelect() {
     if (!window.TomSelect) return;
-    ['f_paises', 'f_bancos', 'f_redes', 'f_tipos', 'f_etiquetas', 'f_estado'].forEach(function (id) {
+    ['f_paises', 'f_bancos', 'f_redes', 'f_tipos', 'f_etiquetas', 'f_niveles', 'f_venc', 'f_estado'].forEach(function (id) {
       var el = $('#' + id);
       if (!el || el.tomselect) return;
       var lab = document.querySelector('label[for="' + id + '"]');

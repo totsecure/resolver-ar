@@ -521,3 +521,38 @@ Infra de UI:
   + sidebar offcanvas. Suite: **32 E2E**.
 - Lighthouse (desktop 1440): **performance 100 / accessibility 96**; axe-core 0
   violaciones críticas. Capturas en `docs/capturas/antes-*`, `paso1..paso8-*`.
+
+## Mejoras integrales — Fase A y productividad parcial (2026-10-23)
+
+### A1 — BIN local
+- Dataset `binlist-data` (CC BY 4.0, 2026-09-03) importado a **`datos/bins.db`**
+  (archivo nuevo, 454.496 BINs; 3.555 descartados por no tener 6 dígitos).
+  Columnas: bin, marca, tipo, nivel, banco, pais, pais2, moneda, fuente,
+  actualizado. Atribución en `docs/CREDITOS.md`.
+- `lib/bininfo.js`: consulta `bins` primero, cachea en `bininfo` con
+  `fuente='dataset'`; luego cache y recién después red. Se eliminó el `break`
+  prematuro (fusiona fuentes hasta completar), `binlist` quedó último y cada
+  fuente tiene timeout de 4 s. BIN desconocido ⇒ `fuente='sin_datos'` sin cachear.
+- `scripts/importar-bins.mjs` (idempotente) y `scripts/enriquecer-bins.mjs`.
+- Enriquecimiento real: **18/18 BINs** con datos, **57 filas** de `cc`
+  actualizadas (banco, país, tipo y nivel ya no están vacíos).
+- `bins.db` es reproducible y no entra en los backups de stock/padrón.
+
+### A2/A3 — Vencimientos y nivel
+- Filtro `#f_venc` (vencidas, 30/60/90 días) y `#f_niveles`.
+- `lib/panel.js` expone `dias_para_vencer`/`vencida`, filtra por rango y agrega
+  KPIs `vencidas`/`porVencer`.
+- Banner combina sin precio + vencidas + por vencer; fila muestra badge
+  `VENCIDA` y el nivel junto al banco. Fixture E2E con tarjetas vencidas/por vencer.
+- Tests E2E: dataset local (banco/nivel), filtros de vencimiento y nivel, banner.
+
+### B5 y C6 (parcial)
+- **B5 Copiar**: por fila (PAN y `numero|mes|anio|cvv`) y por selección (bloque).
+  Test E2E con clipboard.
+- **C6**: KPI Saldo oculto si es 0; paginación oculta con una sola página; guiones
+  de precios en gris; badge `SIN PRECIO`; tooltips T/Z/P/E; placeholder acortado.
+- Pendiente de Fase B: B1 edición inline, B2 masivo con preview, B3 estado en URL,
+  B4 columnas/densidad, B6 reenvío Telegram, B7 drawer, B8 rango, B9 command
+  palette, B10 movimientos como página, B11 virtualización.
+- Pendiente de Fase C: C1 tokens de paleta completos, C2 wordmark/favicon/manifest,
+  C3 tipografía fina, C4 skeletons.

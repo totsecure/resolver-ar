@@ -37,7 +37,7 @@ const TARJETAS = [
   ['5456520000000008', 'DISPONIBLE', 0, null, null, null, null, '545652', 'Master', 'BBVA', 'AR', 'credito', 'gold'],
   ['4507990000000008', 'DISPONIBLE', 0, null, null, null, null, '450799', 'Visa', 'Santander', 'AR', 'debito', 'classic'],
   ['6011110000000008', 'DISPONIBLE', 0, null, null, null, null, '601111', 'Discover', 'Discover', 'US', 'credito', 'classic'],
-  ['371449000000008', 'DISPONIBLE', 0, null, null, null, null, '371449', 'Amex', 'Amex', 'US', 'credito', 'gold'],
+  ['5164780000000008', 'DISPONIBLE', 0, null, null, null, null, '516478', 'Master', null, null, null, null],
   // REVISION (5) sin precio
   ['4111110000000016', 'REVISION', 0, null, null, null, null, '411111', 'Visa', 'Banco Nacion', 'AR', 'debito', 'classic'],
   ['4111110000000024', 'REVISION', 0, null, null, null, null, '411111', 'Visa', 'Banco Nacion', 'AR', 'debito', 'gold'],
@@ -108,6 +108,11 @@ try {
 }
 d.prepare("UPDATE usuarios SET totp_secret=?, totp_activo=1, totp_pendiente=NULL WHERE usuario='e2e-admin'")
   .run('JBSWY3DPEHPK3PXP');
+
+/* Vencimientos para los tests de A2. */
+d.prepare("UPDATE cc SET dias_para_vencer=20, vencida=0 WHERE titular='E2E-05'").run();
+d.prepare("UPDATE cc SET dias_para_vencer=-5, vencida=1 WHERE titular='E2E-06'").run();
+d.prepare("UPDATE cc SET dias_para_vencer=75, vencida=0 WHERE titular='E2E-07'").run();
 
 const porEstado = d.prepare('SELECT estado, COALESCE(eliminado,0) eliminado, COUNT(*) n FROM cc GROUP BY 1,2 ORDER BY 1,2').all();
 const total = d.prepare('SELECT COUNT(*) n FROM cc').get().n;

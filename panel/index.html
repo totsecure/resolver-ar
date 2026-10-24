@@ -112,11 +112,19 @@ tr:hover td{background:rgba(59,130,246,.06)}
       <option value="PAPELERA">Papelera</option>
       <option value="BAJA">Baja</option>
     </select></div>
+    <div><label for="f_venc">Vencimiento</label><select id="f_venc">
+      <option value="">Todas</option>
+      <option value="vencidas">Vencidas</option>
+      <option value="30">Próximos 30 días</option>
+      <option value="60">Próximos 60 días</option>
+      <option value="90">Próximos 90 días</option>
+    </select></div>
+    <div><label for="f_niveles">Nivel</label><select id="f_niveles"></select></div>
     <div><label for="f_saldmin">Saldo min</label><input id="f_saldmin" type="number"></div>
     <div><label for="f_saldmax">Saldo max</label><input id="f_saldmax" type="number"></div>
     <div><label for="f_pmin">Precio min</label><input id="f_pmin" type="number"></div>
     <div><label for="f_pmax">Precio max</label><input id="f_pmax" type="number"></div>
-    <div><label for="f_q">Buscar</label><input id="f_q" placeholder="número, últimos 4, DNI, titular, ref, código o etiqueta"></div>
+    <div><label for="f_q">Buscar</label><input id="f_q" placeholder="Número, últimos 4, DNI, titular, ref o código"></div>
     <div><span style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim);margin-bottom:4px">Saldeadas</span><label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="f_saldeadas" style="width:auto"> solo base Saldeadas</label></div>
     <div class="botones">
       <button class="prim" id="btnBuscar">Buscar</button>
@@ -156,6 +164,7 @@ tr:hover td{background:rgba(59,130,246,.06)}
   <div class="barra-contextual" id="barraContextual" hidden>
     <span class="sel" id="sel">0 seleccionadas</span>
     <div class="crecer"></div>
+    <button class="sec" id="btnCopiarSel">Copiar bloque</button>
     <button class="prim" id="btnComprar" disabled>Comprar seleccionadas</button>
   </div>
 </main>

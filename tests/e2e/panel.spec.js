@@ -131,14 +131,47 @@ test('aviso de publicadas sin precio', async ({ page }) => {
 
   const aviso = page.locator('#sinPrecio');
   await expect(aviso).toBeVisible();
-  await expect(aviso).toContainText('5 publicada(s) SIN PRECIO');
+  await expect(aviso).toContainText('5 publicadas SIN PRECIO');
+  await expect(aviso).toContainText('1 vencida');
+  await expect(aviso).toContainText('1 por vencer en 30 días');
   await expect(page.locator('#cuerpo tr')).toHaveCount(TOTALES.DISPONIBLE);
+});
+
+test('banco/nivel se completan desde el dataset local de BINs', async ({ page }) => {
+  await abrirPanel(page);
+  await buscar(page, '516478', 1);
+  await expect(page.locator('#cuerpo tr')).toContainText('BANCO DE LA PAMPA');
+  await expect(page.locator('#cuerpo tr')).toContainText('PLATINUM');
+  await page.click('#btnLimpiar');
+});
+
+test('filtros de vencimiento y nivel', async ({ page }) => {
+  await abrirPanel(page);
+
+  await page.selectOption('#f_venc', 'vencidas');
+  await page.click('#btnBuscar');
+  await esperarTotal(page, 1);
+  await expect(page.locator('#cuerpo tr')).toContainText('VENCIDA');
+
+  await page.selectOption('#f_venc', '30');
+  await page.click('#btnBuscar');
+  await esperarTotal(page, 1);
+  await expect(page.locator('#cuerpo tr')).toContainText('545652');
+
+  await page.selectOption('#f_venc', '');
+  await page.selectOption('#f_niveles', 'gold');
+  await page.click('#btnBuscar');
+  await esperarTotal(page, 3);
+  await expect(page.locator('#cuerpo tr').first()).toContainText('gold');
+
+  await page.click('#btnLimpiar');
+  await esperarTotal(page, 8);
 });
 
 test('ver sin precio (toggle) y precio máximo sin NULL', async ({ page }) => {
   await abrirPanel(page);
 
-  await expect(page.locator('#sinPrecio')).toContainText('5 publicada(s) SIN PRECIO');
+  await expect(page.locator('#sinPrecio')).toContainText('5 publicadas SIN PRECIO');
 
   // Activar: exactamente las 5 sin precio, con '-' en ambas columnas de precio.
   await page.click('#spVer');
@@ -210,6 +243,23 @@ test('toggle de tema cambia data-bs-theme', async ({ page }) => {
   expect(fondo).toContain('9, 12, 18');
   await page.click('#btnTema');
   await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'light');
+});
+
+test('copiar PAN por fila y bloque por selección', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await abrirPanel(page);
+
+  await page.locator('#cuerpo tr').first().locator('summary').click();
+  await page.locator('#cuerpo tr').first().locator('[data-copiar="linea"]').click();
+  await expect(page.locator('.toastify')).toContainText('Copiado');
+  const linea = await page.evaluate(() => navigator.clipboard.readText());
+  expect(linea).toMatch(/^\d{15,16}\|\d{2}\|\d{2}\|\d{3}$/);
+
+  await marcarFila(page, 0);
+  await marcarFila(page, 1);
+  await page.click('#btnCopiarSel');
+  const bloque = await page.evaluate(() => navigator.clipboard.readText());
+  expect(bloque.split('\n').length).toBe(2);
 });
 
 test('formulario de saldo con SweetAlert2 (sin prompt nativo)', async ({ page }) => {

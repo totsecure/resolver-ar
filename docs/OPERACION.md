@@ -226,3 +226,25 @@ bash scripts/e2e.sh                         # 28 tests E2E
   `no-cache` (se revalidan). Tras cambiar un asset propio, basta recargar.
 - Capturas de referencia: `docs/capturas/`. Para regenerarlas:
   `node scripts/capturas.mjs despues` (usa `RESOLVER_TOKEN` de `datos/server.env`).
+
+## 9. Regenerar la base de BINs (`datos/bins.db`)
+
+`datos/bins.db` es un archivo aparte, reproducible, que **no** se respalda con
+stock/padrón. Para regenerarlo:
+
+```bash
+cd /Users/bunker/resolver
+# el CSV vive en refs/ (ignorado por git)
+node scripts/importar-bins.mjs
+# completa banco/país/tipo/nivel en las tarjetas existentes
+node scripts/enriquecer-bins.mjs
+```
+
+- Dataset: `refs/binlist-data-tech/bins.csv` (CC BY 4.0, ver `docs/CREDITOS.md`).
+- Fecha del dataset: `2026-09-03`.
+- El importador normaliza red/tipo/nivel y reporta filas importadas y descartadas.
+- `lib/bininfo.js` consulta `bins` primero (offline), cachea en `bininfo` con
+  `fuente='dataset'` y solo cae a APIs si el BIN no está. `binlist` va último por
+  su límite de 5 req/hora.
+- Si el BIN no existe, devuelve `fuente='sin_datos'` y no lo cachea como éxito.
+- `datos/bins.db` puede borrarse y regenerarse en cualquier momento.
