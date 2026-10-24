@@ -635,3 +635,21 @@ Suite E2E: **39 tests**.
   **No se fijó ninguna** hasta elección del usuario.
 - Pendientes: B7 drawer, B10 movimientos página, B6 reenvío Telegram, B9 palette,
   C4 skeletons, y la instalación system del bot (sudo).
+
+## /saldeadas y saldo en carga (2026-10-24)
+- `lib/pedido.js` ahora imprime saldo (`precioCorto(saldo)` + `/total`) en vez de
+  precio, con `incluirBorradas` y `c.saldo_ref` en el SELECT.
+- `lib/stock.js`: `listarBin` usa `precioCorto` para saldo; nueva
+  `saldeadas({todo})` que delega en `pedidoTexto` (mismo texto web/bot);
+  `parsearEntradaFlexible` acepta saldo en pipe de 11+ (campos 12/13) y en pipe
+  viejo de 5/6 campos; `cargar` deja de nullar saldos en formato pipe.
+- `GET /stock/saldeadas?todo=1` (soloLectura) y botón “Saldeadas” en el panel con
+  modal Copiar.
+- Bot: comando `/saldeadas [todo]`, alias `sal`/`sd`, ayuda en Telegram.
+- Verificado: carga de `numero|12|28|123|12m|23m831k` guarda
+  `saldo=12000000`, `saldo_ref=23831000`; `/stock/saldeadas?todo=1` devuelve 49
+  líneas con el backup restaurado.
+- **Incidente de datos:** `datos/stock.db` estaba con 0 filas al iniciar esta
+  tanda. Se preservó la base vacía en `_bak/stock.db.vacio-*` y se restauró
+  `datos/stock.db.bak-1792808655` (57 tarjetas: 49 saldeadas en papelera y 8 en
+  REVISION). No se pudo recuperar el estado de 58/9 que describía el pedido.
