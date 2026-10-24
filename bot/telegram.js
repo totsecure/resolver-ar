@@ -65,7 +65,7 @@ const HELP = [
   '/full - todo el disponible en .txt',
   '/saldeadas [todo] - saldeadas disponibles, numero xxxx + saldo',
   '/pedir &lt;n&gt; - envía la #n completa y la marca VENDIDA',
-  '/revisar &lt;n&gt; - el cliente se quejó: la saca a REVISION',
+  '/revisar [n] - cliente se quejó: saca la #n (o la última venta) a REVISION',
   '/cc &lt;ref&gt; - detalle y trazabilidad',
   '/vender [n] [bin] [comprador] - vende y entrega .txt',
   '/reentrega &lt;codigo&gt; - rearma la entrega',

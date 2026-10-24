@@ -145,13 +145,17 @@ async function cmdPedir(chat, args, quien) {
   await enviar(chat, '✅ #' + n + ' enviada y marcada VENDIDA' + (j.codigo ? ' (' + esc(j.codigo) + ')' : '') + '.\nSi el cliente se queja: /revisar ' + n);
 }
 
-/* /revisar N — el cliente se quejó: la saca de la venta y la manda a REVISION. */
+/* /revisar [N] — el cliente se quejó: la saca de la venta y la manda a REVISION.
+ * Sin N, revisa la última tarjeta vendida por este chat (ventana de 5 min). */
 async function cmdRevisar(chat, args, quien) {
-  const n = Number((args || [])[0]);
-  if (!Number.isFinite(n) || n < 1) { await enviar(chat, 'Uso: /revisar <numero>'); return; }
-  const j = await pedir('/stock/revisar', {}, { n: String(n), usuario: quien, chat_id: String(chat) });
-  if (j && j.error) { await enviar(chat, 'No se pudo enviar la #' + n + ' a revisión: ' + esc(j.error)); return; }
-  await enviar(chat, '🔎 #' + n + ' enviada a REVISION (salida de la venta). La revisás en la web.');
+  const arg = String((args || [])[0] || '').trim();
+  const cuerpo = { usuario: quien, chat_id: String(chat) };
+  if (/^\d+$/.test(arg)) cuerpo.n = arg;
+  else if (arg) cuerpo.ref = arg;
+  const j = await pedir('/stock/revisar', {}, cuerpo);
+  if (j && j.error === 'no_encontrada') { await enviar(chat, 'No encontré la tarjeta (poné el número o /saldeadas).'); return; }
+  if (j && j.error) { await enviar(chat, 'No se pudo enviar a revisión: ' + esc(j.error)); return; }
+  await enviar(chat, '🔎 ' + (cuerpo.n ? '#' + cuerpo.n + ' ' : '') + 'enviada a REVISION (salida de la venta). La revisás en la web.');
 }
 
 async function cmdFull(chat) {

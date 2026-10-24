@@ -581,7 +581,7 @@ import {
   setSaldo as sSetSaldo, setEtiqueta as sSetEtiqueta, reservar as sReservar,
   expirarReservas as sExpirar, stats as sStats, alertas as sAlertas, precios as sPrecios,
   setPrecio as sSetPrecio, porCodigo as sPorCodigo, exportar as sExportar,
-  purgar as sPurgar, backup as sBackup, saldeadas as sSaldeadas, bloqueDe as sBloqueDe, revisar as sRevisar,
+  purgar as sPurgar, backup as sBackup, saldeadas as sSaldeadas, bloqueDe as sBloqueDe, revisar as sRevisar, porId as sPorId, ultimaVenta as sUltimaVenta,
 } from './lib/stock.js';
 import { saldeadasLista, saldeadaPorNumero } from './lib/pedido.js';
 import { lookup as binLookup } from './lib/bininfo.js';
@@ -1270,8 +1270,8 @@ app.get('/stock/saldeadas', soloLectura, async (req, res) => {
 app.get('/stock/saldeada/:n', soloLectura, (req, res) => {
   const item = saldeadaPorNumero(num(req.params.n, 0));
   if (!item) return res.status(404).json({ error: 'no_encontrada', n: num(req.params.n, 0) });
-  const cc = sBuscar(String(item.ref != null ? item.ref : item.id))[0] || null;
-  res.json({ ok: true, n: item.n, item, bloque: cc ? sBloqueDe(cc, item.n) : null, cc: cc ? publico(cc) : null });
+  const cc = sPorId(item.id);
+  res.json({ ok: true, n: item.n, item, bloque: cc ? sBloqueDe(cc, item.n) : null, cc: cc || null });
 });
 /* Pedir la N: la envía y la marca VENDIDA (sale de la lista). */
 app.post('/stock/pedir', soloLectura, (req, res) => {
@@ -1284,13 +1284,15 @@ app.post('/stock/pedir', soloLectura, (req, res) => {
   res.json({ ok: true, n, codigo: r.codigo, bloque });
 });
 /* Si el cliente se queja: saca la CC (por posición N, ref o últimos dígitos) y
- * la manda a REVISION para revisarla a mano. */
+ * la manda a REVISION. Sin N: revisa la última tarjeta vendida por ese chat. */
 app.post('/stock/revisar', soloLectura, (req, res) => {
   const n = num(qs(req, 'n'), 0);
   const ref = qs(req, 'ref');
+  const chat = qs(req, 'chat_id');
   let ccs = [];
-  if (n) { const item = saldeadaPorNumero(n); if (item) ccs = [sBuscar(String(item.numero))[0]].filter(Boolean); }
+  if (n) { const item = saldeadaPorNumero(n); if (item) ccs = [sPorId(item.id)].filter(Boolean); }
   else if (ref) ccs = sBuscar(String(ref));
+  else if (chat) { const u = sUltimaVenta(chat); ccs = u ? [u] : []; }
   if (!ccs.length) return res.status(404).json({ error: 'no_encontrada' });
   const refs = ccs.map((c) => c.numero);
   const hechas = sRevisar(refs, qs(req, 'usuario'), qs(req, 'chat_id'));

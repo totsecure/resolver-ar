@@ -34,15 +34,31 @@ test('pedir N: envía la tarjeta completa, la marca VENDIDA y sale de la lista',
   expect(lineasDe(despues.texto).length).toBe(lineasDe(antes.texto).length - 1);
 });
 
-test('revisar N: manda a REVISION y sale de la lista de vendibles', async ({ request }) => {
-  // Pedimos otra (la primera restante), luego la revisamos.
+test('revisar sin N: saca a REVISION la última venta del chat', async ({ request }) => {
+  const chat = '999';
   const lista = await (await request.get(q('/saldeadas'))).json();
   const n = Number(lineasDe(lista.texto)[0].match(/^(\d+)>/)[1]);
-  await request.post(q('/pedir') + '&n=' + n);
-  const rev = await (await request.post(q('/revisar') + '&n=' + n)).json();
+  const ped = await (await request.post(q('/pedir') + '&n=' + n + '&chat_id=' + chat)).json();
+  expect(ped.ok).toBe(true);
+  const rev = await (await request.post(q('/revisar') + '&chat_id=' + chat)).json();
   expect(rev.ok, JSON.stringify(rev)).toBe(true);
   expect(rev.n).toBe(1);
-  // ya no está en saldeadas (quedó en REVISION)
+});
+
+test('revisar N: manda a REVISION y sale de la lista de vendibles', async ({ request }) => {
+  // Pedimos una, luego la revisamos por su número en la lista vigente.
+  const antes = await (await request.get(q('/saldeadas'))).json();
+  const primera = lineasDe(antes.texto)[0];
+  expect(primera, 'hay saldeada para revisar').toBeTruthy();
+  const n = Number(primera.match(/^(\d+)>/)[1]);
+  const ped = await (await request.post(q('/pedir') + '&n=' + n)).json();
+  expect(ped.ok, JSON.stringify(ped)).toBe(true);
+  // Tras vender, la posición n es otra tarjeta; pedimos su bloque para comparar.
+  const lista2 = await (await request.get(q('/saldeadas'))).json();
+  const n2 = Number(lineasDe(lista2.texto)[0].match(/^(\d+)>/)[1]);
+  const rev = await (await request.post(q('/revisar') + '&n=' + n2)).json();
+  expect(rev.ok, JSON.stringify(rev)).toBe(true);
+  expect(rev.n).toBe(1);
   const post = await (await request.get(q('/saldeadas'))).json();
-  expect(lineasDe(post.texto).some((l) => l.startsWith(n + '>'))).toBe(false);
+  expect(lineasDe(post.texto).length).toBe(lineasDe(lista2.texto).length - 1);
 });
