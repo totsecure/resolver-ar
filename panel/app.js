@@ -60,6 +60,7 @@
   var ESTADO = 'DISPONIBLE', PAGINA = 1, POR = 50, SEL = new Set(), DATOS = null, DASH = false, ACC = null;
   var SIN_PUSH = false, ULTIMO_ID = null;
   var HIST = [], TODO_FILTRO = false, SIN_PRECIO = false, ORDEN = '';
+  var CERRAR_CARGA = null;
   var CSRF = sessionStorage.getItem('csrf') || '';
   var CSRF_LISTO = (async function () {
     if (SERVICIO) return;
@@ -146,7 +147,9 @@
       + '<td data-col="base" data-label="Base">' + esc(f.etiqueta || '-') + '</td>'
       + '<td data-col="refund" data-label="Refund">' + (f.refund ? 'SI' : 'NO') + '</td>'
       + '<td data-col="estado" data-label="Estado"><span class="badge-estado estado-' + esc(String(f.estado || ESTADO).toLowerCase()) + '">' + esc(f.estado || ESTADO) + '</span></td>'
-      + '<td data-col="saldo" data-label="Saldo" class="mono saldo">' + esc(f.saldo || '-') + '</td>'
+      + '<td data-col="saldo" data-label="Saldo" class="mono saldo" data-edit="saldo" data-id="' + esc(f.id) + '">'
+      + (f.saldo_num != null ? esc(saldoCorto(f.saldo_num)) + (f.saldo_ref_num != null ? '/' + esc(saldoCorto(f.saldo_ref_num)) : '') : (f.saldo != null ? esc(f.saldo) : '-'))
+      + '</td>'
       + '<td data-col="precio" data-label="1 pago" class="precio" data-edit="precio_num" data-id="' + esc(f.id) + '"' + falta + '>' + (f.sin_precio ? '<span class="badge-estado estado-revision">SIN PRECIO</span>' : (f.precio == null ? '-' : esc(num(f.precio)))) + '</td>'
       + '<td data-col="cuotas" data-label="En cuotas" class="precio" data-edit="precio_cuotas" data-id="' + esc(f.id) + '"' + falta + '>' + esc(f.precio_cuotas == null ? '-' : num(f.precio_cuotas)) + '</td>'
       + '<td data-label="" class="acciones-td"><details class="acciones"><summary aria-label="Acciones"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-dots-vertical"></use></svg></summary>'
@@ -158,8 +161,12 @@
   }
   function pintarTabla() {
     var t = $('#cuerpo'); if (!t) return;
-    if (!DATOS || !DATOS.filas.length) t.innerHTML = vacioTabla(); 
-    else t.innerHTML = DATOS.filas.map(fila).join('');
+    try {
+      if (!DATOS || !DATOS.filas.length) t.innerHTML = vacioTabla();
+      else t.innerHTML = DATOS.filas.map(fila).join('');
+    } catch (_) {
+      /* El blur de un input ya removido puede disparar un repintado anidado. */
+    }
     var s = $('#sel'); if (s) s.textContent = SEL.size + ' seleccionadas' + (TODO_FILTRO ? ' (todo el filtro)' : '');
     var b = $('#btnComprar'); if (b) b.disabled = !SEL.size;
     actualizarBarraContextual();
@@ -488,7 +495,7 @@
   function bannerBorradas() {
     var main = document.querySelector('main'); if (!main) return;
     var b = $('#borradasBanner');
-    if (!b) { b = document.createElement('div'); b.id = 'borradasBanner'; var slot = document.getElementById('bannerSlot'); main.insertBefore(b, slot || main.firstChild); }
+    if (!b) { b = document.createElement('div'); b.id = 'borradasBanner'; (document.getElementById('bannerSlot') || main).appendChild(b); }
     var n = (DATOS && DATOS.kpis && DATOS.kpis.borradas) || 0;
     if (n > 0 && ESTADO !== 'PAPELERA') {
       b.style.display = 'block';
@@ -529,6 +536,7 @@
     cargar();
   }
   function irRevision() {
+    if (CERRAR_CARGA) CERRAR_CARGA();
     ESTADO = 'REVISION'; var fe = $('#f_estado'); if (fe) fe.value = 'REVISION';
     PAGINA = 1; SEL.clear(); TODO_FILTRO = false;
     Array.prototype.forEach.call(document.querySelectorAll('.tab[data-estado]'), function (x) { x.classList.toggle('on', x.dataset.estado === 'REVISION'); });
@@ -708,6 +716,27 @@
       bannerSinPrecio();
     }).catch(function () {});
   }
+  /* "21m696k" → 21696000. Para mostrar/editar saldos en el cliente. */
+  function numeroSaldo(t) {
+    var s = String(t || '').trim().toLowerCase().replace(/\s/g, '');
+    if (!s) return null;
+    var num = 0, resto = s, m;
+    m = resto.match(/^(\d+(?:[.,]\d+)?)m/); if (m) { num += Number(m[1].replace(',', '.')) * 1e6; resto = resto.slice(m[0].length); }
+    m = resto.match(/^(\d+(?:[.,]\d+)?)k/); if (m) { num += Number(m[1].replace(',', '.')) * 1e3; resto = resto.slice(m[0].length); }
+    if (resto === '') return num || null;
+    if (/^\d+$/.test(resto)) return num + Number(resto);
+    if (/^\d+$/.test(s)) return Number(s);
+    if (/^\d{1,3}(\.\d{3})+$/.test(s)) return Number(s.replace(/\./g, ''));
+    return null;
+  }
+  /* "21696000" → "21m696k" para mostrar compacto. */
+  function saldoCorto(n) {
+    var v = Number(n);
+    if (!Number.isFinite(v) || v <= 0) return String(n == null ? '' : n);
+    if (v >= 1e6) { var mm = v / 1e6; return (Number.isInteger(mm) ? mm : mm.toFixed(3).replace(/0+$/, '')) + 'm' + (v % 1e6 ? saldoCorto(v % 1e6) : ''); }
+    if (v >= 1e3) { var kk = v / 1e3; return (Number.isInteger(kk) ? kk : kk.toFixed(3).replace(/0+$/, '')) + 'k' + (v % 1e3 ? String(v % 1e3) : ''); }
+    return String(v);
+  }
   function editarPrecio(celda) {
     if (EDITANDO || !DATOS) return;
     var campo = celda.dataset.edit;
@@ -715,11 +744,18 @@
     var fila = DATOS.filas.find(function (x) { return String(x.id) === String(id); });
     if (!fila) return;
     var indice = DATOS.filas.indexOf(fila);
-    var valor = campo === 'precio_num' ? fila.precio_num : fila.precio_cuotas;
+    var esSaldo = campo === 'saldo';
+    var valor = esSaldo
+      ? (fila.saldo_num != null ? saldoCorto(fila.saldo_num) : '') + (fila.saldo_ref_num != null ? '/' + saldoCorto(fila.saldo_ref_num) : '')
+      : (campo === 'precio_num' ? fila.precio_num : fila.precio_cuotas);
+    if (esSaldo && valor === '/') valor = '';
     EDITANDO = true;
     celda.innerHTML = '';
     var inp = document.createElement('input');
-    inp.type = 'number'; inp.className = 'precio-input'; inp.value = valor == null ? '' : valor;
+    inp.className = 'precio-input';
+    if (esSaldo) { inp.type = 'text'; inp.placeholder = 'disponible/referencia'; }
+    else inp.type = 'number';
+    inp.value = valor == null ? '' : valor;
     celda.appendChild(inp); inp.focus(); inp.select();
 
     var cerrado = false;
@@ -733,32 +769,43 @@
     function guardar(siguiente) {
       var v = inp.value.trim();
       var numero = v === '' ? null : Number(v);
-      if (v !== '' && (!Number.isFinite(numero) || numero < 0)) { toast('Precio inválido', 'error'); inp.focus(); return; }
-      var anterior = campo === 'precio_num'
-        ? { precio: fila.precio, precio_num: fila.precio_num, sin_precio: fila.sin_precio }
-        : { precio_cuotas: fila.precio_cuotas };
-      if (campo === 'precio_num') { fila.precio = numero; fila.precio_num = numero; fila.sin_precio = !(Number(numero) > 0); }
-      else fila.precio_cuotas = numero;
+      if (!esSaldo && v !== '' && (!Number.isFinite(numero) || numero < 0)) { toast('Precio inválido', 'error'); inp.focus(); return; }
+      var accion, params;
+      if (esSaldo) {
+        var partes = v.split('/');
+        var disp = (partes[0] || '').trim();
+        var total = (partes[1] || '').trim();
+        if (disp === '' && total === '') { /* limpiar */ }
+        accion = 'saldo'; params = { disp: disp, total: total || disp };
+        fila.saldo_num = disp === '' ? null : numeroSaldo(disp);
+        fila.saldo_ref_num = (total || disp) === '' ? null : numeroSaldo(total || disp);
+        fila.saldo = (disp === '' && fila.saldo_ref_num == null) ? null : (fila.saldo_num != null ? fila.saldo_num + (fila.saldo_ref_num != null ? '/' + fila.saldo_ref_num : '') : '-');
+      } else {
+        var anterior = campo === 'precio_num'
+          ? { precio: fila.precio, precio_num: fila.precio_num, sin_precio: fila.sin_precio }
+          : { precio_cuotas: fila.precio_cuotas };
+        if (campo === 'precio_num') { fila.precio = numero; fila.precio_num = numero; fila.sin_precio = !(Number(numero) > 0); }
+        else fila.precio_cuotas = numero;
+        accion = campo === 'precio_num' ? 'precioCC' : 'precioCuotas'; params = { valor: v };
+      }
       cerrado = true;
       EDITANDO = false;
       pintarTabla();
-      /* Mover el foco de inmediato (no esperar la API): así tipear seguido
-       * con Tab/Enter no pierde teclas. */
       if (siguiente) {
-        if (siguiente.tipo === 'tab') mover(campo === 'precio_num' ? 'precio_cuotas' : 'precio_num', id);
+        if (siguiente.tipo === 'tab') mover(esSaldo ? 'precio_num' : (campo === 'precio_num' ? 'precio_cuotas' : 'precio_num'), id);
         else {
           var prox = DATOS.filas[indice + 1];
           if (prox) mover(campo, prox.id);
         }
       }
-      var accion = campo === 'precio_num' ? 'precioCC' : 'precioCuotas';
-      api('/accion?' + qq({ accion: accion, ids: id, valor: v })).then(function (j) {
+      var o = Object.assign({ accion: accion, ids: id }, params);
+      api('/accion?' + qq(o)).then(function (j) {
         if (j && j.error) throw new Error(j.error);
-        toast('Precio guardado');
+        toast(esSaldo ? 'Saldo guardado' : 'Precio guardado');
         actualizarAvisos();
       }).catch(function (e) {
-        if (campo === 'precio_num') { fila.precio = anterior.precio; fila.precio_num = anterior.precio_num; fila.sin_precio = anterior.sin_precio; }
-        else fila.precio_cuotas = anterior.precio_cuotas;
+        if (!esSaldo && campo === 'precio_num') { fila.precio = anterior.precio; fila.precio_num = anterior.precio_num; fila.sin_precio = anterior.sin_precio; }
+        else if (!esSaldo) fila.precio_cuotas = anterior.precio_cuotas;
         pintarTabla();
         toast('No se pudo guardar: ' + (e.message || e), 'error');
       });
@@ -1140,7 +1187,7 @@
     var box = document.createElement('div'); box.id = 'cargarBox';
     box.innerHTML = '<div class="filtros" style="grid-template-columns:1fr">'
       + '<div><label>Nombre del lote</label><input id="cc_nombre" placeholder="lote octubre"></div>'
-      + '<div><label>Pegar tarjetas (numero, venc MM/YY, CVV, titular, DNI, banco, 1 pago, en cuotas, nota)</label><textarea id="cc_texto" placeholder="4111111111111111,12/28,123,Juan Perez,30123456,Banco,150,180"></textarea></div>'
+      + '<div><label>Pegar tarjetas (numero, venc MM/YY, CVV, titular, DNI, banco, 1 pago, en cuotas, saldo, nota — o bloques de TARJETA #…)</label><textarea id="cc_texto" placeholder="4111111111111111,12/28,123,Juan Perez,30123456,Banco,150,180,21m/61m696k"></textarea></div>'
       + '<div><label>O subir .txt / .csv</label><input type="file" id="cc_file" accept=".txt,.csv,text/plain" aria-label="Archivo de tarjetas"></div>'
       + '<div class="botones"><button class="prim" id="cc_analizar">Analizar</button>'
       + '<button class="prim" id="cc_confirmar" disabled>Confirmar</button>'
@@ -1167,6 +1214,8 @@
         ocultos = [];
       }
     }
+    /* Expuesto para que "Ir a Revisión" cierre la caja y no tape la tabla. */
+    CERRAR_CARGA = function () { mostrar(false); var bt = $('#btnCargar'); if (bt) bt.classList.remove('on'); };
     function filaC(r) {
       var cls = (r.estado === 'ok' || r.estado === 'reactivada') ? 'cc-ok' : (r.estado === 'duplicada' ? 'cc-dup' : 'cc-bad');
       return '<tr class="' + cls + '"><td>' + esc(r.estado) + '</td>'

@@ -169,8 +169,10 @@ body.tiene-seleccion main{padding-bottom:72px}
 html{scrollbar-gutter:stable}
 .banner-slot{min-height:62px}
 @media(min-width:901px){.topbar{height:58px;min-height:58px;overflow:hidden}}
-.banner-slot{position:relative;height:62px;min-height:62px;overflow:hidden}
-.banner-slot > #sinPrecio,.banner-slot > #revBanner,.banner-slot > #borradasBanner{position:absolute;inset:0;margin:0;overflow:auto}
+.banner-slot{display:flex;flex-direction:column;gap:8px}
+.banner-slot:empty{display:none}
+.banner-slot > #sinPrecio,.banner-slot > #revBanner,.banner-slot > #borradasBanner{margin:0}
+.banner-slot:not(:empty){margin-bottom:10px}
 .tabla-wrap{min-height:60vh}
 @media(max-width:767px){.tabla-wrap{min-height:0}}
 

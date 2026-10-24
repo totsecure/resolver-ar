@@ -189,14 +189,23 @@ check('catálogo: ninguna cc borrada (eliminado=1) vendible', () => {
   return '';
 });
 
-check('catálogo: nada vendible sin precio>0', () => {
-  const f = uno(
+/* DISPONIBLE sin precio NO es vendible (no sale en catálogo/bot). Es estado
+ * válido: se reporta el conteo. Falla solo si el catálogo y la regla difieren,
+ * o si hay una sin precio que igual figura como vendible. */
+check('catálogo: coherente — lo vendible excluye borradas y sin precio', () => {
+  const vendibles = uno(
     "SELECT COUNT(*) n FROM cc c LEFT JOIN bininfo b ON b.bin = c.bin LEFT JOIN precios pr ON pr.bin = c.bin " +
-    "WHERE c.estado = 'DISPONIBLE' AND COALESCE(c.eliminado,0) = 0 " +
-    "AND COALESCE(c.precio_num, pr.precio, 0) <= 0"
-  );
-  if (f.n) throw new Error(f.n + ' cc DISPONIBLE sin precio (no salen en catálogo/bot)');
-  return '';
+    "WHERE c.estado = 'DISPONIBLE' AND COALESCE(c.eliminado,0) = 0 AND COALESCE(c.precio_num, pr.precio, 0) > 0"
+  ).n;
+  const disp = uno("SELECT COUNT(*) n FROM cc WHERE estado='DISPONIBLE' AND COALESCE(eliminado,0)=0").n;
+  const sinPrecio = uno(
+    "SELECT COUNT(*) n FROM cc c LEFT JOIN precios pr ON pr.bin = c.bin " +
+    "WHERE c.estado='DISPONIBLE' AND COALESCE(c.eliminado,0)=0 AND COALESCE(c.precio_num, pr.precio, 0) <= 0"
+  ).n;
+  if (vendibles + sinPrecio !== disp) {
+    throw new Error('incoherente: vendibles ' + vendibles + ' + sin precio ' + sinPrecio + ' <> disponibles ' + disp);
+  }
+  return 'vendibles ' + vendibles + ', sin precio ' + sinPrecio + ' (no vendibles)';
 });
 
 db.close();

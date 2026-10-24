@@ -26,5 +26,17 @@ if [ -z "${RESOLVER_TOKEN:-}" ]; then
   exit 1
 fi
 
+# Gate de arranque: si un deploy deja un módulo con error de sintaxis, avisamos
+# claro en el log en vez de morir con SyntaxError y quedar en loop de reinicio.
+for f in server.js lib/panel.js lib/catalogo.js lib/auth.js lib/stock.js; do
+  if ! /usr/local/bin/node --check "$RAIZ/$f" 2>/tmp/_check.$$; then
+    echo "ERROR de sintaxis en $f:" >&2
+    cat /tmp/_check.$$ >&2
+    rm -f /tmp/_check.$$
+    exit 1
+  fi
+done
+rm -f /tmp/_check.$$
+
 echo $$ > datos/server.pid
 exec /usr/local/bin/node server.js
