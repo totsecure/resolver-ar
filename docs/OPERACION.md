@@ -260,3 +260,11 @@ node scripts/enriquecer-bins.mjs
   Una corrección del dataset se refleja actualizando `bins.db` y refrescando la
   cache (`node scripts/enriquecer-bins.mjs --forzar` si hace falta).
 - Regla: si un valor de `cc` no fue puesto a mano, debe quedar NULL.
+
+
+### Normalización de BIN
+Una sola convención: país Title Case, `pais2` ISO-2 mayúsculas, marca
+Visa/Master/Amex/Discover, tipo CREDIT/DEBIT, nivel MAYÚSCULAS. Se aplica en
+`scripts/importar-bins.mjs`, en la fusión de fuentes de `lib/bininfo.js` y en
+`scripts/normalizar-bininfo.mjs`. El chequeo de invariantes falla si se mezclan
+convenciones.

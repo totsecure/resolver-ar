@@ -594,3 +594,18 @@ Infra de UI:
 - E2E: ocultar BIN y recargar mantiene la columna oculta.
 
 Suite E2E: **39 tests**.
+
+
+## Corrección BIN: cache vs dataset y normalización (2026-10-23)
+- `lib/bininfo.js`: **bins manda siempre**. La cache solo se usa si el BIN no
+  está en el dataset; si está, se reescribe la cache con `fuente='dataset'`.
+- Barrido: se eliminaron 3 filas de `bininfo` con `fuente<>'dataset'` y banco
+  vacío (545653/545657/545659). Se re-enriquecieron desde `bins`: ahora tienen
+  banco y `fuente='dataset'`.
+- `scripts/enriquecer-bins.mjs` recorre la unión de BINs de `cc` **y** `bininfo`.
+- Normalización única en `lib/normalizar-bin.js`, usada por importador, lookup y
+  script `normalizar-bininfo.mjs`: país Title Case, país2 ISO-2 mayúsculas, marca
+  Visa/Master/Amex/Discover, tipo CREDIT/DEBIT, nivel mayúsculas.
+- `datos/bins.db` reimportado con la normalización; `bininfo` normalizado.
+- `verificar-invariantes.mjs` ahora falla si aparecen convenciones mezcladas o
+  cache externo incompleto (21 OK).

@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
+import { marca as nMarca, tipo as nTipo, nivel as nNivel, pais as nPais, pais2 as nPais2 } from '../lib/normalizar-bin.js';
 
 const RAIZ = '/Users/bunker/resolver';
 const CSV = process.argv[2] || process.env.BINS_CSV || path.join(RAIZ, 'refs', 'binlist-data-tech', 'bins.csv');
@@ -21,24 +22,6 @@ if (!fs.existsSync(CSV)) {
 }
 fs.mkdirSync(path.dirname(DB), { recursive: true });
 
-const marca = (v) => {
-  const s = String(v || '').trim().toUpperCase();
-  if (!s) return null;
-  if (s === 'VISA') return 'Visa';
-  if (s === 'MASTERCARD') return 'Master';
-  if (s === 'AMERICAN EXPRESS' || s === 'AMEX') return 'Amex';
-  if (s === 'DISCOVER') return 'Discover';
-  if (s.startsWith('DINERS')) return 'Diners';
-  if (s === 'JCB') return 'JCB';
-  if (s === 'UNIONPAY') return 'UnionPay';
-  return s.charAt(0) + s.slice(1).toLowerCase();
-};
-const tipo = (v) => {
-  const s = String(v || '').trim().toUpperCase();
-  if (s === 'CREDIT' || s === 'CHARGE CARD') return 'CREDIT';
-  if (s === 'DEBIT') return 'DEBIT';
-  return null;
-};
 const nulo = (v) => {
   const s = String(v == null ? '' : v).trim();
   return s ? s : null;
@@ -78,7 +61,7 @@ try {
     if (!banco) sinBanco++;
     const pais2 = nulo(c[8]);
     if (!pais2) sinPais++;
-    ins.run(bin, marca(c[1]), tipo(c[2]), nulo(c[3]), banco, nulo(c[9]), pais2, null,
+    ins.run(bin, nMarca(c[1]), nTipo(c[2]), nNivel(c[3]), banco, nPais(c[9]), nPais2(c[8]), null,
       'binlist-data-tech' + (nulo(c[10]) ? ':' + nulo(c[10]) : ''), nulo(c[11]) || datasetFecha || new Date().toISOString().slice(0, 10));
     importadas++;
   }

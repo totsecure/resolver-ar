@@ -133,6 +133,29 @@ check('reservas activas con vencimiento', () => sinFilas(
   "SELECT id FROM reservas WHERE estado='activa' AND (expira IS NULL OR expira='')"
 ));
 
+/* --------------------------- BIN / bininfo ---------------------------- */
+check('bininfo: país Title case', () => {
+  const malos = todos("SELECT bin, pais FROM bininfo WHERE pais IS NOT NULL AND (pais <> '' AND (pais NOT GLOB '[A-Z]*' OR pais = upper(pais)))");
+  if (malos.length) throw new Error(JSON.stringify(malos.slice(0, 5)));
+  return '';
+});
+check('bininfo: país2 ISO-2', () => sinFilas(
+  'pais2 inválido',
+  "SELECT bin, pais2 FROM bininfo WHERE pais2 IS NOT NULL AND pais2 <> '' AND pais2 NOT GLOB '[A-Z][A-Z]'"
+));
+check('bininfo: marcas permitidas', () => sinFilas(
+  'marca fuera del set',
+  "SELECT bin, marca FROM bininfo WHERE marca IS NOT NULL AND marca NOT IN ('Visa','Master','Amex','Discover')"
+));
+check('bininfo: tipo/nivel normalizados', () => sinFilas(
+  'tipo/nivel inválido',
+  "SELECT bin FROM bininfo WHERE (tipo IS NOT NULL AND tipo NOT IN ('CREDIT','DEBIT')) OR (nivel IS NOT NULL AND nivel <> upper(nivel))"
+));
+check('bininfo: sin cache externo incompleto', () => sinFilas(
+  'cache externo sin banco',
+  "SELECT bin, fuente FROM bininfo WHERE fuente <> 'dataset' AND (banco IS NULL OR banco = '')"
+));
+
 /* ------------------------------ api tokens ---------------------------- */
 const SCOPES = ['catalogo:read', 'catalogo:reserve', 'catalogo:pay', 'wallet:read', 'pedidos:read', 'pedidos:write', 'admin:read', 'admin:write'];
 check('scopes de API keys válidos', () => {

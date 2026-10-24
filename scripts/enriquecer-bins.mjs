@@ -10,7 +10,7 @@ const RAIZ = '/Users/bunker/resolver';
 const STOCK = process.env.RESOLVER_STOCK_DB || path.join(RAIZ, 'datos', 'stock.db');
 const db = new DatabaseSync(STOCK);
 db.exec('PRAGMA busy_timeout=8000');
-const bins = db.prepare('SELECT DISTINCT bin FROM cc WHERE bin IS NOT NULL AND length(bin)>0 ORDER BY bin').all().map((r) => r.bin);
+const bins = db.prepare('SELECT bin FROM cc WHERE bin IS NOT NULL AND length(bin)>0 UNION SELECT bin FROM bininfo WHERE bin IS NOT NULL AND length(bin)>0 ORDER BY bin').all().map((r) => r.bin);
 let cacheados = 0, sinDatos = 0;
 /* NO escribe cc.banco/pais/tipo/nivel: la fuente de verdad es bins/bininfo.
  * cc.* queda reservado para overrides manuales. */
