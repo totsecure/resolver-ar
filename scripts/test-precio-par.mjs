@@ -23,8 +23,8 @@ function card(numero, precio, cuotas, etiqueta = 'SALDEADAS') {
   const d = base();
   const ref = (d.prepare('SELECT MAX(ref) m FROM cc WHERE bin=?').get('516585').m || 0) + 1;
   return Number(d.prepare(
-    'INSERT INTO cc(numero,mes,anio,cvv,bin,marca,estado,precio_num,precio_cuotas,creado,ref,etiqueta,es_test) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1)'
-  ).run(numero, '12', '2028', '321', '516585', 'Visa', 'DISPONIBLE', precio, cuotas, new Date().toISOString(), ref, etiqueta).lastInsertRowid);
+    'INSERT INTO cc(numero,mes,anio,cvv,bin,marca,estado,precio_num,precio_cuotas,saldo,saldo_ref,saldo_disp_num,creado,ref,etiqueta,es_test) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
+  ).run(numero, '12', '2028', '321', '516585', 'Visa', 'DISPONIBLE', precio, cuotas, precio, cuotas, precio, new Date().toISOString(), ref, etiqueta).lastInsertRowid);
 }
 
 console.log('TEST PRECIO-PAR — ' + new Date().toISOString());

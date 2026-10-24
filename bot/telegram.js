@@ -63,6 +63,7 @@ const HELP = [
   '/stock - resumen por BIN',
   '/bin &lt;bin&gt; - listado y datos del BIN',
   '/full - todo el disponible en .txt',
+  '/saldeadas [todo] - saldeadas disponibles, numero xxxx + saldo',
   '/cc &lt;ref&gt; - detalle y trazabilidad',
   '/vender [n] [bin] [comprador] - vende y entrega .txt',
   '/reentrega &lt;codigo&gt; - rearma la entrega',

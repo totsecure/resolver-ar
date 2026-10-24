@@ -54,8 +54,8 @@ const etiqueta = await panel.consulta({ etiquetas: 'SALDEADAS' });
 check('filtro etiqueta/base', etiqueta.total === 2, 'total=' + etiqueta.total);
 
 const ped = pedidoTexto({ filtro: '516585' });
-check('pedido cabecera/línea', ped.texto.split('\n')[0] === '💰 SALDEADAS BIN 516585 (1)' && /1> 51658500xxxx6095 · 12m\/23m831k/.test(ped.texto), ped.texto);
-check('pedido con 1 pago y cuotas', /12m\/23m831k/.test(ped.texto) && !/saldo/i.test(ped.texto));
+check('pedido cabecera/línea', ped.texto.split('\n')[0] === '💰 SALDEADAS BIN 516585 (1)' && /1> 51658500xxxx6095 · 1500\/2000/.test(ped.texto), ped.texto);
+check('pedido muestra el saldo disp/ref', /1500\/2000/.test(ped.texto) && !/saldo/i.test(ped.texto));
 const cDup1 = card('516588', '5165850011116095', 10, null, 'SALDEADAS', 1);
 const cDup2 = card('516588', '5165850022226095', 10, null, 'SALDEADAS', 1);
 const pedDup = pedidoTexto({ filtro: '516588' });
@@ -73,7 +73,7 @@ await manejarVendedor(1, 'pedir', ['516585'], [], {
 const textoBot = paginasBot.map((p) => p.replace(/^<pre>|<\/pre>$/g, '')).join('\n\n');
 check('bot y web byte a byte', textoBot === ped.texto, 'bot=' + textoBot.length + ' web=' + ped.texto.length);
 const pedIds = pedidoTexto({ ids: [c2] });
-check('pedido por ids', /51658600xxxx6005 · 2m461k/.test(pedIds.texto) && !pedIds.texto.includes('51658500'), pedIds.texto);
+check('pedido por ids', /51658600xxxx6005 · 500/.test(pedIds.texto) && !pedIds.texto.includes('51658500'), pedIds.texto);
 
 /* paginación >4000 */
 for (let i = 0; i < 220; i++) card('519999', '51999900' + String(1000 + i) + '1234', 10, null, 'SALDEADAS', 1);

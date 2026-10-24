@@ -3,6 +3,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
 
 const RUTA_LOG = path.join(import.meta.dirname, '..', 'datos', 'bot.log');
 
@@ -10,7 +12,7 @@ function log(msg) {
   try { fs.appendFileSync(RUTA_LOG, new Date().toISOString() + ' stock ' + msg + '\n'); } catch (_) {}
 }
 
-const baseUrl = () => process.env.RESOLVER_URL || ('http://localhost:' + (process.env.PORT || 3001));
+const baseUrl = () => process.env.RESOLVER_URL || ('http://127.0.0.1:' + (process.env.PORT || 3001));
 
 async function pedir(ruta, params = {}, cuerpo = null) {
   const q = new URLSearchParams({ token: process.env.RESOLVER_TOKEN || '', ...params });
@@ -118,6 +120,15 @@ async function cmdBin(chat, args) {
   const info = await pedir('/bininfo/' + bin);
   const desc = [info.marca, info.tipo, info.banco, info.pais].filter(Boolean).join(' · ');
   if (desc) await enviar(chat, 'BIN ' + bin + ': ' + esc(desc));
+}
+
+async function cmdSaldeadas(chat, args) {
+  const todo = (args || []).some((x) => String(x).toLowerCase() === 'todo');
+  const j = await pedir('/stock/saldeadas', todo ? { todo: '1' } : {});
+  const texto = (j && j.texto) || '';
+  if (!texto || /^Sin stock disponible/.test(texto)) { await enviar(chat, 'No hay saldeadas disponibles.'); return; }
+  if (texto.length < 3400) await enviarPre(chat, texto);
+  else await enviarDoc(chat, 'saldeadas-' + fechaArchivo() + '.txt', texto + '\n', 'Saldeadas');
 }
 
 async function cmdFull(chat) {
@@ -271,7 +282,7 @@ async function cmdBinInfo(chat, args) {
   await enviarPre(chat, lineas.join('\n'));
 }
 
-const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo']);
+const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas']);
 
 /* === atajos === */
 const ALIAS = {
@@ -279,6 +290,7 @@ const ALIAS = {
   x: 'baja', r: 'reservar', e: 'entrega', m: 'movs', p: 'precio', pl: 'precios',
   al: 'alertas', st: 'stats', et: 'etiqueta', sa: 'saldo', bi: 'bininfo',
   re: 'reentrega', ca: 'cargar', f: 'full', ex: 'exportar',
+  sal: 'saldeadas', sd: 'saldeadas',
 };
 COMANDOS.add('cotizar');
 COMANDOS.add('venta');
@@ -323,6 +335,7 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'bin') await cmdBin(chatId, args);
     else if (c === 'cotizar') await cmdCotizar(chatId, args);
     else if (c === 'full') await cmdFull(chatId);
+    else if (c === 'saldeadas') await cmdSaldeadas(chatId, args);
     else if (c === 'cc') await cmdCc(chatId, args);
     else if (c === 'movs') await cmdMovs(chatId, args);
     else if (c === 'vender') await cmdVenderConBoton(chatId, args, quien);
