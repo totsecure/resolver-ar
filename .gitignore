@@ -34,3 +34,6 @@ varios/
 .e2e-artifacts/
 playwright-report/
 test-results/
+
+# Empaquetado para migrar de host
+dist-migracion/
