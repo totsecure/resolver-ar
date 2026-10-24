@@ -24,6 +24,7 @@ if [ "$MODO" != "--verificar" ] && [ "$(id -u)" -ne 0 ]; then
 fi
 
 TOKEN="$(sed -n 's/^RESOLVER_TOKEN=//p' "$RAIZ/datos/server.env" 2>/dev/null | head -1 | tr -d '"')"
+TG_TOKEN="$(sed -n 's/^TELEGRAM_TOKEN=//p' "$RAIZ/datos/bot.env" 2>/dev/null | head -1 | tr -d '"')"
 WORKER="https://resolver-api.correonube.workers.dev"
 
 # Espera hasta 30 s (1 s entre intentos) a que una URL devuelva el código.
