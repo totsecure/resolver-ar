@@ -609,3 +609,29 @@ Suite E2E: **39 tests**.
 - `datos/bins.db` reimportado con la normalización; `bininfo` normalizado.
 - `verificar-invariantes.mjs` ahora falla si aparecen convenciones mezcladas o
   cache externo incompleto (21 OK).
+
+## Bot de Telegram: supervisor, IPv4 y checks (2026-10-24)
+- Causa de los `fetch failed`: la Mac resuelve `api.telegram.org` por IPv6 y
+  IPv6 no tiene salida (`curl -6` timeout; `curl -4` 200). `bot/telegram.js` y
+  `scripts/bot-foreground.sh` fuerzan `ipv4first`.
+- `scripts/bot-foreground.sh`: escribe `datos/bot.pid`, borra al salir, corre
+  `node bot/telegram.js` bajo launchd (sin nohup).
+- `deploy/daemons/ar.resolver.bot.plist` con UserName/GroupName/HOME/PATH,
+  RunAtLoad, KeepAlive, ThrottleInterval y log `datos/bot.log`; sumado a
+  `migrar-daemons.sh`. **Pendiente de instalar en system: requiere sudo.** Como
+  puente quedó un LaunchAgent `ar.resolver.bot` que ya lo mantiene vivo.
+- Backoff exponencial hasta 60 s; aviso por `alertar.sh` si acumula fallos.
+- `vigilar.sh` separa `bot-proceso` (pidfile + kill -0) de `bot-token` (getMe).
+  Probado: con el proceso muerto da `bot-proceso DOWN`; al volver, `RECUPERADO`.
+- Outbox real probado: se encoló un texto a chat 8782474589 y quedó
+  `enviado=2026-10-24T01:23:58.882Z`.
+
+## Tanda 2 parcial (2026-10-24)
+- B8: shift-click selecciona rango; botones Invertir y Limpiar selección. Test E2E.
+- C1: tokens `--acc`, `--est-*` para 5 estados, aplicados a badges, foco, links y
+  gráficos; overrides dark y axe dark (críticas + color-contrast) en verde.
+- C5: banner explica (sin número) y chip cuenta; texto "publicadas" corregido.
+- C2: dos opciones de lockup en `docs/marca/opcion-a.svg` y `opcion-b.svg`.
+  **No se fijó ninguna** hasta elección del usuario.
+- Pendientes: B7 drawer, B10 movimientos página, B6 reenvío Telegram, B9 palette,
+  C4 skeletons, y la instalación system del bot (sudo).

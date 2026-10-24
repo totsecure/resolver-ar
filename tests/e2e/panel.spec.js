@@ -131,7 +131,7 @@ test('aviso de publicadas sin precio', async ({ page }) => {
 
   const aviso = page.locator('#sinPrecio');
   await expect(aviso).toBeVisible();
-  await expect(aviso).toContainText('5 publicadas SIN PRECIO');
+  await expect(aviso).toContainText('SIN PRECIO');
   await expect(aviso).toContainText('1 vencida');
   await expect(aviso).toContainText('1 por vencer en 30 días');
   await expect(page.locator('#cuerpo tr')).toHaveCount(TOTALES.DISPONIBLE);
@@ -171,7 +171,7 @@ test('filtros de vencimiento y nivel', async ({ page }) => {
 test('ver sin precio (toggle) y precio máximo sin NULL', async ({ page }) => {
   await abrirPanel(page);
 
-  await expect(page.locator('#sinPrecio')).toContainText('5 publicadas SIN PRECIO');
+  await expect(page.locator('#sinPrecio')).toContainText('SIN PRECIO');
 
   // Activar: exactamente las 5 sin precio, con '-' en ambas columnas de precio.
   await page.click('#spVer');
@@ -271,6 +271,17 @@ test('editar 3 precios inline solo con teclado y el refresh no pisa', async ({ p
   await page.waitForTimeout(22000);
   await expect(page.locator('#cuerpo tr').nth(0).locator('[data-edit="precio_num"]')).toContainText('1.111');
   await expect(page.locator('#cuerpo tr').nth(1).locator('[data-edit="precio_cuotas"]')).toContainText('3.333');
+});
+
+test('selección con rango, invertir y limpiar', async ({ page }) => {
+  await abrirPanel(page);
+  await page.locator('#cuerpo tr').nth(0).locator('input[data-id]').click();
+  await page.locator('#cuerpo tr').nth(3).locator('input[data-id]').click({ modifiers: ['Shift'] });
+  await expect(page.locator('#sel')).toHaveText('4 seleccionadas');
+  await page.click('#btnInvertir');
+  await expect(page.locator('#sel')).toHaveText('4 seleccionadas');
+  await page.click('#btnLimpiarSel');
+  await expect(page.locator('#sel')).toHaveText('0 seleccionadas');
 });
 
 test('columnas configurables persisten (ocultar BIN)', async ({ page }) => {
@@ -459,6 +470,16 @@ test('accesibilidad: sin violaciones críticas (axe-core)', async ({ page }) => 
   const resultado = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   const criticas = resultado.violations.filter((v) => v.impact === 'critical');
   expect(criticas.map((v) => ({ id: v.id, nodos: v.nodes.length }))).toEqual([]);
+
+  /* Paridad dark: sin críticas y sin fallas de contraste. */
+  await page.evaluate(() => {
+    document.documentElement.setAttribute('data-bs-theme', 'dark');
+    document.body.classList.remove('claro');
+  });
+  await page.waitForTimeout(400);
+  const oscuro = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  const graves = oscuro.violations.filter((v) => v.impact === 'critical' || v.id === 'color-contrast');
+  expect(graves.map((v) => ({ id: v.id, nodos: v.nodes.length }))).toEqual([]);
 });
 
 test('a papelera, restaurar y borrado definitivo', async ({ page }) => {

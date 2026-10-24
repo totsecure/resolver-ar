@@ -58,7 +58,7 @@
 
   /* ---------- estado ---------- */
   var ESTADO = 'DISPONIBLE', PAGINA = 1, POR = 50, SEL = new Set(), DATOS = null, DASH = false, ACC = null;
-  var SIN_PUSH = false;
+  var SIN_PUSH = false, ULTIMO_ID = null;
   var HIST = [], TODO_FILTRO = false, SIN_PRECIO = false;
   var CSRF = sessionStorage.getItem('csrf') || '';
   var CSRF_LISTO = (async function () {
@@ -429,7 +429,7 @@
     if (ESTADO === 'DISPONIBLE' && (n > 0 || venc > 0 || porVencer > 0)) {
       b.style.display = 'block';
       var partes = [];
-      if (n > 0) partes.push('<b>' + n + '</b> ' + (n === 1 ? 'publicada' : 'publicadas') + ' SIN PRECIO: no salen en Market ni en el bot.');
+      if (n > 0) partes.push('Hay publicadas <b>SIN PRECIO</b>: no salen en Market ni en el bot (el chip muestra cuántas).');
       if (venc > 0) partes.push('<b class="txt-bad">' + venc + '</b> ' + (venc === 1 ? 'vencida' : 'vencidas') + '.');
       if (porVencer > 0) partes.push('<b class="txt-warn">' + porVencer + '</b> por vencer en 30 días.');
       b.innerHTML = partes.join(' ') + (n > 0 ? ' <button class="sec" id="spPrecioBin">Preciar por BIN</button> <button class="sec" id="spVer">' + (SIN_PRECIO ? 'Ver todas' : 'Ver sin precio') + '</button>' : '');
@@ -470,6 +470,7 @@
     if (!window.ApexCharts) return;
     var pares = paresEstado(k);
     var comun = { background: 'transparent', foreColor: '#94a3b8', toolbar: { show: false } };
+    var cv = function (n, f) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || f; };
     var elEstado = document.getElementById('chEstado');
     if (elEstado) {
       var c1 = new ApexCharts(elEstado, {
@@ -479,7 +480,7 @@
         legend: { position: 'bottom', labels: { colors: '#94a3b8' } },
         stroke: { width: 0 },
         dataLabels: { enabled: false },
-        colors: ['#2563eb', '#22c55e', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#64748b', '#eab308'],
+        colors: [cv('--acc', '#2563eb'), cv('--est-disponible', '#22c55e'), cv('--est-reservada', '#f59e0b'), cv('--est-bad', '#ef4444'), cv('--est-revision', '#a855f7'), cv('--est-vendida', '#06b6d4'), cv('--est-papelera', '#64748b'), '#eab308'],
       });
       c1.render(); CHARTS.push(c1);
     }
@@ -668,6 +669,25 @@
       if (EDITANDO) setTimeout(function () { if (EDITANDO && document.activeElement !== inp) guardar(null); }, 80);
     });
   }
+  /* Shift-click: selecciona el rango entre el último click y el actual. */
+  document.addEventListener('click', function (e) {
+    var cb = e.target.closest('input[data-id]');
+    if (!cb) return;
+    var id = String(cb.dataset.id);
+    if (e.shiftKey && ULTIMO_ID && DATOS) {
+      e.preventDefault();
+      var ids = DATOS.filas.map(function (f) { return String(f.id); });
+      var a = ids.indexOf(String(ULTIMO_ID)), b = ids.indexOf(id);
+      if (a >= 0 && b >= 0) {
+        var ini = Math.min(a, b), fin = Math.max(a, b);
+        for (var i = ini; i <= fin; i++) SEL.add(ids[i]);
+        TODO_FILTRO = false; pintarTabla();
+      }
+      return;
+    }
+    ULTIMO_ID = id;
+  }, true);
+
   document.addEventListener('click', function (e) {
     var celda = e.target.closest('[data-edit]');
     if (celda && !e.target.closest('input')) { e.preventDefault(); editarPrecio(celda); }
@@ -719,7 +739,9 @@
       + '<button class="sec" id="btnBorrar">A papelera</button>'
       + '<button class="sec" id="btnRestaurar">Restaurar</button>'
       + '<button class="sec" id="btnCSV">CSV</button>'
-      + '<button class="sec" id="btnDeshacer" disabled>Deshacer</button>';
+      + '<button class="sec" id="btnDeshacer" disabled>Deshacer</button>'
+      + '<button class="sec" id="btnInvertir">Invertir</button>'
+      + '<button class="sec" id="btnLimpiarSel">Limpiar selección</button>';
     var ctx = document.getElementById('barraContextual') || barra;
     ctx.insertBefore(b, ctx.querySelector('#btnComprar') || null);
     var main = document.querySelector('main');
@@ -757,6 +779,11 @@
     if (t.closest('#btnSelTodos')) { selTodosFiltro(); return; }
     if (t.closest('#btnCSV')) { exportar(); return; }
     if (t.closest('#btnDeshacer')) { deshacer(); return; }
+    if (t.closest('#btnInvertir')) {
+      (DATOS && DATOS.filas || []).forEach(function (f) { var id = String(f.id); if (SEL.has(id)) SEL.delete(id); else SEL.add(id); });
+      TODO_FILTRO = false; pintarTabla(); return;
+    }
+    if (t.closest('#btnLimpiarSel')) { SEL.clear(); TODO_FILTRO = false; pintarTabla(); return; }
     if (t.closest('#btnBuscar')) { PAGINA = 1; cargar(); return; }
     if (t.closest('#btnGuardarFiltro')) { guardarFiltro(); return; }
     if (t.closest('#btnCargarFiltro')) { cargarFiltro(); return; }
@@ -922,7 +949,17 @@
     var tr = ev.target.closest('tr');
     if (!tr || !tr.parentNode || tr.parentNode.tagName !== 'TBODY') return;
     var cb = tr.querySelector('input[type=checkbox]');
-    if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+    if (!cb) return;
+    if (ev.shiftKey && ULTIMO_ID && DATOS) {
+      var ids = DATOS.filas.map(function (f) { return String(f.id); });
+      var a = ids.indexOf(String(ULTIMO_ID)), b = ids.indexOf(String(cb.dataset.id));
+      if (a >= 0 && b >= 0) {
+        for (var i = Math.min(a, b); i <= Math.max(a, b); i++) SEL.add(ids[i]);
+        ULTIMO_ID = String(cb.dataset.id); TODO_FILTRO = false; pintarTabla(); return;
+      }
+    }
+    ULTIMO_ID = String(cb.dataset.id);
+    cb.checked = !cb.checked; cb.dispatchEvent(new Event('change', { bubbles: true }));
   });
 
   /* ---------- movimientos ---------- */

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="160" viewBox="0 0 560 160">
+  <rect width="560" height="160" rx="18" fill="#0b1220"/>
+  <rect x="28" y="36" width="88" height="88" rx="20" fill="#2563eb"/>
+  <path d="M56 104V56h20c12 0 20 7 20 18 0 8-4 14-11 17l14 13H84L72 92h-4v12H56zm12-22h8c6 0 9-3 9-8s-3-8-9-8h-8v16z" fill="#fff"/>
+  <rect x="126" y="66" width="46" height="30" rx="5" fill="none" stroke="#60a5fa" stroke-width="2"/>
+  <rect x="126" y="72" width="46" height="7" fill="#60a5fa"/>
+  <text x="196" y="82" font-family="-apple-system,Segoe UI,sans-serif" font-size="34" font-weight="800" fill="#fff">RESOLVER</text>
+  <text x="196" y="116" font-family="-apple-system,Segoe UI,sans-serif" font-size="15" font-weight="700" letter-spacing="7" fill="#60a5fa">STORE</text>
+</svg>

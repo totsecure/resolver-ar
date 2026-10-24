@@ -4,7 +4,8 @@
 # Mide servicios reales, no pidfiles:
 #   1) server local      GET /health?token=            -> 200 + ok:true
 #   2) tunel (via Worker) GET $WORKER_URL/health?token -> 200 + ok:true
-#   3) bot               Telegram getMe                -> ok:true, is_bot:true
+#   3) bot proceso       pidfile vivo (kill -0)
+#   4) bot token         Telegram getMe                -> ok:true, is_bot:true
 #
 # Alerta por Telegram (scripts/alertar.sh) en la transicion OK->FALLA y avisa
 # cuando se recupera. Mientras sigue caído, recuerda cada COOLDOWN segundos.
@@ -75,15 +76,23 @@ else
   revisar "publico" 0 "http=${CODE:-000} ${WORKER_URL}/health"
 fi
 
-# 3) bot por API
-if [ -z "$TG_TOKEN" ]; then
-  revisar "bot" 0 "falta TELEGRAM_TOKEN en datos/bot.env"
+# 3) bot proceso: pidfile vivo (esto es lo que faltaba)
+BOT_PID="$(cat "$RAIZ/datos/bot.pid" 2>/dev/null || true)"
+if [ -n "$BOT_PID" ] && kill -0 "$BOT_PID" 2>/dev/null; then
+  revisar "bot-proceso" 1 "pid=${BOT_PID}"
 else
-  CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 15 "https://api.telegram.org/bot${TG_TOKEN}/getMe" 2>/dev/null || true)
+  revisar "bot-proceso" 0 "pidfile muerto o ausente (pid='${BOT_PID:-}')"
+fi
+
+# 4) bot token: la API responde (no prueba que el proceso local viva)
+if [ -z "$TG_TOKEN" ]; then
+  revisar "bot-token" 0 "falta TELEGRAM_TOKEN en datos/bot.env"
+else
+  CODE=$(curl -4 -s -o "$TMP" -w '%{http_code}' --max-time 15 "https://api.telegram.org/bot${TG_TOKEN}/getMe" 2>/dev/null || true)
   if [ "$CODE" = "200" ] && grep -q '"ok":true' "$TMP" && grep -q '"is_bot":true' "$TMP"; then
-    revisar "bot" 1 "getMe http=200"
+    revisar "bot-token" 1 "getMe http=200"
   else
-    revisar "bot" 0 "getMe http=${CODE:-000}"
+    revisar "bot-token" 0 "getMe http=${CODE:-000}"
   fi
 fi
 

@@ -16,6 +16,10 @@
 
 import fs from 'node:fs';
 import dns from 'node:dns';
+import { execFile } from 'node:child_process';
+
+/* La Mac resuelve api.telegram.org por IPv6, que no tiene salida: forzar IPv4. */
+dns.setDefaultResultOrder('ipv4first');
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -782,9 +786,12 @@ async function iniciar() {
   let primerPollOk = false;
   log(`bot iniciado offset=${offset} token=...${token.slice(-4)}`);
 
+  let fallosSeguidos = 0;
+  let ultimoAviso = 0;
   while (true) {
     try {
       const updates = await getUpdates(offset);
+      fallosSeguidos = 0;
       if (!primerPollOk) { primerPollOk = true; log(`poll OK timeout=${POLL_TIMEOUT}s`); }
       for (const u of updates) {
         offset = Number(u.update_id) + 1;
@@ -802,8 +809,15 @@ async function iniciar() {
         POLL_TIMEOUT = 20;
         log(`long poll inestable (${msg}); bajo timeout a ${POLL_TIMEOUT}s`);
       }
-      log(`ERROR loop: ${msg}; backoff 5s`);
-      await sleep(5000);
+      fallosSeguidos += 1;
+      const backoff = Math.min(60000, 5000 * Math.pow(2, Math.min(6, fallosSeguidos - 1)));
+      log(`ERROR loop: ${msg}; fallos=${fallosSeguidos} backoff=${Math.round(backoff / 1000)}s`);
+      if (fallosSeguidos >= 3 && Date.now() - ultimoAviso > 600000) {
+        ultimoAviso = Date.now();
+        execFile('/bin/bash', ['/Users/bunker/resolver/scripts/alertar.sh',
+          `Bot sin conexión con Telegram (${fallosSeguidos} fallos): ${msg}`], () => {});
+      }
+      await sleep(backoff);
     }
   }
 }

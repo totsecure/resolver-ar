@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="160" viewBox="0 0 560 160">
+  <rect width="560" height="160" rx="18" fill="#0b1220"/>
+  <path d="M40 112V48h28c14 0 23 8 23 20 0 9-5 16-13 19l16 25H75L62 91h-4v21H40zm18-30h10c6 0 10-3 10-8s-4-8-10-8H58v16z" fill="#fff"/>
+  <circle cx="106" cy="58" r="10" fill="#22c55e"/>
+  <text x="132" y="86" font-family="-apple-system,Segoe UI,sans-serif" font-size="36" font-weight="800" fill="#fff">resolver</text>
+  <text x="132" y="118" font-family="-apple-system,Segoe UI,sans-serif" font-size="14" font-weight="700" letter-spacing="8" fill="#93c5fd">STORE</text>
+</svg>

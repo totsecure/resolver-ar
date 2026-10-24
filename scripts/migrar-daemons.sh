@@ -14,7 +14,7 @@ USUARIO="bunker"
 UID_USUARIO="${SUDO_UID:-$(id -u)}"
 AGENTS="/Users/$USUARIO/Library/LaunchAgents"
 DAEMONS="/Library/LaunchDaemons"
-SERVICIOS="server tunel litestream datasette vigilar"
+SERVICIOS="server tunel bot litestream datasette vigilar"
 MODO="${1:-}"
 FALLAS=0
 
@@ -51,6 +51,11 @@ verificar() {
     tunel)
       code=$(esperar_http "${WORKER}/health?token=${TOKEN}")
       [ "$code" = "200" ] && echo "  OK tunel (Worker) http=200" || { echo "  FAIL tunel http=$code"; FALLAS=$((FALLAS+1)); } ;;
+    bot)
+      local bp; bp="$(cat "$RAIZ/datos/bot.pid" 2>/dev/null || true)"
+      if [ -n "$bp" ] && kill -0 "$bp" 2>/dev/null; then echo "  OK bot proceso pid=$bp"; else echo "  FAIL bot sin proceso"; FALLAS=$((FALLAS+1)); fi
+      code=$(esperar_http "https://api.telegram.org/bot${TG_TOKEN:-}/getMe")
+      [ "$code" = "200" ] && echo "  OK bot token getMe=200" || { echo "  FAIL bot token http=$code"; FALLAS=$((FALLAS+1)); } ;;
     litestream)
       local ok=0
       for _ in $(seq 1 15); do
