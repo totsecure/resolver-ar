@@ -339,7 +339,7 @@ test('saldeadas: web y server devuelven el mismo texto', async ({ page }) => {
   await abrirPanel(page);
   await page.click('#btnSaldeadas');
   await expect(page.locator('#m_pedido')).toContainText('Saldeadas');
-  await expect(page.locator('#m_pedido')).toContainText('120000/150000');
+  await expect(page.locator('#m_pedido')).toContainText('5m/8m');
   const enModal = await page.locator('#m_pedido').textContent();
   const token = process.env.E2E_TOKEN || '';
   const delServer = await page.evaluate(async (t) => (await (await fetch('/stock/saldeadas?token=' + encodeURIComponent(t))).json()).texto, token);
