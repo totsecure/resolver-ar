@@ -722,8 +722,10 @@
     inp.type = 'number'; inp.className = 'precio-input'; inp.value = valor == null ? '' : valor;
     celda.appendChild(inp); inp.focus(); inp.select();
 
-    function cerrar() { EDITANDO = false; pintarTabla(); }
+    var cerrado = false;
+    function cerrar() { cerrado = true; EDITANDO = false; pintarTabla(); }
     function mover(campoDestino, idDestino) {
+      cerrado = true;
       pintarTabla();
       var destino = document.querySelector('[data-edit="' + campoDestino + '"][data-id="' + idDestino + '"]');
       if (destino) editarPrecio(destino);
@@ -737,20 +739,23 @@
         : { precio_cuotas: fila.precio_cuotas };
       if (campo === 'precio_num') { fila.precio = numero; fila.precio_num = numero; fila.sin_precio = !(Number(numero) > 0); }
       else fila.precio_cuotas = numero;
+      cerrado = true;
       EDITANDO = false;
       pintarTabla();
+      /* Mover el foco de inmediato (no esperar la API): así tipear seguido
+       * con Tab/Enter no pierde teclas. */
+      if (siguiente) {
+        if (siguiente.tipo === 'tab') mover(campo === 'precio_num' ? 'precio_cuotas' : 'precio_num', id);
+        else {
+          var prox = DATOS.filas[indice + 1];
+          if (prox) mover(campo, prox.id);
+        }
+      }
       var accion = campo === 'precio_num' ? 'precioCC' : 'precioCuotas';
       api('/accion?' + qq({ accion: accion, ids: id, valor: v })).then(function (j) {
         if (j && j.error) throw new Error(j.error);
         toast('Precio guardado');
         actualizarAvisos();
-        if (siguiente) {
-          if (siguiente.tipo === 'tab') mover(campo === 'precio_num' ? 'precio_cuotas' : 'precio_num', id);
-          else {
-            var prox = DATOS.filas[indice + 1];
-            if (prox) mover(campo, prox.id);
-          }
-        }
       }).catch(function (e) {
         if (campo === 'precio_num') { fila.precio = anterior.precio; fila.precio_num = anterior.precio_num; fila.sin_precio = anterior.sin_precio; }
         else fila.precio_cuotas = anterior.precio_cuotas;
@@ -764,8 +769,9 @@
       else if (e.key === 'Escape') { e.preventDefault(); cerrar(); }
     });
     inp.addEventListener('blur', function () {
-      /* Click afuera: guarda sin mover el foco. */
-      if (EDITANDO) setTimeout(function () { if (EDITANDO && document.activeElement !== inp) guardar(null); }, 80);
+      /* Click afuera: guarda sin mover el foco (solo si este input sigue vivo). */
+      if (cerrado) return;
+      setTimeout(function () { if (!cerrado && EDITANDO && document.activeElement !== inp) guardar(null); }, 80);
     });
   }
   /* Shift-click: selecciona el rango entre el último click y el actual. */
