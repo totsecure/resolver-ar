@@ -215,6 +215,7 @@
     ajustarBotones();
     bannerRevision();
     bannerSinPrecio();
+    bannerBorradas();
     if ($('#dashBox') && $('#dashBox').style.display !== 'none') dashboard();
   }
   var FILTRO_IDS = ['f_bins','f_bin_desde','f_bin_hasta','f_pmin','f_pmax','f_q','f_paises','f_bancos','f_redes','f_tipos','f_etiquetas','f_niveles','f_venc','f_saldmin','f_saldmax','f_saldeadas','f_estado'];
@@ -434,6 +435,49 @@
       if (porVencer > 0) partes.push('<b class="txt-warn">' + porVencer + '</b> por vencer en 30 días.');
       b.innerHTML = partes.join(' ') + (n > 0 ? ' <button class="sec" id="spPrecioBin">Preciar por BIN</button> <button class="sec" id="spVer">' + (SIN_PRECIO ? 'Ver todas' : 'Ver sin precio') + '</button>' : '');
     } else b.style.display = 'none';
+  }
+  function bannerBorradas() {
+    var main = document.querySelector('main'); if (!main) return;
+    var b = $('#borradasBanner');
+    if (!b) { b = document.createElement('div'); b.id = 'borradasBanner'; var slot = document.getElementById('bannerSlot'); main.insertBefore(b, slot || main.firstChild); }
+    var n = (DATOS && DATOS.kpis && DATOS.kpis.borradas) || 0;
+    if (n > 0 && ESTADO !== 'PAPELERA') {
+      b.style.display = 'block';
+      b.className = 'borradas';
+      b.innerHTML = '<b>' + n + '</b> tarjeta(s) borrada(s) ocultas: no se listan ni se venden. '
+        + '<button class="prim" id="borrRestaurarTodas">Restaurar todas</button> '
+        + '<a href="#" id="borrVer">Ver borradas</a>';
+    } else if (n > 0 && ESTADO === 'PAPELERA') {
+      b.style.display = 'block';
+      b.className = 'borradas';
+      b.innerHTML = 'Mostrando la papelera: <b>' + n + '</b> borrada(s). '
+        + '<button class="prim" id="borrRestaurarTodas">Restaurar todas</button> '
+        + '<a href="#" id="borrOcultar">Ocultar borradas</a>';
+    } else {
+      b.style.display = 'none';
+    }
+  }
+  async function restaurarTodas() {
+    var j = await api('/accion?' + qq({ accion: 'ids', papelera: '1' }));
+    if (!j || j.error) { toast('Error: ' + ((j && j.error) || 'red'), 'error'); return; }
+    var lista = (j.ids || []).map(String);
+    if (!lista.length) { toast('No hay borradas', 'error'); return; }
+    var r = await api('/accion?' + qq({ accion: 'restaurar', ids: lista.join(',') }));
+    if (r && r.error) { toast('Error: ' + r.error, 'error'); return; }
+    toast('Restauradas (' + lista.length + ')');
+    cargar();
+  }
+  function verBorradas() {
+    ESTADO = 'PAPELERA'; var fe = $('#f_estado'); if (fe) fe.value = 'PAPELERA';
+    PAGINA = 1; SEL.clear(); TODO_FILTRO = false;
+    Array.prototype.forEach.call(document.querySelectorAll('.tab[data-estado]'), function (x) { x.classList.toggle('on', x.dataset.estado === 'PAPELERA'); });
+    cargar();
+  }
+  function ocultarBorradas() {
+    ESTADO = 'DISPONIBLE'; var fe = $('#f_estado'); if (fe) fe.value = 'DISPONIBLE';
+    PAGINA = 1; SEL.clear(); TODO_FILTRO = false;
+    Array.prototype.forEach.call(document.querySelectorAll('.tab[data-estado]'), function (x) { x.classList.toggle('on', x.dataset.estado === 'DISPONIBLE'); });
+    cargar();
   }
   function ajustarBotones() {
     var cb = $('#btnComprar'); if (cb) cb.textContent = (ESTADO === 'REVISION') ? 'Publicar seleccionadas' : 'Vender seleccionadas';
@@ -797,6 +841,9 @@
     if (t.closest('#revPubAll')) { selTodosFiltro().then(function () { setTimeout(function () { mutar('publicar', {}, { estado: function () { return 'REVISION'; } }); }, 80); }); return; }
     if (t.closest('#revPriceBin') || t.closest('#spPrecioBin')) { precioPorBin(); return; }
     if (t.closest('#spVer')) { alternarSinPrecio(); return; }
+    if (t.closest('#borrRestaurarTodas')) { e.preventDefault(); restaurarTodas(); return; }
+    if (t.closest('#borrVer')) { e.preventDefault(); verBorradas(); return; }
+    if (t.closest('#borrOcultar')) { e.preventDefault(); ocultarBorradas(); return; }
     if (t.closest('#chipSinPrecio')) { alternarSinPrecio(); return; }
     if (t.closest('#m_cancelar')) { cerrar(); return; }
     if (t.closest('#m_ok')) { if (ACC) ACC(); return; }

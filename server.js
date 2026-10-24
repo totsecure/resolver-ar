@@ -782,6 +782,11 @@ app.post('/api/auth/clave', soloSesion, csrf, (req, res) => {
 });
 
 app.get('/login', (req, res) => res.sendFile(path.join(RAIZ, 'panel', 'login.html')));
+/* Marca: favicon, iconos PWA y manifest en la raíz (los pide el navegador a /). */
+app.get('/favicon.ico', (req, res) => res.sendFile(path.join(RAIZ, 'panel', 'icons', 'favicon-32.png')));
+app.get('/favicon.svg', (req, res) => res.type('image/svg+xml').sendFile(path.join(RAIZ, 'panel', 'favicon.svg')));
+app.get('/manifest.webmanifest', (req, res) => res.type('application/manifest+json').sendFile(path.join(RAIZ, 'panel', 'manifest.webmanifest')));
+app.use('/icons', express.static(path.join(RAIZ, 'panel', 'icons'), { maxAge: '7d' }));
 app.get('/mi', (req, res) => {
   const ctx = contexto(req);
   if (!ctx || ctx.tipo !== 'sesion') return res.redirect('/login?next=' + encodeURIComponent(req.originalUrl));
@@ -1057,7 +1062,7 @@ app.get('/api/admin/resumen', accesoGestion, (req, res) => {
     pendientes_vendedores: d.prepare("SELECT COUNT(*) n FROM vendedores WHERE estado='pendiente'").get().n,
     pendientes_recargas: d.prepare("SELECT COUNT(*) n FROM recargas WHERE estado='pendiente'").get().n,
     reservas_activas: d.prepare("SELECT COUNT(*) n FROM reservas WHERE estado='activa'").get().n,
-    disponibles: d.prepare("SELECT COUNT(*) n FROM cc WHERE estado='DISPONIBLE'").get().n,
+    disponibles: d.prepare("SELECT COUNT(*) n FROM cc WHERE estado='DISPONIBLE' AND COALESCE(eliminado,0)=0").get().n,
   });
 });
 
@@ -1323,9 +1328,11 @@ app.use('/panel/vendor', express.static(path.join(RAIZ, 'panel', 'vendor'), {
   maxAge: '1y', immutable: true, fallthrough: true,
 }));
 /* Static del panel detras del login. login.html y tema.css son publicos. */
-const PANEL_PUBLICOS = new Set(['/app.js', '/panel.css', '/login.html', '/tema.css', '/login.js', '/mi.js']);
+const PANEL_PUBLICOS = new Set(['/app.js', '/panel.css', '/login.html', '/tema.css', '/login.js', '/mi.js', '/admin.js', '/catalogo.js', '/registro.js', '/vendedores.js']);
 app.use('/panel', (req, res, next) => {
   if (PANEL_PUBLICOS.has(req.path)) return next();
+  /* Iconos de la marca y manifest: públicos (los necesita el login y el PWA). */
+  if (req.path.startsWith('/icons/') || req.path === '/favicon.svg' || req.path === '/manifest.webmanifest') return next();
   /* Vendor: CSS/JS estáticos de terceros (MIT), sin datos ni endpoints. */
   if (req.path.startsWith('/vendor/')) return next();
   const ctx = contexto(req);

@@ -482,26 +482,46 @@ test('accesibilidad: sin violaciones críticas (axe-core)', async ({ page }) => 
   expect(graves.map((v) => ({ id: v.id, nodos: v.nodes.length }))).toEqual([]);
 });
 
-test('a papelera, restaurar y borrado definitivo', async ({ page }) => {
+test('a papelera, restaurar y borrado definitivo', async ({ page, request }) => {
   await abrirPanel(page);
 
-  // 1) Market -> papelera
+  /* 0) el banner avisa de las borradas ocultas y ofrece restaurarlas. */
+  await expect(page.locator('#borradasBanner')).toBeVisible();
+  await expect(page.locator('#borradasBanner')).toContainText('borrada');
+  await page.locator('#borradasBanner a#borrVer').click();
+  await esperarTotal(page, TOTALES.PAPELERA);
+  await expect(page.locator('#borradasBanner a#borrOcultar')).toBeVisible();
+  await page.locator('#borradasBanner a#borrOcultar').click();
+  await esperarTotal(page, TOTALES.DISPONIBLE);
+
+  /* el catálogo sólo muestra DISPONIBLE con precio y sin borrar (3 en el fixture). */
+  const catalogoTotal = async () => {
+    const r = await request.get('/api/catalogo?token=' + encodeURIComponent(TOKEN) + '&por=60');
+    const j = await r.json();
+    return j.total;
+  };
+  expect(await catalogoTotal()).toBe(3);
+
+  // 1) Market -> papelera: sale del listado y del catálogo.
   await buscar(page, 'E2E-01', 1);
   await marcarFila(page, 0);
   await page.click('#btnBorrar');
   await confirmarSwal(page);
   await esperarTotal(page, 0);
+  await expect.poll(catalogoTotal).toBe(2);
+  await expect(page.locator('#borradasBanner')).toContainText('3');
 
   await page.click('#btnLimpiar');
   await esperarTotal(page, TOTALES.DISPONIBLE - 1);
   await irATab(page, 'PAPELERA', TOTALES.PAPELERA + 1);
 
-  // 2) restaurar
+  // 2) restaurar: vuelve al listado y al catálogo.
   await buscar(page, 'E2E-01', 1);
   await marcarFila(page, 0);
   await page.click('#btnRestaurar');
   await confirmarSwal(page);
   await esperarTotal(page, 0);
+  expect(await catalogoTotal()).toBe(3);
 
   await page.click('#btnLimpiar');
   await esperarTotal(page, TOTALES.DISPONIBLE);

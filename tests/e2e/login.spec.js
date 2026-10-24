@@ -24,6 +24,27 @@ function totp(secreto) {
   return String(num % 1000000).padStart(6, '0');
 }
 
+test('login.html ejecuta su JS (CSP sin unsafe-inline) y el submit llega al server', async ({ page, context }) => {
+  /* Regresión: el JS de /login era inline y el CSP script-src 'self' lo
+   * bloqueaba, así que el click no hacía nada. Ahora vive en /panel/login.js. */
+  const errores = [];
+  page.on('pageerror', (e) => errores.push(String(e.message)));
+  page.on('console', (m) => { if (m.type() === 'error') errores.push(m.text()); });
+
+  await page.goto('/login');
+  const rCsrf = await context.request.get('/api/auth/csrf');
+  expect(rCsrf.status()).toBe(200);
+
+  await page.fill('#usuario', 'e2e-admin');
+  await page.fill('#clave', 'clave-e2e-123');
+  await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith('/api/auth/login') && r.request().method() === 'POST'),
+    page.click('#btnEntrar'),
+  ]);
+  await expect(page.locator('#vista2fa')).toBeVisible();
+  expect(errores.filter((t) => !/401/.test(t))).toEqual([]);
+});
+
 test('login real con CSRF + 2FA llega al panel', async ({ page, context }) => {
   await page.goto('/login');
   const rCsrf = await context.request.get('/api/auth/csrf');

@@ -175,6 +175,30 @@ check('revocados con fecha', () => sinFilas(
   'SELECT id FROM api_tokens WHERE COALESCE(revocado,0)=1 AND (revocado_en IS NULL OR revocado_en=\'\')'
 ));
 
+/* ----------------------- catálogo vendible / cc ----------------------- */
+/* Regla: lo que el catálogo ofrece debe excluir borradas (eliminado=1) y
+ * exigir precio>0. Si esto falla, borrar/restaurar o el precio quedaron
+ * inconsistentes y el usuario vería stock imposible de vender. */
+check('catálogo: ninguna cc borrada (eliminado=1) vendible', () => {
+  const f = uno(
+    "SELECT COUNT(*) n FROM cc c LEFT JOIN bininfo b ON b.bin = c.bin LEFT JOIN precios pr ON pr.bin = c.bin " +
+    "WHERE c.estado = 'DISPONIBLE' AND COALESCE(c.eliminado,0) = 1 " +
+    "AND COALESCE(c.precio_num, pr.precio, 0) > 0"
+  );
+  if (f.n) throw new Error(f.n + ' cc borradas entrarían al catálogo');
+  return '';
+});
+
+check('catálogo: nada vendible sin precio>0', () => {
+  const f = uno(
+    "SELECT COUNT(*) n FROM cc c LEFT JOIN bininfo b ON b.bin = c.bin LEFT JOIN precios pr ON pr.bin = c.bin " +
+    "WHERE c.estado = 'DISPONIBLE' AND COALESCE(c.eliminado,0) = 0 " +
+    "AND COALESCE(c.precio_num, pr.precio, 0) <= 0"
+  );
+  if (f.n) throw new Error(f.n + ' cc DISPONIBLE sin precio (no salen en catálogo/bot)');
+  return '';
+});
+
 db.close();
 console.log('');
 console.log(ok + ' OK / ' + fail + ' FAIL');
