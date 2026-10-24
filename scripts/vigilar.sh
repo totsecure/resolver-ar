@@ -31,10 +31,11 @@ alertar() { bash "$RAIZ/scripts/alertar.sh" "$1" >> "$LOG" 2>&1; }
 revisar() {
   local nombre="$1" ok="$2" detalle="$3"
   local f="$RAIZ/datos/vigilar-${nombre}.estado"
-  local previo="" ultimo=0
-  if [ -f "$f" ]; then read -r previo ultimo < "$f" || true; fi
+  local previo="" ultimo=0 fallos=0
+  if [ -f "$f" ]; then read -r previo ultimo fallos < "$f" || true; fi
   local ahora; ahora="$(date +%s)"
   case "$ultimo" in ''|*[!0-9]*) ultimo=0 ;; esac
+  case "$fallos" in ''|*[!0-9]*) fallos=0 ;; esac
 
   if [ "$ok" = "1" ]; then
     if [ "$previo" = "down" ]; then
@@ -43,17 +44,27 @@ revisar() {
     else
       log "$nombre UP $detalle"
     fi
-    echo "up $ahora" > "$f"
+    echo "up $ahora 0" > "$f"
+    return 0
+  fi
+
+  # Un 404/5xx aislado del tunel (ngrok reconectando) no debe alertar: exigimos
+  # VIGILAR_FALLOS (2 por defecto) fallos consecutivos antes de declarar caida.
+  fallos=$((fallos + 1))
+  local umbral="${VIGILAR_FALLOS:-2}"
+  if [ "$fallos" -lt "$umbral" ] && [ "$previo" != "down" ]; then
+    log "$nombre DOWN? (1/$umbral) $detalle"
+    echo "down $ahora $fallos" > "$f"
     return 0
   fi
 
   if [ "$previo" != "down" ] || [ $((ahora - ultimo)) -ge "$COOLDOWN" ]; then
     alertar "FALLA: $nombre — $detalle"
     log "$nombre DOWN (alerta) $detalle"
-    echo "down $ahora" > "$f"
+    echo "down $ahora $fallos" > "$f"
   else
     log "$nombre DOWN (cooldown) $detalle"
-    echo "down $ultimo" > "$f"
+    echo "down $ultimo $fallos" > "$f"
   fi
 }
 

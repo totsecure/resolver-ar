@@ -260,11 +260,26 @@ export default {
       h.set("authorization", "Basic " + btoa(`${env.NGROK_USER}:${env.NGROK_PASS}`));
     }
 
-    const r = await fetch(arriba.toString(), {
+    const idempotente = req.method === "GET" || req.method === "HEAD";
+    const opciones = {
       method: req.method,
       headers: h,
-      body: req.method === "GET" || req.method === "HEAD" ? undefined : req.body,
-    });
+      body: idempotente ? undefined : req.body,
+    };
+    /* ngrok free reconecta de vez en cuando y devuelve 404/5xx transitorio:
+     * reintentamos una o dos veces para que el usuario no vea la "caída". */
+    let r;
+    const intentos = idempotente ? 3 : 1;
+    for (let i = 0; i < intentos; i++) {
+      try {
+        r = await fetch(arriba.toString(), opciones);
+        if (r.status !== 404 && r.status < 500) break;
+        if (i < intentos - 1) await new Promise((res) => setTimeout(res, 300 * (i + 1)));
+      } catch (e) {
+        if (i === intentos - 1) throw e;
+        await new Promise((res) => setTimeout(res, 300 * (i + 1)));
+      }
+    }
     const out = new Response(r.body, r);
     out.headers.set("access-control-allow-origin", "*");
     out.headers.set("cache-control", "no-store");
