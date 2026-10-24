@@ -170,3 +170,13 @@ html{scrollbar-gutter:stable}
 .txt-warn{color:var(--warn)}
 .estado-vencida{background:rgba(239,68,68,.16);color:#b91c1c;border-color:rgba(239,68,68,.4)}
 td.mono.vencida{color:var(--bad);font-weight:700}
+.precio{cursor:text}
+.precio-input{width:96px;background:var(--bg);color:var(--txt);border:1px solid var(--acc);border-radius:6px;padding:4px 6px;font:inherit}
+[data-col].oculta{display:none!important}
+.col-menu{position:relative}
+.col-menu summary{list-style:none;cursor:pointer}
+.col-menu summary::-webkit-details-marker{display:none}
+.col-menu-body{position:absolute;right:0;top:38px;z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:6px;min-width:190px;box-shadow:0 16px 40px rgba(15,23,42,.25)}
+.col-menu-body label{display:flex;align-items:center;gap:8px;text-transform:none;font-size:12.5px;color:var(--txt);margin:0}
+.col-menu-body input{width:auto}
+body.densidad-compacta th,body.densidad-compacta td{padding-top:4px;padding-bottom:4px}

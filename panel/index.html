@@ -146,6 +146,26 @@ tr:hover td{background:rgba(59,130,246,.06)}
     <button class="sec" id="btnSelTodos">Seleccionar todas</button>
     <button class="sec" id="btnPedirSel">Pedir</button>
     <button class="sec" id="chipSinPrecio" hidden>Sin precio <b id="chipSinPrecioN">0</b> <span class="x">×</span></button>
+    <details class="col-menu" id="panelColumnas">
+      <summary class="sec">Columnas</summary>
+      <div class="col-menu-body">
+        <label><input type="checkbox" data-col="bin" checked> BIN / Banco</label>
+        <label><input type="checkbox" data-col="marca" checked> Red</label>
+        <label><input type="checkbox" data-col="tipo" checked> Tipo</label>
+        <label><input type="checkbox" data-col="exp" checked> EXP</label>
+        <label><input type="checkbox" data-col="pais" checked> País</label>
+        <label><input type="checkbox" data-col="zip" checked> ZIP</label>
+        <label><input type="checkbox" data-col="datos" checked> Datos</label>
+        <label><input type="checkbox" data-col="base" checked> Base</label>
+        <label><input type="checkbox" data-col="refund" checked> Refund</label>
+        <label><input type="checkbox" data-col="estado" checked> Estado</label>
+        <label><input type="checkbox" data-col="saldo" checked> Saldo</label>
+        <label><input type="checkbox" data-col="precio" checked> 1 pago</label>
+        <label><input type="checkbox" data-col="cuotas" checked> En cuotas</label>
+        <hr>
+        <label><input type="checkbox" id="densidadCompacta"> Densidad compacta</label>
+      </div>
+    </details>
     <div class="crecer"></div>
     <span class="sel" id="info"></span>
   </div>
@@ -153,9 +173,9 @@ tr:hover td{background:rgba(59,130,246,.06)}
   <table class="table table-vcenter table-sm table-striped card-table">
     <thead><tr>
       <th style="width:34px"><input type="checkbox" id="chkTodos" aria-label="Seleccionar todas las filas de la página"></th>
-      <th>BIN / Banco</th><th>Red</th><th>Tipo</th><th>EXP</th>
-      <th>Pais</th><th>ZIP</th><th>Datos</th><th>Base</th>
-      <th>Refund</th><th>Estado</th><th>Saldo</th><th>1 pago</th><th>en cuotas</th><th></th>
+      <th data-col="bin">BIN / Banco</th><th data-col="marca">Red</th><th data-col="tipo">Tipo</th><th data-col="exp">EXP</th>
+      <th data-col="pais">Pais</th><th data-col="zip">ZIP</th><th data-col="datos">Datos</th><th data-col="base">Base</th>
+      <th data-col="refund">Refund</th><th data-col="estado">Estado</th><th data-col="saldo">Saldo</th><th data-col="precio">1 pago</th><th data-col="cuotas">en cuotas</th><th></th>
     </tr></thead>
     <tbody id="cuerpo"></tbody>
   </table>

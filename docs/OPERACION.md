@@ -248,3 +248,15 @@ node scripts/enriquecer-bins.mjs
   su límite de 5 req/hora.
 - Si el BIN no existe, devuelve `fuente='sin_datos'` y no lo cachea como éxito.
 - `datos/bins.db` puede borrarse y regenerarse en cualquier momento.
+
+
+## 10. Fuente de verdad de BIN / banco
+
+- `datos/bins.db` (dataset) y la cache `bininfo` son la **fuente de verdad** para
+  marca, tipo, nivel, banco y país.
+- `cc.banco`, `cc.pais`, `cc.tipo` y `cc.nivel` quedan **solo para overrides
+  manuales**. El panel lee `COALESCE(cc.banco, bininfo.banco)`.
+- `scripts/enriquecer-bins.mjs` **no escribe** en `cc`; solo cachea en `bininfo`.
+  Una corrección del dataset se refleja actualizando `bins.db` y refrescando la
+  cache (`node scripts/enriquecer-bins.mjs --forzar` si hace falta).
+- Regla: si un valor de `cc` no fue puesto a mano, debe quedar NULL.

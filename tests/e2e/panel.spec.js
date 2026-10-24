@@ -177,9 +177,10 @@ test('ver sin precio (toggle) y precio máximo sin NULL', async ({ page }) => {
   await page.click('#spVer');
   await esperarTotal(page, 5);
   await expect(page.locator('#cuerpo tr')).toHaveCount(5);
-  const precios = await page.locator('#cuerpo tr td.precio').allTextContents();
-  expect(precios).toHaveLength(10);
-  expect(precios.every((t) => t.trim() === '-')).toBe(true);
+  await expect(page.locator('#cuerpo tr td.precio .badge-estado')).toHaveCount(5);
+  const cuotas = await page.locator('#cuerpo tr td[data-edit="precio_cuotas"]').allTextContents();
+  expect(cuotas).toHaveLength(5);
+  expect(cuotas.every((t) => t.trim() === '-')).toBe(true);
   await expect(page.locator('#spVer')).toHaveText('Ver todas');
 
   // Apagar el toggle: vuelven las 8 y el pmax quedó limpio.
@@ -243,6 +244,75 @@ test('toggle de tema cambia data-bs-theme', async ({ page }) => {
   expect(fondo).toContain('9, 12, 18');
   await page.click('#btnTema');
   await expect(page.locator('html')).toHaveAttribute('data-bs-theme', 'light');
+});
+
+test('editar 3 precios inline solo con teclado y el refresh no pisa', async ({ page }) => {
+  test.setTimeout(70000);
+  await abrirPanel(page);
+
+  await page.locator('#cuerpo tr').nth(0).locator('[data-edit="precio_num"]').click();
+  await page.keyboard.type('1111');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#cuerpo tr').nth(1).locator('[data-edit="precio_num"] input')).toBeFocused();
+
+  await page.keyboard.type('2222');
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#cuerpo tr').nth(1).locator('[data-edit="precio_cuotas"] input')).toBeFocused();
+
+  await page.keyboard.type('3333');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#cuerpo tr').nth(2).locator('[data-edit="precio_cuotas"] input')).toBeFocused();
+  await page.keyboard.press('Escape');
+
+  await expect(page.locator('#cuerpo tr').nth(0).locator('[data-edit="precio_num"]')).toContainText('1.111');
+  await expect(page.locator('#cuerpo tr').nth(1).locator('[data-edit="precio_num"]')).toContainText('2.222');
+  await expect(page.locator('#cuerpo tr').nth(1).locator('[data-edit="precio_cuotas"]')).toContainText('3.333');
+
+  await page.waitForTimeout(22000);
+  await expect(page.locator('#cuerpo tr').nth(0).locator('[data-edit="precio_num"]')).toContainText('1.111');
+  await expect(page.locator('#cuerpo tr').nth(1).locator('[data-edit="precio_cuotas"]')).toContainText('3.333');
+});
+
+test('columnas configurables persisten (ocultar BIN)', async ({ page }) => {
+  await abrirPanel(page);
+  await expect(page.locator('th[data-col="estado"]')).toBeHidden();
+  await page.locator('#panelColumnas summary').click();
+  await page.locator('#panelColumnas input[data-col="bin"]').click();
+  await expect(page.locator('th[data-col="bin"]')).toBeHidden();
+  await page.reload();
+  await esperarTotal(page, 8);
+  await expect(page.locator('th[data-col="bin"]')).toBeHidden();
+});
+
+test('estado de filtros y pestaña sobrevive al refresh', async ({ page }) => {
+  await abrirPanel(page);
+  await buscar(page, 'E2E-01', 1);
+  expect(page.url()).toContain('q=E2E-01');
+  await page.reload();
+  await esperarTotal(page, 1);
+  await expect(page.locator('#f_q')).toHaveValue('E2E-01');
+
+  await page.click('#btnLimpiar');
+  await esperarTotal(page, 8);
+  await page.locator('.tab[data-estado="REVISION"]').click();
+  await esperarTotal(page, 5);
+  expect(page.url()).toContain('estado=REVISION');
+  await page.reload();
+  await esperarTotal(page, 5);
+  await expect(page.locator('.tab[data-estado="REVISION"]')).toHaveClass(/on/);
+});
+
+test('precio masivo con preview y confirmación', async ({ page }) => {
+  await abrirPanel(page);
+  await marcarFila(page, 0);
+  await page.click('#btnPrecioMasivo');
+  await page.fill('#pm_p1', '7777');
+  await page.locator('.swal2-confirm').click();
+  await expect(page.locator('.swal2-html-container')).toContainText('1');
+  await expect(page.locator('.swal2-html-container')).toContainText('7777');
+  await page.locator('.swal2-confirm').click();
+  await expect(page.locator('.toastify')).toContainText('Precios aplicados');
+  await expect(page.locator('#cuerpo tr').first().locator('[data-edit="precio_num"]')).toContainText('7.777');
 });
 
 test('copiar PAN por fila y bloque por selección', async ({ page, context }) => {

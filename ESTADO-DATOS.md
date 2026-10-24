@@ -556,3 +556,41 @@ Infra de UI:
   palette, B10 movimientos como página, B11 virtualización.
 - Pendiente de Fase C: C1 tokens de paleta completos, C2 wordmark/favicon/manifest,
   C3 tipografía fina, C4 skeletons.
+
+
+## Tanda 1 — productividad core (2026-10-23)
+
+### Fuente de verdad BIN
+- `bins.db`/`bininfo` mandan; `cc.banco/pais/tipo/nivel` son solo overrides
+  manuales. Se limpiaron los valores derivados que había escrito el enriquecido
+  (comparando contra `pre-mejoras.db`); la tabla sigue mostrando banco porque sale
+  de `bininfo` (`COALESCE`). `enriquecer-bins.mjs` ya no escribe en `cc`.
+
+### B1 — edición inline
+- Click en 1 pago/cuotas → input; Enter guarda y salta a la misma columna de la
+  fila siguiente; Tab salta a la otra columna; Esc cancela; vacío = sin precio.
+- Optimista con reversión + toast; un solo request por celda. El auto-refresh de
+  20 s se saltea mientras `EDITANDO` y los contadores/banner/chip se refrescan
+  después de guardar.
+- E2E: 3 precios seguidos solo con teclado + espera de 22 s para confirmar que el
+  refresh no pisa.
+
+### B2 — precios masivos
+- `#btnPrecioMasivo` con alcance selección o rango de BIN, preview (cantidad y
+  valores) y confirmación. Reusa `precioCC`/`precioCuotas` y agrega
+  `accion=precioRango` en `lib/panel.js`.
+
+### B3 — estado en URL
+- Pestaña, filtros, página y sin_precio/saldeadas se sincronizan con
+  `history.pushState`, preservando `token=`. `popstate` restaura y recarga.
+- E2E: filtro y pestaña sobreviven al refresh.
+
+### B4 — columnas y densidad
+- Menú `#panelColumnas` con checkboxes por columna y densidad compacta/cómoda,
+  persistidos en `localStorage`. Por defecto Market oculta ESTADO y Papelera
+  oculta Refund/precios.
+- El contador de vencidas/vencidas y `SIN PRECIO` se movieron a EXP/precio para
+  seguir visibles con la columna Estado oculta.
+- E2E: ocultar BIN y recargar mantiene la columna oculta.
+
+Suite E2E: **39 tests**.

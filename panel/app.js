@@ -58,6 +58,7 @@
 
   /* ---------- estado ---------- */
   var ESTADO = 'DISPONIBLE', PAGINA = 1, POR = 50, SEL = new Set(), DATOS = null, DASH = false, ACC = null;
+  var SIN_PUSH = false;
   var HIST = [], TODO_FILTRO = false, SIN_PRECIO = false;
   var CSRF = sessionStorage.getItem('csrf') || '';
   var CSRF_LISTO = (async function () {
@@ -134,19 +135,19 @@
     var falta = f.sin_precio ? ' style="color:var(--dim)"' : '';
     return '<tr' + on + '>'
       + '<td data-label=""><input type="checkbox" data-id="' + esc(f.id) + '" aria-label="Seleccionar tarjeta ref ' + esc(f.ref) + '"' + (SEL.has(String(f.id)) ? ' checked' : '') + '></td>'
-      + '<td data-label="BIN / Banco"><div class="bin mono">' + esc(f.bin) + '</div><div class="sub">' + esc(f.banco || '-') + (f.nivel ? ' · ' + esc(f.nivel) : '') + '</div></td>'
-      + '<td data-label="Red"><span class="badge ' + cls + '">' + esc(f.marca || '-') + '</span></td>'
-      + '<td data-label="Tipo">' + esc(f.tipo || '-') + '</td>'
-      + '<td data-label="EXP" class="mono' + (f.vencida ? ' vencida' : '') + '">' + esc(f.exp || '') + (f.vencida ? ' ⚠' : '') + '</td>'
-      + '<td data-label="País">' + esc(f.pais || '-') + '</td>'
-      + '<td data-label="ZIP" class="mono">' + esc(f.zip || '-') + '</td>'
-      + '<td data-label="Datos">' + iconos(f.features || {}) + '</td>'
-      + '<td data-label="Base">' + esc(f.etiqueta || '-') + '</td>'
-      + '<td data-label="Refund">' + (f.refund ? 'SI' : 'NO') + '</td>'
-      + '<td data-label="Estado"><span class="badge-estado estado-' + esc(String(f.estado || ESTADO).toLowerCase()) + '">' + esc(f.estado || ESTADO) + '</span>' + (f.vencida ? ' <span class="badge-estado estado-vencida">VENCIDA</span>' : '') + (f.sin_precio ? ' <span class="badge-estado estado-revision">SIN PRECIO</span>' : '') + '</td>'
-      + '<td data-label="Saldo" class="mono saldo">' + esc(f.saldo || '-') + '</td>'
-      + '<td data-label="1 pago" class="precio"' + falta + '>' + (f.precio == null ? '-' : esc(num(f.precio))) + '</td>'
-      + '<td data-label="En cuotas" class="precio"' + falta + '>' + esc(f.precio_cuotas == null ? '-' : num(f.precio_cuotas)) + '</td>'
+      + '<td data-col="bin" data-label="BIN / Banco"><div class="bin mono">' + esc(f.bin) + '</div><div class="sub">' + esc(f.banco || '-') + (f.nivel ? ' · ' + esc(f.nivel) : '') + '</div></td>'
+      + '<td data-col="marca" data-label="Red"><span class="badge ' + cls + '">' + esc(f.marca || '-') + '</span></td>'
+      + '<td data-col="tipo" data-label="Tipo">' + esc(f.tipo || '-') + '</td>'
+      + '<td data-col="exp" data-label="EXP" class="mono' + (f.vencida ? ' vencida' : '') + '">' + esc(f.exp || '') + (f.vencida ? ' <span class="badge-estado estado-vencida">VENCIDA</span>' : '') + '</td>'
+      + '<td data-col="pais" data-label="País">' + esc(f.pais || '-') + '</td>'
+      + '<td data-col="zip" data-label="ZIP" class="mono">' + esc(f.zip || '-') + '</td>'
+      + '<td data-col="datos" data-label="Datos">' + iconos(f.features || {}) + '</td>'
+      + '<td data-col="base" data-label="Base">' + esc(f.etiqueta || '-') + '</td>'
+      + '<td data-col="refund" data-label="Refund">' + (f.refund ? 'SI' : 'NO') + '</td>'
+      + '<td data-col="estado" data-label="Estado"><span class="badge-estado estado-' + esc(String(f.estado || ESTADO).toLowerCase()) + '">' + esc(f.estado || ESTADO) + '</span></td>'
+      + '<td data-col="saldo" data-label="Saldo" class="mono saldo">' + esc(f.saldo || '-') + '</td>'
+      + '<td data-col="precio" data-label="1 pago" class="precio" data-edit="precio_num" data-id="' + esc(f.id) + '"' + falta + '>' + (f.sin_precio ? '<span class="badge-estado estado-revision">SIN PRECIO</span>' : (f.precio == null ? '-' : esc(num(f.precio)))) + '</td>'
+      + '<td data-col="cuotas" data-label="En cuotas" class="precio" data-edit="precio_cuotas" data-id="' + esc(f.id) + '"' + falta + '>' + esc(f.precio_cuotas == null ? '-' : num(f.precio_cuotas)) + '</td>'
       + '<td data-label="" class="acciones-td"><details class="acciones"><summary aria-label="Acciones"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-dots-vertical"></use></svg></summary>'
       + '<div class="acciones-menu"><button class="sec" data-ver="' + esc(f.id) + '">Ver</button>'
       + '<button class="sec" data-pedir-id="' + esc(f.id) + '" data-pedir-bin="' + esc(f.bin) + '">Pedir</button>'
@@ -173,8 +174,34 @@
       + '<span>' + d.pagina + ' / ' + pg + '</span>'
       + '<button class="sec" data-pag="' + (d.pagina + 1) + '"' + (d.pagina >= pg ? ' disabled' : '') + '>&gt;</button>';
   }
+  function aplicarURL() {
+    var p = new URLSearchParams(location.search);
+    if (p.get('estado')) ESTADO = p.get('estado');
+    if (p.get('pagina')) PAGINA = Math.max(1, Number(p.get('pagina')) || 1);
+    var pares = { bins: 'f_bins', bin_desde: 'f_bin_desde', bin_hasta: 'f_bin_hasta', paises: 'f_paises', bancos: 'f_bancos', redes: 'f_redes', tipos: 'f_tipos', etiquetas: 'f_etiquetas', niveles: 'f_niveles', venc: 'f_venc', saldo_min: 'f_saldmin', saldo_max: 'f_saldmax', pmin: 'f_pmin', pmax: 'f_pmax', q: 'f_q' };
+    Object.keys(pares).forEach(function (k) { var el = $('#' + pares[k]); if (el && p.get(k) != null) el.value = p.get(k); });
+    SIN_PRECIO = p.get('sin_precio') === '1';
+    if ($('#f_saldeadas')) $('#f_saldeadas').checked = p.get('saldeadas') === '1';
+    var fe = $('#f_estado'); if (fe) fe.value = ESTADO;
+    Array.prototype.forEach.call(document.querySelectorAll('.tab[data-estado]'), function (x) { x.classList.toggle('on', x.dataset.estado === ESTADO); });
+  }
+  function sincronizarURL(f) {
+    if (SIN_PUSH) return;
+    var u = new URL(location.href);
+    var claves = { bins: 'f_bins', bin_desde: 'f_bin_desde', bin_hasta: 'f_bin_hasta', paises: 'f_paises', bancos: 'f_bancos', redes: 'f_redes', tipos: 'f_tipos', etiquetas: 'f_etiquetas', niveles: 'f_niveles', venc: 'f_venc', saldo_min: 'f_saldmin', saldo_max: 'f_saldmax', pmin: 'f_pmin', pmax: 'f_pmax', q: 'f_q' };
+    Object.keys(claves).forEach(function (k) {
+      var v = f[k];
+      if (v === undefined || v === null || v === '') u.searchParams.delete(k); else u.searchParams.set(k, v);
+    });
+    if (SIN_PRECIO) u.searchParams.set('sin_precio', '1'); else u.searchParams.delete('sin_precio');
+    if ($('#f_saldeadas') && $('#f_saldeadas').checked) u.searchParams.set('saldeadas', '1'); else u.searchParams.delete('saldeadas');
+    u.searchParams.set('estado', f.estado || ESTADO);
+    if (Number(f.pagina) > 1) u.searchParams.set('pagina', String(f.pagina)); else u.searchParams.delete('pagina');
+    if (u.toString() !== location.href) history.pushState({ panel: true }, '', u.toString());
+  }
   async function cargar() {
     var f = filtros();
+    sincronizarURL(f);
     var qs = Object.keys(f).map(function (k) { return k + '=' + encodeURIComponent(f[k]); }).join('&');
     var d;
     try { d = await api('/datos?' + qs); } catch (e) { var i = $('#info'); if (i) i.textContent = 'error de red'; return; }
@@ -253,6 +280,7 @@
     var h = HIST[HIST.length - 1];
     b.disabled = !h; b.textContent = h ? 'Deshacer (' + h.nombre + ')' : 'Deshacer';
     actualizarBarraContextual();
+    aplicarColumnas();
   }
   async function deshacer() {
     var h = HIST[HIST.length - 1]; if (!h) return;
@@ -312,6 +340,58 @@
     if (r.value.p2 !== '') await api('/accion?' + qq({ accion: 'precioCuotasBin', bin: r.value.bin, valor: r.value.p2 }));
     toast('Precio por BIN actualizado (' + r.value.bin + ')');
     cargar();
+  }
+
+  async function precioMasivo() {
+    if (!window.Swal) { toast('Falta SweetAlert2', 'error'); return; }
+    var sel = ids();
+    var r = await Swal.fire({
+      title: 'Precios masivos',
+      html: '<label for="pm_scope">Aplicar a</label><select id="pm_scope" class="swal2-select"><option value="sel">Selección (' + sel.length + ')</option><option value="rango">Rango de BIN</option></select>'
+        + '<label for="pm_desde">BIN desde</label><input id="pm_desde" class="swal2-input" inputmode="numeric" placeholder="516500">'
+        + '<label for="pm_hasta">BIN hasta</label><input id="pm_hasta" class="swal2-input" inputmode="numeric" placeholder="516599">'
+        + '<label for="pm_p1">Precio 1 pago (vacío = quitar)</label><input id="pm_p1" class="swal2-input" inputmode="numeric">'
+        + '<label for="pm_p2">Precio en cuotas (vacío = no tocar)</label><input id="pm_p2" class="swal2-input" inputmode="numeric">',
+      showCancelButton: true, confirmButtonText: 'Ver preview', cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#2563eb', focusConfirm: false,
+      preConfirm: function () {
+        var scope = ($('#pm_scope') || {}).value || 'sel';
+        var desde = String(($('#pm_desde') || {}).value || '').replace(/\D/g, '');
+        var hasta = String(($('#pm_hasta') || {}).value || '').replace(/\D/g, '');
+        var p1 = String(($('#pm_p1') || {}).value || '').trim();
+        var p2 = String(($('#pm_p2') || {}).value || '').trim();
+        if (scope === 'sel' && !sel.length) { Swal.showValidationMessage('No hay tarjetas seleccionadas'); return false; }
+        if (scope === 'rango' && (!/^\d{6}$/.test(desde) || !/^\d{6}$/.test(hasta))) { Swal.showValidationMessage('Completá BIN desde y hasta (6 dígitos)'); return false; }
+        if (p1 === '' && p2 === '') { Swal.showValidationMessage('Ingresá al menos un precio'); return false; }
+        return { scope: scope, desde: desde, hasta: hasta, p1: p1, p2: p2 };
+      },
+    });
+    if (!r.isConfirmed) return;
+    var v = r.value;
+    var n = v.scope === 'sel' ? sel.length : 0;
+    if (v.scope === 'rango') {
+      var prev = await api('/datos?' + qq({ estado: ESTADO, bin_desde: v.desde, bin_hasta: v.hasta, por: 1 }));
+      n = prev.total || 0;
+    }
+    var ok = await Swal.fire({
+      title: 'Confirmar precios',
+      html: '<p style="margin:0 0 8px">Se van a modificar <b>' + n + '</b> tarjeta(s)' + (v.scope === 'rango' ? ' del BIN ' + v.desde + '–' + v.hasta : ' seleccionadas') + '.</p>'
+        + '<p style="margin:0">1 pago: <b>' + (v.p1 === '' ? 'sin cambio' : '$ ' + v.p1) + '</b><br>Cuotas: <b>' + (v.p2 === '' ? 'sin cambio' : '$ ' + v.p2) + '</b></p>',
+      icon: 'warning', showCancelButton: true, confirmButtonText: 'Aplicar', cancelButtonText: 'Volver',
+      confirmButtonColor: '#2563eb',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      if (v.scope === 'sel') {
+        if (v.p1 !== '') await api('/accion?' + qq({ accion: 'precioCC', ids: sel.join(','), valor: v.p1 }));
+        if (v.p2 !== '') await api('/accion?' + qq({ accion: 'precioCuotas', ids: sel.join(','), valor: v.p2 }));
+      } else {
+        if (v.p1 !== '') await api('/accion?' + qq({ accion: 'precioRango', bin_desde: v.desde, bin_hasta: v.hasta, campo: 'precio_num', valor: v.p1 }));
+        if (v.p2 !== '') await api('/accion?' + qq({ accion: 'precioRango', bin_desde: v.desde, bin_hasta: v.hasta, campo: 'precio_cuotas', valor: v.p2 }));
+      }
+      toast('Precios aplicados (' + n + ')');
+      SEL.clear(); TODO_FILTRO = false; cargar();
+    } catch (e) { toast('Error: ' + (e.message || e), 'error'); }
   }
 
   /* ---------- banners ---------- */
@@ -475,6 +555,124 @@
     });
   }
 
+  /* ---------- columnas y densidad ---------- */
+  var COLS_VISIBLES = ['bin', 'marca', 'tipo', 'exp', 'pais', 'zip', 'datos', 'base', 'refund', 'estado', 'saldo', 'precio', 'cuotas'];
+  function configColumnas() {
+    var guardada = null;
+    try { guardada = JSON.parse(localStorage.getItem('resolver_columnas') || 'null'); } catch (_) {}
+    if (guardada && typeof guardada === 'object') return guardada;
+    var def = {};
+    COLS_VISIBLES.forEach(function (c) { def[c] = true; });
+    if (ESTADO === 'DISPONIBLE') def.estado = false;
+    if (ESTADO === 'PAPELERA') { def.refund = false; def.precio = false; def.cuotas = false; }
+    return def;
+  }
+  function aplicarColumnas() {
+    var cfg = configColumnas();
+    COLS_VISIBLES.forEach(function (c) {
+      var visible = cfg[c] !== false;
+      Array.prototype.forEach.call(document.querySelectorAll('[data-col="' + c + '"]'), function (el) { el.classList.toggle('oculta', !visible); });
+    });
+    var panel = $('#panelColumnas');
+    if (panel) {
+      Array.prototype.forEach.call(panel.querySelectorAll('input[data-col]'), function (inp) { inp.checked = cfg[inp.dataset.col] !== false; });
+      var dens = $('#densidadCompacta');
+      if (dens) dens.checked = localStorage.getItem('resolver_densidad') === 'compacta';
+    }
+    document.body.classList.toggle('densidad-compacta', localStorage.getItem('resolver_densidad') === 'compacta');
+  }
+  function initColumnas() {
+    aplicarColumnas();
+    var panel = $('#panelColumnas'); if (!panel) return;
+    panel.addEventListener('change', function (e) {
+      if (e.target.id === 'densidadCompacta') {
+        localStorage.setItem('resolver_densidad', e.target.checked ? 'compacta' : 'comoda');
+        aplicarColumnas(); return;
+      }
+      var c = e.target.dataset.col; if (!c) return;
+      var cfg = configColumnas();
+      cfg[c] = e.target.checked;
+      localStorage.setItem('resolver_columnas', JSON.stringify(cfg));
+      aplicarColumnas();
+    });
+  }
+
+  /* ---------- edición inline de precios ---------- */
+  var EDITANDO = false;
+  function actualizarAvisos() {
+    api('/datos?' + qq(Object.assign({}, filtros(), { por: 1, pagina: 1 }))).then(function (j) {
+      if (!j || j.error) return;
+      DATOS.kpis = j.kpis;
+      pintarKpis(j.kpis || {});
+      actualizarChipSinPrecio();
+      bannerSinPrecio();
+    }).catch(function () {});
+  }
+  function editarPrecio(celda) {
+    if (EDITANDO || !DATOS) return;
+    var campo = celda.dataset.edit;
+    var id = celda.dataset.id;
+    var fila = DATOS.filas.find(function (x) { return String(x.id) === String(id); });
+    if (!fila) return;
+    var indice = DATOS.filas.indexOf(fila);
+    var valor = campo === 'precio_num' ? fila.precio_num : fila.precio_cuotas;
+    EDITANDO = true;
+    celda.innerHTML = '';
+    var inp = document.createElement('input');
+    inp.type = 'number'; inp.className = 'precio-input'; inp.value = valor == null ? '' : valor;
+    celda.appendChild(inp); inp.focus(); inp.select();
+
+    function cerrar() { EDITANDO = false; pintarTabla(); }
+    function mover(campoDestino, idDestino) {
+      pintarTabla();
+      var destino = document.querySelector('[data-edit="' + campoDestino + '"][data-id="' + idDestino + '"]');
+      if (destino) editarPrecio(destino);
+    }
+    function guardar(siguiente) {
+      var v = inp.value.trim();
+      var numero = v === '' ? null : Number(v);
+      if (v !== '' && (!Number.isFinite(numero) || numero < 0)) { toast('Precio inválido', 'error'); inp.focus(); return; }
+      var anterior = campo === 'precio_num'
+        ? { precio: fila.precio, precio_num: fila.precio_num, sin_precio: fila.sin_precio }
+        : { precio_cuotas: fila.precio_cuotas };
+      if (campo === 'precio_num') { fila.precio = numero; fila.precio_num = numero; fila.sin_precio = !(Number(numero) > 0); }
+      else fila.precio_cuotas = numero;
+      EDITANDO = false;
+      pintarTabla();
+      var accion = campo === 'precio_num' ? 'precioCC' : 'precioCuotas';
+      api('/accion?' + qq({ accion: accion, ids: id, valor: v })).then(function (j) {
+        if (j && j.error) throw new Error(j.error);
+        toast('Precio guardado');
+        actualizarAvisos();
+        if (siguiente) {
+          if (siguiente.tipo === 'tab') mover(campo === 'precio_num' ? 'precio_cuotas' : 'precio_num', id);
+          else {
+            var prox = DATOS.filas[indice + 1];
+            if (prox) mover(campo, prox.id);
+          }
+        }
+      }).catch(function (e) {
+        if (campo === 'precio_num') { fila.precio = anterior.precio; fila.precio_num = anterior.precio_num; fila.sin_precio = anterior.sin_precio; }
+        else fila.precio_cuotas = anterior.precio_cuotas;
+        pintarTabla();
+        toast('No se pudo guardar: ' + (e.message || e), 'error');
+      });
+    }
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); guardar({ tipo: 'enter' }); }
+      else if (e.key === 'Tab') { e.preventDefault(); guardar({ tipo: 'tab' }); }
+      else if (e.key === 'Escape') { e.preventDefault(); cerrar(); }
+    });
+    inp.addEventListener('blur', function () {
+      /* Click afuera: guarda sin mover el foco. */
+      if (EDITANDO) setTimeout(function () { if (EDITANDO && document.activeElement !== inp) guardar(null); }, 80);
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var celda = e.target.closest('[data-edit]');
+    if (celda && !e.target.closest('input')) { e.preventDefault(); editarPrecio(celda); }
+  });
+
   /* ---------- vender / pedir / ver ---------- */
   function comprar() {
     var lista = ids(); if (!lista.length) return;
@@ -514,6 +712,7 @@
       + '<button class="sec" id="btnPrecio">1 pago</button>'
       + '<button class="sec" id="btnPrecioCuotas">En cuotas</button>'
       + '<button class="sec" id="btnPrecioCuotasBin">Cuotas por BIN</button>'
+      + '<button class="sec" id="btnPrecioMasivo">Precios…</button>'
       + '<button class="sec" id="btnEtiqueta">Etiqueta/Base</button>'
       + '<button class="sec" id="btnSaldo">Saldo</button>'
       + '<button class="sec" id="btnEstado">Estado</button>'
@@ -600,6 +799,7 @@
       return;
     }
     if (t.id === 'btnPrecioCuotasBin') { precioPorBin(); return; }
+    if (t.id === 'btnPrecioMasivo') { precioMasivo(); return; }
     if (t.id === 'btnEtiqueta') {
       pedirTexto('Etiqueta / base', 'vacío = sin etiqueta').then(function (v) {
         if (v !== null) mutar('etiqueta', { valor: v }, { etiqueta: function (f) { return f ? f.etiqueta : null; } });
@@ -718,7 +918,7 @@
 
   /* ---------- toggle de fila clickeable ---------- */
   document.addEventListener('click', function (ev) {
-    if (ev.target.closest('button') || ev.target.closest('input') || ev.target.closest('a') || ev.target.closest('summary') || ev.target.closest('.acciones')) return;
+    if (ev.target.closest('button') || ev.target.closest('input') || ev.target.closest('a') || ev.target.closest('summary') || ev.target.closest('.acciones') || ev.target.closest('[data-edit]')) return;
     var tr = ev.target.closest('tr');
     if (!tr || !tr.parentNode || tr.parentNode.tagName !== 'TBODY') return;
     var cb = tr.querySelector('input[type=checkbox]');
@@ -930,8 +1130,15 @@
 
   /* ---------- arranque ---------- */
   refrescarGuardados();
+  aplicarURL();
+  window.addEventListener('popstate', function () {
+    SIN_PUSH = true;
+    aplicarURL();
+    cargar().finally(function () { SIN_PUSH = false; });
+  });
   initTomSelect();
   initFiltros();
+  initColumnas();
   barraAcciones();
   montarMovs();
   montarCargar();
@@ -941,5 +1148,5 @@
   ajustarBotones();
   if (!TOKEN) { var i3 = $('#info'); if (i3) i3.textContent = 'falta token'; }
   cargar();
-  setInterval(function () { if (!document.hidden && !$('#modal').classList.contains('abierto')) cargar(); }, 20000);
+  setInterval(function () { if (!document.hidden && !EDITANDO && !$('#modal').classList.contains('abierto')) cargar(); }, 20000);
 })();
