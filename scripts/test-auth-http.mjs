@@ -120,17 +120,23 @@ try {
     body: JSON.stringify({ usuario: 'admin', clave: 'claveAdmin123' }),
   });
   check('login admin', login1.status === 200 && login1.j?.ok === true, 'rol=' + login1.j?.usuario?.rol);
-  check('admin debe configurar 2FA', login1.j?.debeConfigurar2fa === true);
+  check('login no pide 2FA', login1.j?.necesita2fa === false && login1.j?.debeConfigurar2fa === false);
   const cookie = (login1.setCookie || []).join(' ');
   check('cookie httpOnly SameSite=Lax', /HttpOnly/.test(cookie) && /SameSite=Lax/.test(cookie), cookie.replace(/resolver_sesion=[^;]+/, 'resolver_sesion=…'));
   let csrf = login1.j.csrf;
 
   const yo1 = await admin('/api/auth/yo');
   check('/api/auth/yo', yo1.status === 200 && yo1.j?.usuario?.usuario === 'admin');
-  check('yo marca setup pendiente', yo1.j?.debeConfigurar2fa === true);
+  check('yo sin 2FA pendiente', yo1.j?.paso2fa === false && yo1.j?.debeConfigurar2fa === false);
 
-  const panelBloqueado = await admin('/panel/datos');
-  check('panel bloqueado hasta 2FA', panelBloqueado.status === 403 && panelBloqueado.j?.error === '2fa_requerido', 'http=' + panelBloqueado.status);
+  const panelDatos = await admin('/panel/datos');
+  check('panel accesible directo', panelDatos.status === 200 && Array.isArray(panelDatos.j?.filas), 'http=' + panelDatos.status);
+
+  /* /api/auth/2fa sigue operativo (no-op sin paso pendiente). */
+  const yaNoop = await admin('/api/auth/2fa', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': csrf }, body: JSON.stringify({ codigo: '000000' }),
+  });
+  check('/api/auth/2fa no-op sin paso', yaNoop.status === 200);
 
   /* activar 2FA por HTTP */
   const ini = await admin('/api/auth/2fa/iniciar', {
@@ -158,7 +164,7 @@ try {
   });
   check('POST panel con CSRF pasa', conCsrfPost.status === 200, 'http=' + conCsrfPost.status);
 
-  /* logout + relogin pidiendo código */
+  /* logout + relogin: entra directo (sin paso de código) */
   const out = await admin('/api/auth/logout', {
     method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': csrf }, body: '{}',
   });
@@ -171,18 +177,12 @@ try {
     method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': pre3.j.csrf },
     body: JSON.stringify({ usuario: 'admin', clave: 'claveAdmin123' }),
   });
-  check('relogin pide 2FA', login2.status === 200 && login2.j?.necesita2fa === true);
+  check('relogin entra directo', login2.status === 200 && login2.j?.necesita2fa === false);
   csrf = login2.j.csrf;
-  const pendiente = await admin('/panel/datos');
-  check('panel rechaza sesión 2FA pendiente', pendiente.status === 401 && pendiente.j?.error === '2fa_pendiente', 'http=' + pendiente.status);
-  const secreto = auth.usuarioPorId(1).totp_secret;
-  const paso2 = await admin('/api/auth/2fa', {
-    method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': csrf },
-    body: JSON.stringify({ codigo: auth.totpEn(secreto, auth.pasoActual()) }),
-  });
-  check('código 2FA por HTTP', paso2.status === 200);
+  const sinPendiente = await admin('/panel/datos');
+  check('panel directo tras relogin', sinPendiente.status === 200, 'http=' + sinPendiente.status);
   const datos2 = await admin('/panel/datos');
-  check('panel OK tras 2FA', datos2.status === 200, 'http=' + datos2.status);
+  check('panel OK', datos2.status === 200, 'http=' + datos2.status);
 
   /* vendedor: sin 2FA, sin rutas de admin */
   const vend = nuevoCliente();

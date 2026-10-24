@@ -41,7 +41,7 @@ try {
   /* 3. login + sesión + CSRF */
   const l1 = auth.login({ usuario: 'admin', clave: 'claveAdmin123', ip: '10.0.0.1', ua: 'test' });
   check('login ok', l1.ok === true && l1.usuario.rol === 'admin');
-  check('sin 2FA al inicio', l1.necesita2fa === false && l1.debeConfigurar2fa === true);
+  check('sin 2FA al inicio', l1.necesita2fa === false && l1.debeConfigurar2fa === false);
   check('csrf presente', typeof l1.csrf === 'string' && l1.csrf.length >= 20);
   const ctx = auth.sesionDeToken(l1.token);
   check('sesión válida', Boolean(ctx && ctx.usuario.id === admin.id));
@@ -84,19 +84,16 @@ try {
   check('respaldo no se reusa', auth.consumirRespaldo(admin.id, unRespaldo) === false);
   check('respaldos restantes', auth.respaldosDisponibles(admin.id) === 9);
 
-  /* 7. login pide 2FA y la sesión queda pendiente hasta el código */
+  /* 7. el login ya no queda pendiente de 2FA: entra directo. */
   const l4 = auth.login({ usuario: 'admin', clave: 'claveAdmin123', ip: '10.0.0.5' });
-  check('login pide 2FA', l4.ok === true && l4.necesita2fa === true);
-  check('sesión pendiente', auth.sesionDeToken(l4.token).sesion.paso2fa === 1);
-  const malo = auth.verificarSegundoFactor(l4.token, '000000', '10.0.0.5');
-  check('código 2FA malo rechazado', malo.ok === false);
-  const codigo = auth.totpEn(auth.usuarioPorId(admin.id).totp_secret, auth.pasoActual());
-  const bueno = auth.verificarSegundoFactor(l4.token, codigo, '10.0.0.5');
-  check('código 2FA bueno', bueno.ok === true);
-  check('sesión ya no pendiente', auth.sesionDeToken(l4.token).sesion.paso2fa === 0);
+  check('login no pide 2FA', l4.ok === true && l4.necesita2fa === false);
+  check('sesión no pendiente', auth.sesionDeToken(l4.token).sesion.paso2fa === 0);
+  const ya = auth.verificarSegundoFactor(l4.token, '000000', '10.0.0.5');
+  check('sin paso pendiente verificarSegundoFactor es no-op', ya.ok === true && ya.ya === true);
 
-  /* 8. respaldo como segundo factor */
+  /* 8. TOTP y respaldo siguen operativos por si se reactiva el flujo */
   const l5 = auth.login({ usuario: 'admin', clave: 'claveAdmin123', ip: '10.0.0.6' });
+  base().prepare('UPDATE sesiones SET paso2fa=1 WHERE id=?').run(auth.sesionDeToken(l5.token).sesion.id);
   const rb = auth.verificarSegundoFactor(l5.token, act.respaldo[1], '10.0.0.6');
   check('respaldo sirve como 2FA', rb.ok === true);
 

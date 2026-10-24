@@ -217,7 +217,8 @@ function contexto(req) {
 }
 
 function debeConfigurar2fa(ctx) {
-  return Boolean(ctx && ctx.tipo === 'sesion' && auth.requiere2fa(ctx.rol) && !ctx.crudo.totp_activo);
+  /* TOTP desactivado en el flujo de login: no se exige configurarlo. */
+  return false;
 }
 
 /** Exige sesion autenticada (aunque este pendiente el 2FA). */
