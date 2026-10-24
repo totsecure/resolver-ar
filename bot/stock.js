@@ -142,7 +142,8 @@ async function cmdPedir(chat, args, quien) {
   if (j && j.error === 'no_encontrada') { await enviar(chat, 'No existe la #' + n + '. Mirá /saldeadas.'); return; }
   if (j && j.error) { await enviar(chat, 'No se pudo pedir la #' + n + ': ' + esc(j.error)); return; }
   await enviarDoc(chat, 'tarjeta-' + n + '.txt', (j.bloque || '') + '\n', 'Venta ' + (j.codigo || ''));
-  await enviar(chat, '✅ #' + n + ' enviada y marcada VENDIDA' + (j.codigo ? ' (' + esc(j.codigo) + ')' : '') + '.\nSi el cliente se queja: /revisar ' + n);
+  await enviar(chat, '✅ #' + n + ' enviada y marcada <b>VENDIDA</b>' + (j.codigo ? ' (' + esc(j.codigo) + ')' : '') +
+    '.\nEl cliente tiene 5 min para chequear.\nSi se queja: /revisar ' + n + ' (o solo /revisar dentro de los 5 min).\nSi está OK: no hacés nada.');
 }
 
 /* /revisar [N] — el cliente se quejó: la saca de la venta y la manda a REVISION.

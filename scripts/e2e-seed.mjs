@@ -109,8 +109,11 @@ try {
 d.prepare("UPDATE usuarios SET totp_secret=?, totp_activo=1, totp_pendiente=NULL WHERE usuario='e2e-admin'")
   .run('JBSWY3DPEHPK3PXP');
 
-/* Saldeadas del fixture: varias para probar /saldeadas y /pedir N sin agotarlas. */
-d.prepare("UPDATE cc SET etiqueta='Saldeadas' WHERE titular IN ('E2E-01','E2E-02','E2E-03','E2E-04','E2E-05','E2E-06')").run();
+/* Saldeadas del fixture: varias para probar /saldeadas y /pedir N sin agotarlas.
+ * Con saldo para validar el formato "N> mascara - disp/ref". */
+d.prepare("UPDATE cc SET etiqueta='Saldeadas' WHERE titular IN ('E2E-01','E2E-02','E2E-03','E2E-04','E2E-05','E2E-06','E2E-07','E2E-08')").run();
+d.prepare("UPDATE cc SET saldo=5000000, saldo_ref=8000000, saldo_disp_num=5000000, saldo_total_num=8000000 WHERE titular IN ('E2E-01','E2E-03','E2E-05','E2E-07')").run();
+d.prepare("UPDATE cc SET saldo=1000000, saldo_ref=2000000, saldo_disp_num=1000000, saldo_total_num=2000000 WHERE titular IN ('E2E-02','E2E-04','E2E-06','E2E-08')").run();
 
 /* Vencimientos para los tests de A2. */
 d.prepare("UPDATE cc SET dias_para_vencer=20, vencida=0 WHERE titular='E2E-05'").run();

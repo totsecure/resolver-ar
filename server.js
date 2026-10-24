@@ -587,6 +587,12 @@ import { saldeadasLista, saldeadaPorNumero } from './lib/pedido.js';
 import { lookup as binLookup } from './lib/bininfo.js';
 
 const qs = (req, k, d) => (typeof req.query[k] === 'string' ? req.query[k] : d);
+/* Igual que qs pero también acepta body JSON (el bot manda POST con body). */
+const cuerpo = (req, k, d) => {
+  const b = req.body && typeof req.body === 'object' ? req.body[k] : undefined;
+  if (b !== undefined && b !== null && String(b) !== '') return String(b);
+  return typeof req.query[k] === 'string' ? req.query[k] : d;
+};
 const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const refsDe = (v) => String(v || '').split(/[,\s] /).filter(Boolean);
 
@@ -1275,10 +1281,10 @@ app.get('/stock/saldeada/:n', soloLectura, (req, res) => {
 });
 /* Pedir la N: la envía y la marca VENDIDA (sale de la lista). */
 app.post('/stock/pedir', soloLectura, (req, res) => {
-  const n = num(qs(req, 'n'), 0);
+  const n = num(cuerpo(req, 'n'), 0);
   const item = saldeadaPorNumero(n);
   if (!item) return res.status(404).json({ error: 'no_encontrada', n });
-  const r = sVender({ refs: [String(item.numero)], usuario: qs(req, 'usuario'), chat_id: qs(req, 'chat_id'), comprador: qs(req, 'comprador') });
+  const r = sVender({ refs: [String(item.numero)], usuario: cuerpo(req, 'usuario'), chat_id: cuerpo(req, 'chat_id'), comprador: cuerpo(req, 'comprador') });
   if (!r.codigo || !r.ccs.length) return res.status(409).json({ error: 'no_vendible', n });
   const bloque = sBloqueDe(r.ccs[0], n);
   res.json({ ok: true, n, codigo: r.codigo, bloque });
@@ -1286,16 +1292,16 @@ app.post('/stock/pedir', soloLectura, (req, res) => {
 /* Si el cliente se queja: saca la CC (por posición N, ref o últimos dígitos) y
  * la manda a REVISION. Sin N: revisa la última tarjeta vendida por ese chat. */
 app.post('/stock/revisar', soloLectura, (req, res) => {
-  const n = num(qs(req, 'n'), 0);
-  const ref = qs(req, 'ref');
-  const chat = qs(req, 'chat_id');
+  const n = num(cuerpo(req, 'n'), 0);
+  const ref = cuerpo(req, 'ref');
+  const chat = cuerpo(req, 'chat_id');
   let ccs = [];
   if (n) { const item = saldeadaPorNumero(n); if (item) ccs = [sPorId(item.id)].filter(Boolean); }
   else if (ref) ccs = sBuscar(String(ref));
   else if (chat) { const u = sUltimaVenta(chat); ccs = u ? [u] : []; }
   if (!ccs.length) return res.status(404).json({ error: 'no_encontrada' });
   const refs = ccs.map((c) => c.numero);
-  const hechas = sRevisar(refs, qs(req, 'usuario'), qs(req, 'chat_id'));
+  const hechas = sRevisar(refs, cuerpo(req, 'usuario'), cuerpo(req, 'chat_id'));
   res.json({ ok: true, n: hechas.length });
 });
 app.get('/stock/stats', soloLectura, envolver(() => sStats()));
