@@ -523,25 +523,17 @@
     toast('Restauradas (' + lista.length + ')');
     cargar();
   }
-  function verBorradas() {
-    ESTADO = 'PAPELERA'; var fe = $('#f_estado'); if (fe) fe.value = 'PAPELERA';
-    PAGINA = 1; SEL.clear(); TODO_FILTRO = false;
-    Array.prototype.forEach.call(document.querySelectorAll('.tab[data-estado]'), function (x) { x.classList.toggle('on', x.dataset.estado === 'PAPELERA'); });
-    cargar();
-  }
-  function ocultarBorradas() {
-    ESTADO = 'DISPONIBLE'; var fe = $('#f_estado'); if (fe) fe.value = 'DISPONIBLE';
-    PAGINA = 1; SEL.clear(); TODO_FILTRO = false;
-    Array.prototype.forEach.call(document.querySelectorAll('.tab[data-estado]'), function (x) { x.classList.toggle('on', x.dataset.estado === 'DISPONIBLE'); });
-    cargar();
-  }
-  function irRevision() {
+  /* Cambia de pestaña de estado cerrando la caja de carga si estaba abierta. */
+  function irEstado(estado) {
     if (CERRAR_CARGA) CERRAR_CARGA();
-    ESTADO = 'REVISION'; var fe = $('#f_estado'); if (fe) fe.value = 'REVISION';
+    ESTADO = estado; var fe = $('#f_estado'); if (fe) fe.value = estado;
     PAGINA = 1; SEL.clear(); TODO_FILTRO = false;
-    Array.prototype.forEach.call(document.querySelectorAll('.tab[data-estado]'), function (x) { x.classList.toggle('on', x.dataset.estado === 'REVISION'); });
+    Array.prototype.forEach.call(document.querySelectorAll('.tab[data-estado]'), function (x) { x.classList.toggle('on', x.dataset.estado === estado); });
     cargar();
   }
+  function verBorradas() { irEstado('PAPELERA'); }
+  function ocultarBorradas() { irEstado('DISPONIBLE'); }
+  function irRevision() { irEstado('REVISION'); }
   function ajustarBotones() {
     var cb = $('#btnComprar'); if (cb) cb.textContent = (ESTADO === 'REVISION') ? 'Publicar seleccionadas' : 'Vender seleccionadas';
     var bb = $('#btnBorrar'); if (bb) bb.textContent = (ESTADO === 'PAPELERA') ? 'Borrar definitivo' : 'A papelera';
@@ -922,7 +914,7 @@
   document.addEventListener('click', function (e) {
     var t = e.target;
     var tab = t.closest('.tab[data-estado]');
-    if (tab) { Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) { x.classList.remove('on'); }); tab.classList.add('on'); ESTADO = tab.dataset.estado; var fe = $('#f_estado'); if (fe) fe.value = ESTADO; PAGINA = 1; SEL.clear(); TODO_FILTRO = false; cargar(); return; }
+    if (tab) { if (CERRAR_CARGA) CERRAR_CARGA(); Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) { x.classList.remove('on'); }); tab.classList.add('on'); ESTADO = tab.dataset.estado; var fe = $('#f_estado'); if (fe) fe.value = ESTADO; PAGINA = 1; SEL.clear(); TODO_FILTRO = false; cargar(); return; }
     if (t.closest('#btnSaldeadas')) {
       fetch('/stock/saldeadas?token=' + encodeURIComponent(TOKEN)).then(function (r) { return r.json(); }).then(function (j) {
         var texto = (j && j.texto) || 'No hay saldeadas disponibles.';

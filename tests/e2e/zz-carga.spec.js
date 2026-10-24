@@ -81,6 +81,15 @@ test('el saldo cargado se ve en la columna Saldo y viaja al catálogo de /panel/
   expect(fila.saldo_num).toBeGreaterThan(0);
 });
 
+test('el tab Revisión del sidebar también cierra la caja de carga', async ({ page }) => {
+  await abrirPanelAny(page);
+  await page.click('#btnCargar');
+  await expect(page.locator('#cargarBox')).toBeVisible();
+  await page.click('.tab[data-estado="REVISION"]');
+  await expect(page.locator('#cargarBox')).toBeHidden();
+  expect(new URL(page.url()).searchParams.get('estado')).toBe('REVISION');
+});
+
 test('editar el saldo inline guarda disp y referencia', async ({ page }) => {
   await abrirPanelAny(page);
   await page.click('#btnCargar');
