@@ -31,5 +31,6 @@ varios/
 
 # E2E (base descartable y artefactos)
 .e2e/
+.e2e-artifacts/
 playwright-report/
 test-results/

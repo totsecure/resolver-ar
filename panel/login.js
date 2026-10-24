@@ -40,8 +40,11 @@
     return { status: r.status, j: j || {} };
   }
   async function prepararCsrf() {
-    if (CSRF) return;
-    const r = await fetch('/api/auth/csrf');
+    /* El server borra la cookie pre-CSRF tras cada login y es de un solo uso.
+     * Por eso SIEMPRE pedimos uno fresco antes de postear el login: el valor
+     * que pueda quedar en sessionStorage es el de la sesión anterior y no
+     * tiene cookie válida → 403 csrf ("Recargá la página"). */
+    const r = await fetch('/api/auth/csrf', { cache: 'no-store' });
     const j = await r.json();
     CSRF = j.csrf || '';
     sessionStorage.setItem('csrf', CSRF);
@@ -55,7 +58,15 @@
     decir('#msg', '');
     try {
       await prepararCsrf();
-      const { status, j } = await api('/api/auth/login', { usuario, clave });
+      let r = await api('/api/auth/login', { usuario, clave });
+      /* Si el pre-CSRF venció/estaba usado, el server da 403: reintentamos una
+       * vez con uno fresco en vez de obligar a recargar a mano. */
+      if (r.status === 403 && r.j && r.j.error === 'csrf') {
+        CSRF = '';
+        await prepararCsrf();
+        r = await api('/api/auth/login', { usuario, clave });
+      }
+      const { j } = r;
       if (!j.ok) {
         decir('#msg', j.detalle || j.error || 'No pudimos entrar.');
         $('#btnEntrar').disabled = false;

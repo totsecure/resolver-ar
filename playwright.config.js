@@ -28,7 +28,7 @@ process.env.E2E_TOKEN = TOKEN;
 
 export default defineConfig({
   testDir: './tests/e2e',
-  outputDir: './.e2e/test-results',
+  outputDir: './.e2e-artifacts',
   fullyParallel: false,
   workers: 1,
   retries: 0,

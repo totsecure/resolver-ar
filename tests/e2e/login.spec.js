@@ -65,6 +65,19 @@ test('login real con CSRF entra al panel sin código', async ({ page, context })
   await expect(page.locator('#info')).toContainText('resultados');
 });
 
+test('login con sessionStorage sucio no da 403 csrf', async ({ page }) => {
+  /* Repro: el CSRF queda en sessionStorage entre visitas, pero su cookie es de
+   * un solo uso y el server la borra; si no se refresca, el login da 403. */
+  await page.goto('/login');
+  await page.waitForTimeout(300);
+  await page.evaluate(() => sessionStorage.setItem('csrf', 'token-viejo-invalido'));
+  await page.fill('#usuario', 'e2e-admin');
+  await page.fill('#clave', 'clave-e2e-123');
+  await page.click('#btnEntrar');
+  await page.waitForURL('**/panel/**');
+  await expect(page.locator('#cuerpo')).toBeVisible();
+});
+
 test('assets vendor se sirven como CSS/JS y no como login', async ({ request }) => {
   for (const [ruta, tipo, minimo, marcador] of [
     ['/panel/vendor/tabler.min.css', /text\/css/, 100000, ':root'],
