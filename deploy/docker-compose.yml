@@ -1,16 +1,17 @@
-# docker-compose para hostear resolver-ar en cualquier VPS/servidor con Docker.
+# docker-compose para hostear resolver-ar (server + bot) en un VPS/VM.
 #
 #   cp deploy/.env.example deploy/.env   # y completá RESOLVER_TOKEN
 #   docker compose -f deploy/docker-compose.yml up -d --build
 #
-# Funciona SIN padrón (panel/stock/bot). Para tener /texto y /lote, copiá
-# datos/padron.db a ./datos/padron.db y descomentá el montaje del padrón.
+# Funciona SIN padrón (panel/stock/bot). Para /texto y /lote, copiá
+# datos/padron.db a ./datos/padron.db (1.4 GB; en Oracle Free hay disco).
 services:
   resolver:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
     image: resolver-ar
+    container_name: resolver-app
     restart: unless-stopped
     env_file:
       - .env
@@ -23,9 +24,33 @@ services:
       # Datos persistentes: stock.db (obligatorio) y padron.db (opcional).
       - ../datos:/app/datos
     ports:
-      - "127.0.0.1:3001:3001"   # detrás de un reverse proxy (Caddy/nginx) en el host
+      - "127.0.0.1:3001:3001"   # detrás de Caddy/nginx en el host
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health?token='+process.env.RESOLVER_TOKEN).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
+
+  # Bot de Telegram: siempre escuchando. Sin puertos; habla con `resolver`.
+  # Poné TELEGRAM_TOKEN en deploy/.env y descomentá si usás el bot.
+  bot:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: resolver-ar
+    container_name: resolver-bot
+    restart: unless-stopped
+    depends_on:
+      - resolver
+    env_file:
+      - .env
+    environment:
+      HOST: "0.0.0.0"
+      RESOLVER_STOCK_DB: /app/datos/stock.db
+      RESOLVER_DB: /app/datos/padron.db
+      # El bot llama al server por el nombre del servicio, no por localhost.
+      RESOLVER_URL: http://resolver:3001
+    command: ["node", "bot/telegram.js"]
+    volumes:
+      - ../datos:/app/datos
+    profiles: ["bot"]

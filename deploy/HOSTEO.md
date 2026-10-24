@@ -13,6 +13,42 @@ Requisitos reales:
 
 ---
 
+## Opción recomendada — Oracle Cloud Free (gratis para siempre)
+
+VM ARM 4 CPU / 24 GB RAM / disco grande, sin costo. Entra hasta el padrón.
+
+1. **Crear la VM** (panel de Oracle, una sola vez):
+   - Compute → Instances → Create. Shape: **VM.Standard.A1.Flex** (Ampere ARM),
+     4 OCPU / 24 GB. Imagen: **Ubuntu 24.04** (aarch64).
+   - Descargá la clave SSH. Anotá la IP pública.
+2. **Abrir puertos 80 y 443** en la Security List de la subnet (Ingress TCP).
+3. **En la VM**:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/<repo>/main/deploy/instalar-oracle.sh -o instalar.sh
+   # o cloná el repo:
+   git clone <repo> /opt/resolver && cd /opt/resolver
+   sudo bash deploy/instalar-oracle.sh resolver.tudominio.com   # o sin dominio: HTTP por IP
+   ```
+   El script instala Docker + Caddy, genera `RESOLVER_TOKEN`, deja el firewall
+   listo y el HTTPS automático.
+4. **Subir los datos** (desde tu Mac):
+   ```bash
+   sqlite3 datos/stock.db ".backup '/tmp/stock.db'"
+   scp /tmp/stock.db ubuntu@<IP>:/tmp/ && ssh ubuntu@<IP> 'sudo mv /tmp/stock.db /opt/resolver/datos/ && sudo chown ubuntu /opt/resolver/datos/stock.db'
+   # opcional: scp datos/padron.db ... (1.4 GB)
+   ```
+5. **Levantar**:
+   ```bash
+   cd /opt/resolver
+   sudo docker compose -f deploy/docker-compose.yml up -d --build
+   sudo docker compose -f deploy/docker-compose.yml --profile bot up -d   # si usás el bot
+   ```
+6. Probar: `curl http://<IP>/health` → `{"ok":true,...}`.
+
+> El bot necesita `TELEGRAM_TOKEN` en `/opt/resolver/deploy/.env`.
+
+---
+
 ## Opción A — VPS con Docker (recomendada si ya tenés host)
 
 ```bash
