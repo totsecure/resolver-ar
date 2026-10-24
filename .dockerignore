@@ -1,6 +1,27 @@
 node_modules
 .git
+.gitignore
+
+# DBs y datos locales: van por volumen en el host, no en la imagen.
 datos/*.db
 datos/*.db-*
 datos/*.log
+datos/*.pid
+datos/*.env
+datos/backups
+datos/.stock.db-litestream
+
+# Artefactos de tests y varios
+.e2e
+.e2e-artifacts
+test-results
+playwright-report
 *.bak
+*.bak3
+*.bak4
+_bak
+refs
+varios
+
+# Docs grandes y capturas
+docs/**/*.png

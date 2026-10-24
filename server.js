@@ -60,7 +60,29 @@ if (!TOKEN) {
   process.exit(1);
 }
 
-const db = new DatabaseSync(RUTA_DB);
+/* El padrón (personas) es OPCIONAL: el panel/stock funcionan con stock.db solo.
+ * Si el archivo no está o no tiene la tabla, el server arranca igual y las
+ * rutas que lo usan (/lote, /titulares, /texto, /ficha, /informe) avisan. */
+let db = null;
+let padronOk = false;
+function abrirPadron() {
+  if (db) return db;
+  try {
+    db = new DatabaseSync(RUTA_DB);
+    db.exec('PRAGMA busy_timeout = 5000');
+    padronOk = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='personas'").get());
+  } catch (e) {
+    console.warn('AVISO: sin padrón (' + RUTA_DB + '): ' + String(e?.message || e));
+    db = null;
+    padronOk = false;
+  }
+  return db;
+}
+function padronON(res, extra = '') {
+  if (abrirPadron() && padronOk) return true;
+  res.status(503).type('text/plain').send('Sin padrón en este host (RESOLVER_DB). ' + extra + '\n');
+  return false;
+}
 const app = express();
 app.disable('x-powered-by');
 /* Detras de ngrok/Worker el protocolo y la IP real llegan por headers. */
@@ -306,10 +328,12 @@ function medirTiempo(req, res, next) {
 
 /* ------------------------------ helpers ------------------------------- */
 function contarPersonas() {
-  return db.prepare('SELECT COUNT(*) n FROM personas').get().n;
+  if (!abrirPadron()) return 0;
+  try { return db.prepare('SELECT COUNT(*) n FROM personas').get().n; } catch (_) { return 0; }
 }
 
 function contarTabla(tabla) {
+  if (!abrirPadron()) return 0;
   try {
     return db.prepare(`SELECT COUNT(*) n FROM "${tabla}"`).get().n;
   } catch (_) {
@@ -323,6 +347,7 @@ const TABLAS_INTERNAS = ['_litestream_lock', '_litestream_seq'];
 
 function tablas() {
   try {
+    abrirPadron();
     return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all()
       .map((r) => r.name)
       .filter((n) => !TABLAS_INTERNAS.includes(n));
@@ -343,23 +368,26 @@ function tablasInternas() {
 
 /* ------------------------- endpoints existentes ------------------------- */
 app.get('/texto/:dni', soloLectura, async (q, s) => {
+  if (!padronON(s, 'Probá /health.')) return;
   const r = resolver(db, q.params.dni);
   const f = (r.encontrado && q.query.offline !== '1') ? await consultarBcra(r.cuit) : null;
   s.type('text/plain').send(renderizar(r, f));
 });
 
 app.get('/persona/:dni', soloLectura, async (q, s) => {
+  if (!padronON(s)) return;
   const r = resolver(db, q.params.dni);
   const f = r.encontrado ? await consultarBcra(r.cuit) : null;
   s.status(r.encontrado ? 200 : 404).json({ ...r, fuentes: f });
 });
 
 /* ------------------- endpoints nuevos de SOLO LECTURA ------------------- */
-app.get('/health', soloLectura, (q, s) => {
+/* /health público (healthchecks de host); si viene token, responde igual. */
+app.get('/health', (q, s) => {
   try {
-    s.json({ ok: true, version: VERSION, db: RUTA_DB, personas: contarPersonas(), commit: COMMIT, sucio: sucio() });
+    s.json({ ok: true, version: VERSION, padron: Boolean(abrirPadron() && padronOk), personas: contarPersonas(), commit: COMMIT, sucio: sucio() });
   } catch (e) {
-    s.status(500).json({ ok: false, version: VERSION, db: RUTA_DB, error: String(e?.message || e) });
+    s.status(500).json({ ok: false, version: VERSION, error: String(e?.message || e) });
   }
 });
 
@@ -379,6 +407,7 @@ app.get('/lote', medirTiempo, soloLectura, (q, s) => {
     if (q.query.cards === undefined || String(q.query.cards).trim() === '') {
       return s.status(400).type('text/plain').send('ERROR: falta cards\n');
     }
+    if (!padronON(s, 'El lote necesita el padrón.')) return;
 
     const lista = parsearCards(q.query.cards);
     const desde = Number.parseInt(q.query.desde, 10);
@@ -400,6 +429,7 @@ app.get('/lote', medirTiempo, soloLectura, (q, s) => {
 
 app.get('/titulares', medirTiempo, soloLectura, (q, s) => {
   try {
+    if (!padronON(s, 'Titulares necesita el padrón.')) return;
     const n = Number.parseInt(q.query.n, 10);
     const saltar = Number.parseInt(q.query.saltar, 10);
     const titulares = seleccionarTitulares(db, {
@@ -417,9 +447,9 @@ app.get('/titulares', medirTiempo, soloLectura, (q, s) => {
 app.get('/stats', soloLectura, (q, s) => {
   try {
     const personas = contarPersonas();
-    const ambiguos = db.prepare(
+    const ambiguos = (() => { try { return db.prepare(
       'SELECT COUNT(*) n FROM (SELECT dni FROM personas GROUP BY dni HAVING COUNT(*) > 1)'
-    ).get().n;
+    ).get().n; } catch (_) { return 0; } })();
     const cob = calcularCobertura();
     s.json({
       personas,

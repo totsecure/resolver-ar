@@ -1,0 +1,46 @@
+# fly.toml — deploy en Fly.io (tiene free tier con volumen persistente).
+#
+#   fly launch --no-deploy --copy-config   # primera vez, o ajustá el app name
+#   fly volumes create resolver_datos --size 3   # 3 GB: entra stock.db + padrón
+#   fly secrets set RESOLVER_TOKEN=xxxx
+#   fly deploy
+#
+# El padrón (1.4 GB) entra en el volumen de 3 GB. Si no lo subís, la app
+# funciona igual (panel/stock/bot) y /texto avisa que falta el padrón.
+app = "resolver-ar"
+primary_region = "mia"          # Miami (cerca de Argentina)
+
+[build]
+  dockerfile = "deploy/Dockerfile"
+
+[env]
+  PORT = "3001"
+  HOST = "0.0.0.0"
+  RESOLVER_STOCK_DB = "/app/datos/stock.db"
+  RESOLVER_DB = "/app/datos/padron.db"
+
+[[mounts]]
+  source = "resolver_datos"
+  destination = "/app/datos"
+
+[[services]]
+  internal_port = 3001
+  force_https = true
+  protocol = "tcp"
+  auto_stop_machines = "suspend"     # ahorra: suspende si nadie entra
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.http_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "get"
+    path = "/health"

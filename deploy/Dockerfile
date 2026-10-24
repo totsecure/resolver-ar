@@ -1,18 +1,28 @@
 FROM node:24-alpine
 
-# La DB real (datos/padron.db, ~757 MB) NO se hornea en la imagen:
-# montar un volumen en /app/datos.
-#   docker build -f deploy/Dockerfile -t resolver-ar .
-#   docker run -p 3001:3001 -e RESOLVER_TOKEN=... -v /opt/resolver/datos:/app/datos resolver-ar
+# Resolver-ar NO necesita el padrón (1.4 GB) para funcionar: con stock.db
+# alcanza para panel, stock, saldeadas, pedir y el bot. El padrón es opcional
+# (se monta como volumen en /app/datos/padron.db para /texto, /lote, /ficha).
 WORKDIR /app
 
+# Dependencias primero (mejor cache).
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && npm cache clean --force
 
 COPY . .
 
-ENV NODE_ENV=production
-ENV PORT=3001
+# El server corre como usuario sin privilegios.
+RUN mkdir -p /app/datos && chown -R node:node /app
+USER node
+
+ENV NODE_ENV=production \
+    PORT=3001 \
+    HOST=0.0.0.0 \
+    TZ=America/Argentina/Buenos_Aires
+
 EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/health?token='+process.env.RESOLVER_TOKEN).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "server.js"]

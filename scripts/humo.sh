@@ -341,9 +341,11 @@ else
   fail "Worker publico" "http=${CODE:-000} $WORKER_URL/gh/README.md $(head -c 160 "$TMP")"
 fi
 
-# 8b) sin token: local y Worker deben dar 401 (el Worker no llega a ngrok)
+# 8b) /health es público (healthchecks); /texto requiere token.
 CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${BASE}/health" 2>/dev/null || true)
-[ "$CODE" = "401" ] && ok "local sin token" "http=401" || fail "local sin token" "http=${CODE:-000}"
+[ "$CODE" = "200" ] && ok "local /health publico" "http=200" || fail "local /health publico" "http=${CODE:-000}"
+CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${BASE}/texto/3348" 2>/dev/null || true)
+[ "$CODE" = "401" ] && ok "local /texto sin token" "http=401" || fail "local /texto sin token" "http=${CODE:-000}"
 CODE=$(curl -s -o "$TMP" -w '%{http_code}' --max-time 10 "${WORKER_URL}/gh/README.md" 2>/dev/null || true)
 [ "$CODE" = "401" ] && ok "Worker sin token" "http=401" || fail "Worker sin token" "http=${CODE:-000}"
 
