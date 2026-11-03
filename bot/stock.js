@@ -302,6 +302,187 @@ async function cmdPurgar(chat, args) {
   await enviar(chat, 'Archivadas ' + j.archivadas + ' vendidas' + (j.archivo ? ' en ' + esc(j.archivo) : ''));
 }
 
+
+/* === informes (ARGOS) === */
+
+async function cmdLocal(chat, args) {
+  const dni = String(args[0] || '').replace(/D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /local 30756789'); return; }
+  const j = await pedir('/argos/local/' + dni, { forzar: '1' });
+  if (!j || !j.fuente || j.fuente === 'AUSENTE') { await enviar(chat, 'Sin datos en base local.'); return; }
+  const L = ['BASE LOCAL - ' + (j.nombreCompleto || dni)];
+  for (const k of [['DNI',dni],['DIRECCION',j.direccion],['CIUDAD',j.ciudad],['PROVINCIA',j.provincia],['CP',j.cpostal],['MAIL',j.mail],['TEL',j.telefono],['FUENTE',j.fuente]]) if (k[1]) L.push(k[0] + ' ' + k[1]);
+  await enviarPre(chat, L.join(String.fromCharCode(10)));
+}
+
+async function cmdRenaper(chat, args) {
+  const dni = String(args[0] || '').replace(/D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /renaper 30756789'); return; }
+  const j = await pedir('/argos/renaper/' + dni, { forzar: '1' });
+  if (!j || !j.fuente || j.fuente === 'AUSENTE') { await enviar(chat, 'RENAPER sin datos.'); return; }
+  const L = ['RENAPER - ' + (j.nombreCompleto || dni)];
+  for (const k of [['NRO TRAMITE',j.nroTramite],['FECHA NAC',j.fechaNac],['CUIL',j.cuit],['DIRECCION',j.direccion],['CP',j.cpostal],['EMISION',j.emision],['VENCIM.',j.vencimiento]]) if (k[1]) L.push(k[0] + ' ' + k[1]);
+  L.push('FALLECIDO ' + (j.fallecido ? 'SI' : 'NO'));
+  await enviarPre(chat, L.join(String.fromCharCode(10)));
+}
+
+async function cmdCache(chat, args) {
+  const dni = String(args[0] || '').replace(/D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /cache 30756789'); return; }
+  const j = await pedir('/argos/cache/' + dni);
+  if (!j || !j.fuente || j.fuente === 'AUSENTE') { await enviar(chat, 'Sin cache para ese DNI.'); return; }
+  const L = ['CACHE - ' + (j.nombreCompleto || dni)];
+  for (const k of [['DNI',dni],['FUENTE',j.fuente],['DIRECCION',j.direccion],['TRAMITE',j.nroTramite]]) if (k[1]) L.push(k[0] + ' ' + k[1]);
+  await enviarPre(chat, L.join(String.fromCharCode(10)));
+}
+
+async function cmdLimites(chat) {
+  const j = await pedir('/argos/limites');
+  const L = ['LIMITES ARGOS'];
+  for (const t of ['local', 'renaper', 'nosis']) {
+    const x = j && j[t];
+    if (x) L.push(t + ': ' + x.usados + '/' + x.max + ' por ' + x.ventana);
+  }
+  L.push('bot: ' + usoMinuto() + '/28 este minuto');
+  await enviarPre(chat, L.join(String.fromCharCode(10)));
+}
+
+async function cmdAr(chat, args) {
+  const dni = String(args[0] || '').replace(/D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /ar 30756789'); return; }
+  const j = await pedir('/argos/' + dni, { forzar: '1' });
+  if (!j || !j.fuente || j.fuente === 'AUSENTE') { await enviar(chat, 'Sin datos: ' + esc(j && j.motivo || 'desconocido')); return; }
+  const L = ['INFORME ARGOS - ' + (j.nombreCompleto || dni)];
+  L.push('DNI ' + dni);
+  for (const k of [['NRO TRAMITE',j.nroTramite],['FECHA NAC',j.fechaNac],['EDAD',j.edad],['CUIL',j.cuit],['SEXO',j.sexo],['MAIL',j.mail],['TELEFONO',j.telefono],['DIRECCION',j.direccion],['CIUDAD',j.ciudad],['PROVINCIA',j.provincia],['CP',j.cpostal],['BARRIO',j.barrio],['EMISION',j.emision],['VENCIM.',j.vencimiento],['EJEMPLAR',j.ejemplar],['ID CIUD.',j.idCiudadano],['SIGNO',j.signo]]) {
+    if (k[1]) L.push(k[0] + ' ' + k[1]);
+  }
+  L.push('FALLECIDO ' + (j.fallecido ? 'SI' : 'NO') + (j.infoFallecimiento ? ' - ' + j.infoFallecimiento : ''));
+  L.push('FUENTE ' + (j.fuente || '-'));
+  if (Array.isArray(j.domicilios) && j.domicilios.length) L.push('DOMICILIOS HIST.: ' + j.domicilios.join(' | '));
+  if (Array.isArray(j.familia) && j.familia.length) {
+    L.push('FAMILIA:');
+    for (const f of j.familia) L.push('- ' + (f.nombre || '') + ' DNI ' + (f.dni || '-') + (f.edad ? ' (' + f.edad + ')' : '') + (f.parentesco ? ' [' + f.parentesco + ']' : ''));
+  }
+  await enviarPre(chat, L.join(String.fromCharCode(10)));
+}
+
+async function cmdDomicilios(chat, args) {
+  const dni = String(args[0] || '').replace(/D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /domicilios 30756789'); return; }
+  const j = await pedir('/argos/' + dni, { forzar: '1' });
+  const d = (j && Array.isArray(j.domicilios)) ? j.domicilios : [];
+  if (!d.length) { await enviar(chat, 'Sin domicilios registrados.'); return; }
+  const L = ['DOMICILIOS - ' + (j.nombreCompleto || dni)];
+  for (const x of d) L.push('- ' + x);
+  await enviarPre(chat, L.join(String.fromCharCode(10)));
+}
+
+/* CUIL por modulo 11, todo local: sin red ni limites. */
+function cuilDe(dni, prefijo) {
+  const base = String(prefijo) + dni;
+  const pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  let suma = 0;
+  for (let k = 0; k < 10; k++) suma += Number(base[k]) * pesos[k];
+  const resto = suma % 11;
+  const dv = resto === 0 ? 0 : 11 - resto;
+  if (dv === 10) return null;
+  return base + dv;
+}
+
+async function cmdCuit(chat, args) {
+  const dni = String(args[0] || "").replace(/\D/g, "");
+  if (dni.length < 7) { await enviar(chat, "Uso: /cuit 30756789"); return; }
+  const d = dni.padStart(8, "0").slice(-8);
+  const L = [];
+  for (const p of [20, 27, 24, 23]) {
+    const c = cuilDe(d, p);
+    if (c) L.push("CUIL " + c.slice(0, 2) + "-" + c.slice(2, 10) + "-" + c.slice(-1));
+  }
+  if (!L.length) { await enviar(chat, "Sin CUIL para ese DNI."); return; }
+  await enviarPre(chat, L.join(String.fromCharCode(10)));
+}
+
+async function cmdFallecido(chat, args) {
+  const dni = String(args[0] || '').replace(/D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /fallecido 30756789'); return; }
+  const j = await pedir('/argos/' + dni);
+  if (!j || !j.fuente || j.fuente === 'AUSENTE') { await enviar(chat, 'Sin datos para ese DNI.'); return; }
+  await enviar(chat, (j.fallecido ? 'FALLECIDO' : 'VIVO') + (j.infoFallecimiento ? ' - ' + esc(j.infoFallecimiento) : '') + '\n' + esc(j.nombreCompleto || dni));
+}
+
+async function cmdArgos(chat) {
+  const h = await pedir('/argos/health');
+  const st = await pedir('/argos/stats');
+  const L = ['ARGOS: ' + (h && h.ok ? 'OK' : 'FALLA')];
+  if (h && h.motivo) L.push('motivo: ' + h.motivo);
+  if (h && h.json) L.push('remoto: ' + JSON.stringify(h.json).slice(0, 160));
+  if (st) L.push('cache: ' + (st.cacheados || 0) + ' fallos: ' + (st.fallos || 0));
+  await enviarPre(chat, L.join(String.fromCharCode(10)));
+}
+
+async function cmdPrewarm(chat, args) {
+  const dnis = (args || []).join(',').replace(/D/g, '');
+  if (!dnis) { await enviar(chat, 'Uso: /prewarm 30756789,30123456'); return; }
+  await enviar(chat, 'Precalentando...');
+  const j = await pedir('/argos/prewarm', { dnis });
+  const L = ['Precalentado ' + (j.pedidos || 0)];
+  for (const r of (j.res || [])) L.push(r.dni + ' - ' + (r.fuente || '-'));
+  await enviarPre(chat, L.join(String.fromCharCode(10)));
+}
+async function cmdRandom(chat, args) {
+  const n = Math.min(Math.max(Number(args[0]) || 1, 1), 5);
+  await enviar(chat, 'Buscando ' + n + ' persona(s) al azar...');
+  const t = await pedirTexto('/ficha-random?n=' + n);
+  await enviarPre(chat, t);
+}
+
+async function cmdInfo(chat, args) {
+  const dni = String(args[0] || '').replace(/D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /info 30756789'); return; }
+  await enviar(chat, 'Consultando DNI ' + dni + '...');
+  const t = await pedirTexto('/ficha-argos/' + dni + '?forzar=1');
+  await enviarPre(chat, t);
+}
+
+async function cmdFamilia(chat, args) {
+  const dni = String(args[0] || '').replace(/D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /familia 30756789'); return; }
+  const j = await pedir('/argos/' + dni, { forzar: '1' });
+  const fam = (j && Array.isArray(j.familia)) ? j.familia : [];
+  if (!fam.length) { await enviar(chat, 'Sin grupo familiar para ese DNI.'); return; }
+  const L = ['GRUPO FAMILIAR - ' + (j.nombreCompleto || dni)];
+  for (const f of fam) L.push('- ' + (f.nombre || '') + ' DNI ' + (f.dni || '-') + (f.edad ? ' (' + f.edad + ')' : '') + (f.parentesco ? ' [' + f.parentesco + ']' : ''));
+  await enviarPre(chat, L.join(String.fromCharCode(10)));
+}
+
+async function cmdNosis(chat, args) {
+  const dni = String(args[0] || '').replace(/D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /nosis 30756789'); return; }
+  await enviar(chat, 'Generando informe Nosis de ' + dni + '. Tarda entre 30 y 120 segundos, te aviso.');
+  try {
+    const r = await fetch(baseUrl() + '/nosis-argos/' + dni + '?token=' + (process.env.RESOLVER_TOKEN || ''));
+    if (!r.ok) {
+      const j = await r.json().catch(() => null);
+      await enviar(chat, 'Nosis fallo: ' + esc((j && j.motivo) || r.status));
+      return;
+    }
+    const buf = Buffer.from(await r.arrayBuffer());
+    const form = new FormData();
+    form.append('chat_id', String(chat));
+    form.append('caption', 'Nosis ' + dni);
+    form.append('document', new Blob([buf], { type: 'application/pdf' }), 'nosis_' + dni + '.pdf');
+    await pedirTelegram('https://api.telegram.org/bot' + process.env.TELEGRAM_TOKEN + '/sendDocument', { method: 'POST', body: form });
+  } catch (e) { await enviar(chat, 'Error en /nosis: ' + esc(e.message || e)); }
+}
+
+async function pedirTexto(ruta) {
+  const q = new URLSearchParams({ token: process.env.RESOLVER_TOKEN || '' });
+  const r = await fetch(baseUrl() + ruta + '&' + q);
+  return await r.text();
+}
+/* === fin informes === */
+
 async function cmdBinInfo(chat, args) {
   const bin = String(args[0] || '').replace(/\D/g, '');
   if (!bin) { await enviar(chat, 'Uso: /bininfo 516585'); return; }
@@ -310,7 +491,35 @@ async function cmdBinInfo(chat, args) {
   await enviarPre(chat, lineas.join('\n'));
 }
 
-const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar']);
+/* Limites de ARGOS (doc seccion 2): 28/min para el resto y 2/min para nosis,
+ * con UNA sola nosis a la vez. El tope real es 30/min por IP y ARGOS responde 429.
+ */
+const ARGOS_CMDS = new Set(['random','info','ar','familia','domicilios','cuit','fallecido','argos','prewarm','local','renaper','cache','limites']);
+const marcaBot = new Map();
+let nosisBotOcupado = false;
+
+async function turnoBot(max) {
+  for (;;) {
+    const ahora = Date.now();
+    const m = (marcaBot.get('ar') || []).filter((t) => ahora - t < 60000);
+    marcaBot.set('ar', m);
+    if (m.length < max) { m.push(ahora); return; }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+}
+
+function usoMinuto() {
+  const ahora = Date.now();
+  return (marcaBot.get('ar') || []).filter((t) => ahora - t < 60000).length;
+}
+
+async function conNosis(fn) {
+  if (nosisBotOcupado) throw new Error('Nosis ocupado: esperá que termine la consulta en curso.');
+  nosisBotOcupado = true;
+  try { return await fn(); } finally { nosisBotOcupado = false; }
+}
+
+const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
 
 /* === atajos === */
 const ALIAS = {
@@ -318,6 +527,9 @@ const ALIAS = {
   x: 'baja', r: 'reservar', e: 'entrega', m: 'movs', p: 'precio', pl: 'precios',
   al: 'alertas', st: 'stats', et: 'etiqueta', sa: 'saldo', bi: 'bininfo',
   re: 'reentrega', ca: 'cargar', f: 'full', ex: 'exportar',
+  rnd: 'random', inf: 'info', nos: 'nosis', fam: 'familia',
+  dom: 'domicilios', fal: 'fallecido', ag: 'argos', pw: 'prewarm',
+  loc: 'local', ren: 'renaper', ch: 'cache', lim: 'limites',
   sal: 'saldeadas', sd: 'saldeadas',
   q: 'pedir', pd: 'pedir', rv: 'revisar', dead: 'revisar', queja: 'revisar',
 };
@@ -359,6 +571,7 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
   if (!COMANDOS.has(c)) return false;
   const quien = aliasDe(chatId);
   try {
+    if (ARGOS_CMDS.has(c) && c !== 'nosis') await turnoBot(28);
     if (c === 'cargar') await cmdCargar(chatId, args, payload, quien);
     else if (c === 'stock' || c === 'bins' || c === 'resumen') await cmdStock(chatId);
     else if (c === 'bin') await cmdBin(chatId, args);
@@ -387,6 +600,20 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'backup') await cmdBackup(chatId);
     else if (c === 'purgar') await cmdPurgar(chatId, args);
     else if (c === 'bininfo') await cmdBinInfo(chatId, args);
+    else if (c === 'random') await cmdRandom(chatId, args);
+    else if (c === 'info') await cmdInfo(chatId, args);
+    else if (c === 'nosis') await conNosis(() => cmdNosis(chatId, args));
+    else if (c === 'familia') await cmdFamilia(chatId, args);
+    else if (c === 'ar') await cmdAr(chatId, args);
+    else if (c === 'domicilios') await cmdDomicilios(chatId, args);
+    else if (c === 'cuit') await cmdCuit(chatId, args);
+    else if (c === 'fallecido') await cmdFallecido(chatId, args);
+    else if (c === 'argos') await cmdArgos(chatId);
+    else if (c === 'prewarm') await cmdPrewarm(chatId, args);
+    else if (c === 'local') await cmdLocal(chatId, args);
+    else if (c === 'renaper') await cmdRenaper(chatId, args);
+    else if (c === 'cache') await cmdCache(chatId, args);
+    else if (c === 'limites') await cmdLimites(chatId);
   } catch (e) {
     log('ERROR chat=' + chatId + ' cmd=' + c + ': ' + (e?.message || e));
     await enviar(chatId, 'Error en /' + c + ': ' + esc(e?.message || e)).catch(() => {});

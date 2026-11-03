@@ -1,0 +1,24 @@
+# Datos locales y secretos
+datos/
+datos/*.log
+datos/bot.env
+datos/server.env
+datos/bot-offset.json
+# cookies de sesion autenticada (nunca a git ni al snapshot /gh)
+datos/nosis-session.json
+datos/nosis-cooldown.json
+
+# Dependencias y artefactos
+node_modules/
+proxy/node_modules/
+proxy/.wrangler/
+*.tmp
+*.bak
+*.log
+*.roto*
+.env
+proxy/.dev.vars
+
+# macOS / temporales
+.DS_Store
+varios/

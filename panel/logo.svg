@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<defs>
+<radialGradient id="glass" cx="0.38" cy="0.32" r="0.85">
+<stop offset="0" stop-color="#ffffff"/>
+<stop offset="0.55" stop-color="#eaf6fc"/>
+<stop offset="1" stop-color="#cbe9f6"/>
+</radialGradient>
+<linearGradient id="aro" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#75AADB"/>
+<stop offset="1" stop-color="#3B78B0"/>
+</linearGradient>
+<linearGradient id="mango" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#75AADB"/>
+<stop offset="1" stop-color="#2E6BA0"/>
+</linearGradient>
+<radialGradient id="sol" cx="0.35" cy="0.3" r="0.9">
+<stop offset="0" stop-color="#FFD24A"/>
+<stop offset="1" stop-color="#F6B40E"/>
+</radialGradient>
+</defs>
+<rect width="512" height="512" fill="#ffffff"/>
+<g transform="rotate(45 256 256)">
+<rect x="238" y="390" width="36" height="96" rx="18" fill="url(#mango)"/>
+</g>
+<circle cx="256" cy="240" r="152" fill="#dfeff7"/>
+<circle cx="256" cy="240" r="152" fill="url(#glass)" stroke="url(#aro)" stroke-width="22"/>
+<g fill="url(#sol)">
+<circle cx="256" cy="240" r="46"/>
+<g id="rayos">
+<path d="M256 172 L264 140 L248 140 Z"/>
+<path d="M256 308 L264 340 L248 340 Z"/>
+<path d="M188 240 L156 248 L156 232 Z"/>
+<path d="M324 240 L356 248 L356 232 Z"/>
+<path d="M208 192 L186 170 L198 162 Z"/>
+<path d="M304 288 L326 310 L314 318 Z"/>
+<path d="M304 192 L326 170 L314 162 Z"/>
+<path d="M208 288 L186 310 L198 318 Z"/>
+<path d="M232 178 L222 148 L238 154 Z"/>
+<path d="M280 302 L290 332 L274 326 Z"/>
+<path d="M280 178 L290 148 L274 154 Z"/>
+<path d="M232 302 L222 332 L238 326 Z"/>
+</g>
+</g>
+<path d="M150 186 A 152 152 0 0 1 230 104" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" opacity="0.9"/>
+</svg>

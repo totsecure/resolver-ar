@@ -9,6 +9,9 @@ import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import { resolver } from './lib/resolver.js';
+import * as argos from './lib/argos.js';
+import * as gordo from './lib/gordo.js';
+import * as persona from './lib/persona.js';
 import { renderizar } from './lib/informe.js';
 import { consultarBcra } from './lib/fuentes.js';
 import { fichaDetalle } from './lib/ficha.js';
@@ -332,6 +335,49 @@ function contarPersonas() {
   try { return db.prepare('SELECT COUNT(*) n FROM personas').get().n; } catch (_) { return 0; }
 }
 
+
+/* DNI real al azar del padron (sin traer 5M filas). */
+function dniAlAzar() {
+  if (!abrirPadron()) return null;
+  try {
+    const n = contarPersonas();
+    if (!n) return null;
+    /* OFFSET sobre 5,6M filas es lento: se salta por rowid y se toma la primera fila util. */
+    const salto = Math.floor(Math.random() * n);
+    const r = db.prepare('SELECT dni FROM personas WHERE rowid >= ? LIMIT 1').get(salto);
+    return r && r.dni ? String(r.dni).padStart(8, '0') : null;
+  } catch (_) { return null; }
+}
+
+function fichaTexto(r) {
+  const L = [];
+  L.push('TITULAR ' + (r.apellido || '') + ' ' + (r.nombre || ''));
+  L.push('DNI ' + r.dni);
+  L.push('NRO TRAMITE ' + (r.nroTramite || '-'));
+  L.push('FECHA NAC ' + (r.fechaNac || '-') + (r.edad ? ' (' + r.edad + ' anios)' : ''));
+  L.push('CUIL ' + (r.cuit || '-'));
+  L.push('SEXO ' + (r.sexo || '-'));
+  L.push('MAIL ' + (r.mail || '-'));
+  L.push('TELEFONO ' + (r.telefono || '-'));
+  L.push('DIRECCION ' + (r.direccion || '-'));
+  L.push('CIUDAD ' + (r.ciudad || '-'));
+  L.push('PROVINCIA ' + (r.provincia || '-'));
+  L.push('CP ' + (r.cpostal || '-'));
+  L.push('FALLECIDO ' + (r.fallecido ? 'SI' : 'NO') + (r.infoFallecimiento ? ' - ' + r.infoFallecimiento : ''));
+  if (r.emision) L.push('DOC EMISION ' + r.emision);
+  if (r.vencimiento) L.push('DOC VENCIM. ' + r.vencimiento);
+  if (r.ejemplar) L.push('EJEMPLAR ' + r.ejemplar);
+  if (r.idCiudadano) L.push('ID CIUDADANO ' + r.idCiudadano);
+  if (r.signo) L.push('SIGNO ' + r.signo);
+  if (r.barrio) L.push('BARRIO ' + r.barrio);
+  L.push('FUENTE ' + (r.fuente || '-'));
+  if (r.domicilios && r.domicilios.length) L.push('DOMICILIOS HIST. ' + r.domicilios.join(' | '));
+  if (r.familia && r.familia.length) {
+    L.push('FAMILIA:');
+    for (const f of r.familia) L.push('  - ' + (f.nombre || '') + ' DNI ' + (f.dni || '-') + (f.edad ? '(' + f.edad + ')' : '') + (f.parentesco ? '[' + f.parentesco + ']' : ''));
+  }
+  return L.join('\n');
+}
 function contarTabla(tabla) {
   if (!abrirPadron()) return 0;
   try {
@@ -382,6 +428,108 @@ app.get('/persona/:dni', soloLectura, async (q, s) => {
 });
 
 /* ------------------- endpoints nuevos de SOLO LECTURA ------------------- */
+
+/* -------------------------------- ARGOS -------------------------------- */
+app.get('/argos/health', soloLectura, async (q, s) => {
+  try { s.json(await argos.health()); } catch (e) { s.status(500).json({ ok: false, error: String(e?.message || e) }); }
+});
+
+app.get('/argos/stats', soloLectura, (q, s) => s.json(argos.stats()));
+app.get('/argos/limites', soloLectura, (q, s) => s.json(argos.limites()));
+
+app.get('/argos/cache/:dni', soloLectura, (q, s) => {
+  const r = argos.cacheDeDni(q.params.dni);
+  s.status(r ? 200 : 404).json(r || { fuente: 'AUSENTE', motivo: 'sin cache' });
+});
+
+app.get('/argos/local/:dni', soloLectura, async (q, s) => {
+  const d = argos.normalizarDni(q.params.dni);
+  if (!d) return s.status(400).json({ fuente: 'AUSENTE', motivo: 'dni invalido' });
+  const cr = await gordo.crudo(d);
+  if (cr) return s.json(gordo.soloLocal(cr, d));
+  const r = await argos.datos('local', d, { forzar: true });
+  s.status(r && r.fuente !== 'AUSENTE' ? 200 : 404).json(r);
+});
+
+app.get('/argos/renaper/:dni', soloLectura, async (q, s) => {
+  const d = argos.normalizarDni(q.params.dni);
+  if (!d) return s.status(400).json({ fuente: 'AUSENTE', motivo: 'dni invalido' });
+  const cr = await gordo.crudo(d);
+  if (cr) return s.json(gordo.soloRenaper(cr, d));
+  const r = await argos.datos('renaper', d, { forzar: true });
+  s.status(r && r.fuente !== 'AUSENTE' ? 200 : 404).json(r);
+});
+
+
+app.get('/argos/prewarm', soloLectura, async (q, s) => {
+  const dnis = String(q.query.dnis || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 40);
+  const res = [];
+  for (const d of dnis) {
+    const r = await persona.argosDe(d, { forzar: true });
+    res.push({ dni: d, fuente: r.fuente || null, nombre: r.nombreCompleto || null });
+  }
+  s.json({ ok: true, pedidos: dnis.length, res });
+});
+
+
+app.get('/random', soloLectura, async (q, s) => {
+  const n = Math.min(Math.max(Number(q.query.n) || 1, 1), 10);
+  const out = [];
+  for (let i = 0; i < n; i ++) {
+    const d = dniAlAzar();
+    if (!d) break;
+    const r = await persona.argosDe(d, { forzar: true });
+    out.push(r && r.fuente && r.fuente !== 'AUSENTE' ? r : { dni: d, fuente: 'AUSENTE', motivo: (r && r.motivo) || 'sin datos' });
+  }
+  s.json({ ok: true, pedidos: n, res });
+});
+
+app.get('/ficha-random', soloLectura, async (q, s) => {
+  const n = Math.min(Math.max(Number(q.query.n) || 1, 1), 5);
+  const bloques = [];
+  for (let i = 0; i < n; i ++) {
+    const d = dniAlAzar();
+    if (!d) break;
+    const r = await persona.argosDe(d, { forzar: true });
+    bloques.push(r && r.fuente && r.fuente !== 'AUSENTE' ? fichaTexto(r) : 'DNI ' + d + ' - AUSENTE (' + ((r && r.motivo) || 'sin datos') + ')');
+  }
+  s.type('text/plain').send(bloques.join('\n' + '='.repeat(50) + '\n') + '\n');
+});
+
+app.get('/ficha-argos/:dni', soloLectura, async (q, s) => {
+  const r = await persona.argosDe(q.params.dni, { forzar: q.query.forzar === '1' });
+  if (!r || !r.fuente || r.fuente === 'AUSENTE') return s.status(404).type('text/plain').send('AUSENTE - ' + ((r && r.motivo) || 'sin datos'));
+  s.type('text/plain').send(fichaTexto(r) + '\n');
+});
+
+app.get('/argos/:dni', soloLectura, async (q, s) => {
+  const dni = q.params.dni;
+  const local = persona.real(dni) || {};
+  const conLocal = (r) => {
+    const out = { ...local, ...(r || {}) };
+    if (!out.nombreCompleto) out.nombreCompleto = [out.apellido, out.nombre].filter(Boolean).join(" ") || null;
+    if (!out.fuente || out.fuente === "AUSENTE") out.fuente = out.nombreCompleto ? "LOCAL" : "AUSENTE";
+    return out;
+  };
+  try {
+    if (q.query.forzar === "1") return s.json(await persona.argosDe(dni, { forzar: true }));
+    const cache = persona.cacheArgos(dni);
+    if (cache && cache.fuente && cache.fuente !== "AUSENTE") return s.json(cache);
+    /* Sin cache: no se espera mas de 2,5 s; si no llega se sirve lo local y el pedido sigue en segundo plano. */
+    const r = await Promise.race([persona.argosDe(dni, {}), new Promise((ok) => setTimeout(() => ok(null), 2500))]);
+    if (!r) persona.argosDe(dni, {}).catch(() => {});
+    s.json(conLocal(r));
+  } catch (e) { s.json(conLocal(null)); }
+});
+
+app.get('/nosis-argos/:dni', soloLectura, async (q, s) => {
+  try {
+    const r = await argos.nosisPdf(q.params.dni);
+    if (!r.archivo) return s.status(404).json(r);
+    s.sendFile(r.archivo);
+  } catch (e) { s.status(500).json({ fuente: 'AUSENTE', motivo: String(e?.message || e) }); }
+});
+
 /* /health público (healthchecks de host); si viene token, responde igual. */
 app.get('/health', (q, s) => {
   try {
@@ -626,13 +774,14 @@ const cuerpo = (req, k, d) => {
 const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const refsDe = (v) => String(v || '').split(/[,\s] /).filter(Boolean);
 
+/* Acepta handlers sync y async: si devuelven promesa se espera antes de responder. */
 function envolver(fn) {
-  return (req, res) => {
+  return async (req, res) => {
     try {
-      const r = fn(req, res);
+      const r = await fn(req, res);
       if (!res.headersSent) res.json(r === undefined ? { ok: true } : r);
     } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
+      if (!res.headersSent) res.status(500).json({ error: String(e?.message || e) });
     }
   };
 }
@@ -1346,12 +1495,12 @@ app.get('/stock/precio', soloLectura, envolver((req) => sSetPrecio(qs(req, 'bin'
 app.get('/stock/cargar', soloLectura, envolver((req) => sCargar(qs(req, 'texto', ''), { ...quien(req), etiqueta: qs(req, 'etiqueta') })));
 app.post('/stock/cargar', soloLectura, envolver((req) => sCargar(String(req.body?.texto || qs(req, 'texto', '')), { ...quien(req), etiqueta: qs(req, 'etiqueta'), flexible: true })));
 app.get('/stock/vender', soloLectura, envolver((req) => sVender({ ...quien(req), bin: qs(req, 'bin'), cantidad: num(qs(req, 'cantidad', 1), 1), modo: qs(req, 'modo'), refs: refsDe(qs(req, 'refs')), comprador: qs(req, 'comprador'), codigo: qs(req, 'codigo') })));
-app.get('/stock/entrega', soloLectura, envolver((req) => {
-  const r = sEntrega({ ...quien(req), bin: qs(req, 'bin'), cantidad: num(qs(req, 'cantidad', 1), 1), modo: qs(req, 'modo'), refs: refsDe(qs(req, 'refs')), comprador: qs(req, 'comprador'), formato: qs(req, 'formato'), desde: num(qs(req, 'desde', 1), 1), saltar: num(qs(req, 'saltar', 0), 0) });
+app.get('/stock/entrega', soloLectura, envolver(async (req) => {
+  const r = await sEntrega({ ...quien(req), bin: qs(req, 'bin'), cantidad: num(qs(req, 'cantidad', 1), 1), modo: qs(req, 'modo'), refs: refsDe(qs(req, 'refs')), comprador: qs(req, 'comprador'), formato: qs(req, 'formato'), desde: num(qs(req, 'desde', 1), 1), saltar: num(qs(req, 'saltar', 0), 0) });
   return { codigo: r.codigo, n: r.ccs.length, texto: r.texto, refs: r.ccs.map((c) => c.ref) };
 }));
-app.get('/stock/reentrega', soloLectura, envolver((req) => {
-  const r = sReentrega(qs(req, 'codigo', ''), { formato: qs(req, 'formato'), desde: num(qs(req, 'desde', 1), 1) });
+app.get('/stock/reentrega', soloLectura, envolver(async (req) => {
+  const r = await sReentrega(qs(req, 'codigo', ''), { formato: qs(req, 'formato'), desde: num(qs(req, 'desde', 1), 1) });
   if (!r) return { error: 'codigo no encontrado' };
   return { codigo: r.codigo, n: r.ccs.length, texto: r.texto };
 }));

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="es" data-bs-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RESOLVER STORE</title>
+<meta name="theme-color" content="#2563eb">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/panel/vendor/tabler.min.css">
+<link rel="stylesheet" href="/panel/vendor/toastify.css">
+<link rel="stylesheet" href="/panel/vendor/tom-select.bootstrap5.min.css">
+<style>
+:root{--bg:rgb(9,12,18);--panel:rgb(17,22,32);--panel2:rgb(22,28,40);--line:rgb(39,47,63);--txt:rgb(226,232,240);--dim:rgb(148,163,184);--acc:rgb(59,130,246);--ok:rgb(34,197,94);--warn:rgb(245,158,11);--bad:rgb(239,68,68)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:13.5px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:9;flex-wrap:wrap}
+.logo{font-weight:800;letter-spacing:.4px}
+.logo b{color:var(--acc)}
+.tab{background:transparent;border:1px solid transparent;color:var(--dim);padding:7px 12px;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px}
+.tab:hover{color:var(--txt);border-color:var(--line)}
+.tab.on{background:var(--acc);color:rgb(255,255,255)}
+.kpis{margin-left:auto;display:flex;gap:16px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+.kpis b{color:var(--txt);font-size:13px}
+main{padding:14px 16px 60px;max-width:1500px;margin:0 auto}
+.filtros{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim);margin-bottom:4px}
+input,select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 9px;font-size:13px}
+input:focus,select:focus{outline:none;border-color:var(--acc)}
+.botones{display:flex;gap:8px;align-items:flex-end}
+button.prim{background:var(--acc);color:rgb(255,255,255);border:0;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer}
+button.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600}
+button.prim:disabled{opacity:.45;cursor:default}
+.barra{display:flex;align-items:center;gap:12px;margin:14px 0 8px}
+.barra .sel{color:var(--dim);font-size:13px}
+.barra .crecer{margin-left:auto}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
+th{background:var(--panel2);color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+tr:hover td{background:rgba(59,130,246,.06)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.bin{font-weight:700}
+.sub{color:var(--dim);font-size:11.5px}
+.badge{display:inline-block;padding:2px 6px;border-radius:5px;font-size:10.5px;font-weight:700;border:1px solid var(--line)}
+.visa{background:rgba(59,130,246,.15);color:rgb(147,197,253)}
+.master{background:rgba(239,68,68,.15);color:rgb(252,165,165)}
+.icons span{display:inline-block;width:19px;height:19px;line-height:19px;text-align:center;border-radius:5px;margin-right:3px;font-size:10px;background:var(--panel2);color:var(--dim);border:1px solid var(--line)}
+.icons span.si{color:var(--ok);border-color:rgba(34,197,94,.45)}
+.precio{font-weight:800;color:rgb(147,197,253)}
+.pag{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px;color:var(--dim)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:20}
+.modal.abierto{display:flex}
+.caja{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;width:min(460px,92vw)}
+.caja h3{margin:0 0 12px}
+.aviso{margin-top:10px;font-size:12.5px;color:var(--dim)}
+.vacio{padding:26px;text-align:center;color:var(--dim)}
+.vacio-acciones{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+th[data-col="bin"],th[data-col="saldo"],th[data-col="precio"]{user-select:none}
+th.orden-asc::after{content:" ▲";font-size:9px;opacity:.6}
+th.orden-desc::after{content:" ▼";font-size:9px;opacity:.6}
+</style><link rel="stylesheet" href="/panel/tema.css">
+<link rel="stylesheet" href="/panel/panel.css">
+</head>
+<body class="claro">
+<input type="checkbox" id="menuToggle" class="menu-toggle" hidden>
+<div class="layout">
+  <label class="sidebar-backdrop" for="menuToggle" role="button" aria-label="Cerrar menú"></label>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-mark"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-shield-lock"></use></svg></span>
+      <span>RESOLVER <b>STORE</b></span>
+    </div>
+    <nav class="sidebar-nav" aria-label="Secciones">
+      <div class="nav-label">Market</div>
+      <button class="tab nav-link on" data-estado="DISPONIBLE"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-shopping-cart"></use></svg> Market</button>
+      <button class="tab nav-link" data-estado="RESERVADA"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-bookmark"></use></svg> Reservadas</button>
+      <button class="tab nav-link" data-estado="VENDIDA"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-check"></use></svg> Vendidas</button>
+      <button class="tab nav-link" data-estado="REVISION"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-clock"></use></svg> Revisión</button>
+      <button class="tab nav-link" data-estado="PAPELERA"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-trash"></use></svg> Papelera</button>
+      <div class="nav-label">Herramientas</div>
+      <button class="tab nav-link" id="btnSaldeadas"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-coin"></use></svg> Saldeadas</button>
+      <button class="tab nav-link" id="btnDash"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-chart-pie"></use></svg> Dashboard</button>
+      <a class="tab nav-link" href="/panel/admin.html"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-settings"></use></svg> Administración</a>
+    </nav>
+    <div class="sidebar-foot">
+      <span class="badge text-bg-dark">v1.0</span>
+      <span id="sidebarEstado">Operativo</span>
+    </div>
+  </aside>
+  <div class="page">
+    <header class="topbar">
+      <label class="menu-btn" for="menuToggle" role="button" aria-label="Abrir menú"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-menu-2"></use></svg></label>
+      <div class="logo">RESOLVER <b>STORE</b></div>
+      <div class="kpis" id="kpis"></div>
+      <button class="btn btn-sm btn-outline-secondary" id="btnTema"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-moon"></use></svg> Oscuro</button>
+      <button class="btn btn-sm btn-outline-secondary" id="btnSalir"><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-logout"></use></svg> Salir</button>
+    </header>
+    <main>
+  <div id="bannerSlot" class="banner-slot"></div>
+  <details class="card filtros-card" id="filtrosBox" open>
+    <summary class="filtros-head">
+      <span><svg class="icon"><use href="/panel/vendor/iconos.svg#tabler-filter"></use></svg> Filtros</span>
+      <span class="filtros-resumen" id="filtrosActivos"></span>
+    </summary>
+    <div class="filtros-body">
+  <div class="filtros">
+    <div><label for="f_bins">BIN</label><input id="f_bins" placeholder="516585,545652"></div>
+    <div><label for="f_bin_desde">BIN desde</label><input id="f_bin_desde" inputmode="numeric" placeholder="516500"></div>
+    <div><label for="f_bin_hasta">BIN hasta</label><input id="f_bin_hasta" inputmode="numeric" placeholder="516599"></div>
+    <div><label for="f_paises">Pais</label><select id="f_paises"></select></div>
+    <div><label for="f_bancos">Banco</label><select id="f_bancos"></select></div>
+    <div><label for="f_redes">Red</label><select id="f_redes"></select></div>
+    <div><label for="f_tipos">Tipo</label><select id="f_tipos"></select></div>
+    <div><label for="f_etiquetas">Base / etiqueta</label><select id="f_etiquetas"></select></div>
+    <div><label for="f_estado">Estado</label><select id="f_estado">
+      <option value="DISPONIBLE">Disponible</option>
+      <option value="RESERVADA">Reservada</option>
+      <option value="VENDIDA">Vendida</option>
+      <option value="REVISION">Revisión</option>
+      <option value="PAPELERA">Papelera</option>
+      <option value="BAJA">Baja</option>
+    </select></div>
+    <div><label for="f_venc">Vencimiento</label><select id="f_venc">
+      <option value="">Todas</option>
+      <option value="vencidas">Vencidas</option>
+      <option value="30">Próximos 30 días</option>
+      <option value="60">Próximos 60 días</option>
+      <option value="90">Próximos 90 días</option>
+    </select></div>
+    <div><label for="f_niveles">Nivel</label><select id="f_niveles"></select></div>
+    <div><label for="f_saldmin">Saldo min</label><input id="f_saldmin" type="number"></div>
+    <div><label for="f_saldmax">Saldo max</label><input id="f_saldmax" type="number"></div>
+    <div><label for="f_pmin">Precio min</label><input id="f_pmin" type="number"></div>
+    <div><label for="f_pmax">Precio max</label><input id="f_pmax" type="number"></div>
+    <div><label for="f_q">Buscar</label><input id="f_q" placeholder="Número, últimos 4, DNI, titular, ref o código"></div>
+    <div><span style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim);margin-bottom:4px">Saldeadas</span><label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="f_saldeadas" style="width:auto"> solo base Saldeadas</label></div>
+    <div class="botones">
+      <button class="prim" id="btnBuscar">Buscar</button>
+      <button class="sec" id="btnLimpiar">Limpiar</button>
+    </div>
+  </div>
+  <div class="filtros" style="margin-top:8px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+    <div><label for="f_nombre">Guardar filtro</label><input id="f_nombre" placeholder="nombre del filtro"></div>
+    <div><label for="f_guardados">Filtros guardados</label><select id="f_guardados"></select></div>
+    <div class="botones">
+      <button class="sec" id="btnGuardarFiltro">Guardar</button>
+      <button class="sec" id="btnCargarFiltro">Cargar</button>
+      <button class="sec" id="btnBorrarFiltro">Borrar</button>
+    </div>
+  </div>
+    </div>
+  </details>
+  <div class="barra">
+    <button class="sec" id="btnSelTodos">Seleccionar todas</button>
+    <button class="sec" id="btnPedirSel">Pedir</button>
+    <button class="sec" id="chipSinPrecio" hidden>Sin precio <b id="chipSinPrecioN">0</b> <span class="x">×</span></button>
+    <details class="col-menu" id="panelColumnas">
+      <summary class="sec">Columnas</summary>
+      <div class="col-menu-body">
+        <label><input type="checkbox" data-col="bin" checked> BIN / Banco</label>
+        <label><input type="checkbox" data-col="marca" checked> Red</label>
+        <label><input type="checkbox" data-col="tipo" checked> Tipo</label>
+        <label><input type="checkbox" data-col="exp" checked> EXP</label>
+        <label><input type="checkbox" data-col="pais" checked> País</label>
+        <label><input type="checkbox" data-col="zip" checked> ZIP</label>
+        <label><input type="checkbox" data-col="datos" checked> Datos</label>
+        <label><input type="checkbox" data-col="base" checked> Base</label>
+        <label><input type="checkbox" data-col="refund" checked> Refund</label>
+        <label><input type="checkbox" data-col="estado" checked> Estado</label>
+        <label><input type="checkbox" data-col="saldo" checked> Saldo</label>
+        <label><input type="checkbox" data-col="precio" checked> 1 pago</label>
+        <label><input type="checkbox" data-col="cuotas" checked> En cuotas</label>
+        <hr>
+        <label><input type="checkbox" id="densidadCompacta"> Densidad compacta</label>
+      </div>
+    </details>
+    <div class="crecer"></div>
+    <span class="sel" id="info" aria-live="polite"></span>
+  </div>
+  <div class="tabla-wrap">
+  <table class="table table-vcenter table-sm table-striped card-table" aria-label="Tarjetas del filtro actual">
+    <thead><tr>
+      <th scope="col" style="width:34px"><input type="checkbox" id="chkTodos" aria-label="Seleccionar todas las filas de la página"></th>
+      <th scope="col" data-col="bin">BIN / Banco</th><th scope="col" data-col="marca">Red</th><th scope="col" data-col="tipo">Tipo</th><th scope="col" data-col="exp">EXP</th>
+      <th scope="col" data-col="pais">Pais</th><th scope="col" data-col="zip">ZIP</th><th scope="col" data-col="datos">Datos</th><th scope="col" data-col="base">Base</th>
+      <th scope="col" data-col="refund">Refund</th><th scope="col" data-col="estado">Estado</th><th scope="col" data-col="saldo">Saldo</th><th scope="col" data-col="precio">1 pago</th><th scope="col" data-col="cuotas">en cuotas</th><th scope="col"></th>
+    </tr></thead>
+    <tbody id="cuerpo"></tbody>
+  </table>
+  </div>
+  <div class="pag" id="pag"></div>
+  <div class="barra-contextual" id="barraContextual" hidden></div>
+</main>
+  </div>
+</div>
+<div class="modal" id="modal"><div class="caja">
+  <h3 id="m_titulo">Comprar</h3>
+  <div id="m_cuerpo"></div>
+  <div class="botones" style="margin-top:14px">
+    <button class="prim" id="m_ok">Confirmar</button>
+    <button class="sec" id="m_cancelar">Cancelar</button>
+  </div>
+  <div class="aviso" id="m_aviso"></div>
+</div></div>
+<script src="/panel/vendor/sweetalert2.all.min.js"></script>
+<script src="/panel/vendor/toastify.js"></script>
+<script src="/panel/vendor/hotkeys-js.min.js"></script>
+<script src="/panel/vendor/tom-select.complete.min.js"></script>
+<script src="/panel/app.js"></script>
+</body>
+</html>
