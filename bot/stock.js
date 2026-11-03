@@ -565,12 +565,22 @@ async function precioDe(bin) {
 }
 /* === fin atajos === */
 
+/* Anti-duplicado y corte de tiempo por comando: un comando nunca deja el bot colgado ni responde dos veces. */
+const ULTIMO = new Map();
+const TOPE_MS = Number(process.env.BOT_TOPE_MS || 25000);
 export async function manejarStock(chatId, cmd, args = [], payload = '') {
   const _raw = String(cmd || '').toLowerCase();
   const c = ALIAS[_raw] || _raw;
   if (!COMANDOS.has(c)) return false;
-  const quien = aliasDe(chatId);
+  const quien = aliasDe(chatId);  const firma = chatId + '|' + c + '|' + args.join(' ') + '|' + String(payload).slice(0, 60);
+  const ahora = Date.now();
+  const antes = ULTIMO.get(firma);
+  if (antes && ahora - antes < 3000) return true;
+  ULTIMO.set(firma, ahora);
+  if (ULTIMO.size > 400) ULTIMO.clear();
+
   try {
+    const correr = async () => {
     if (ARGOS_CMDS.has(c) && c !== 'nosis') await turnoBot(28);
     if (c === 'cargar') await cmdCargar(chatId, args, payload, quien);
     else if (c === 'stock' || c === 'bins' || c === 'resumen') await cmdStock(chatId);
@@ -614,6 +624,8 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'renaper') await cmdRenaper(chatId, args);
     else if (c === 'cache') await cmdCache(chatId, args);
     else if (c === 'limites') await cmdLimites(chatId);
+    };
+    await Promise.race([correr(), new Promise((_, mal) => setTimeout(() => mal(new Error("tardó demasiado, reintentá")), TOPE_MS))]);
   } catch (e) {
     log('ERROR chat=' + chatId + ' cmd=' + c + ': ' + (e?.message || e));
     await enviar(chatId, 'Error en /' + c + ': ' + esc(e?.message || e)).catch(() => {});

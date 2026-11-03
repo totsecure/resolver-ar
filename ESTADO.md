@@ -43,3 +43,25 @@ Caddy del server tiene el placeholder resolver.tudominio.com -> TLS roto para cu
 + se escribe como @@ y se convierte con sed s/@@/+/g. Codificar %20 %26 %3C %3E %22 %23 %7C %25.
 BSD sed no tiene \d ni \s. En zsh escapar parentesis en patrones grep.
 Herramienta web_scrape tiene cupo diario; si da limit_reached esperar al dia siguiente.
+
+=== 2026-11-03 - formato de venta y criterio local-primero ===
+
+Entrega (formato cerrado, ver venta_4473_completo.txt):
+- Cabecera SALDOS arriba: `N> numero-saldoDisp/saldoTotal` (miles k, millones m). Si no hay saldos, no aparece.
+- Seccion TARJETAS debajo, bloques TARJETA N / DATOS TITULAR / DATOS TARJETA.
+- Vencimiento siempre MM/AAAA. Apellido en mayusculas, nombre capitalizado (particulas DE/LA/LOS respetadas).
+- CP y CUIL antes de PAIS. El CUIL sale del padron (columna cuit), local y cacheado en memoria.
+- El bloque ya no repite SALDO adentro: va en la cabecera.
+
+Criterio de datos (local primero):
+- Identidad (apellido, nombre, DNI, CUIL): siempre del padron, real y sin red.
+- Domicilio/tel/mail/CP: de cache ARGOS si existe; si no, sintetico de faker-extra. La entrega nunca bloquea.
+- /argos/:dni corta a 2,5 s: sirve cache o local y deja el pedido en segundo plano. forzar=1 saltea el corte.
+- /cuit calcula modulo 11 local, sin ARGOS ni Nosis.
+- ARGOS queda para lo que el padron no tiene y para prewarm de fondo.
+
+Robustez del bot:
+- Descarte de comandos repetidos en 3 s (mata respuestas duplicadas).
+- Tope de 25 s por comando, configurable con BOT_TOPE_MS.
+
+Estado: bot y server corriendo con estos cambios. Deploy a pl1 pendiente (rsync con setsid y entrada desde /dev/null, padron 757 MB, unit en 3100). Logo por BotFather /setuserpic pendiente.
