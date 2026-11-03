@@ -430,6 +430,35 @@ app.get('/persona/:dni', soloLectura, async (q, s) => {
 /* ------------------- endpoints nuevos de SOLO LECTURA ------------------- */
 
 /* -------------------------------- ARGOS -------------------------------- */
+/* CUIL: valida un CUIL o resuelve el real de un DNI. Todo local. */
+function cuilDv(base10) {
+  const pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  let suma = 0;
+  for (let k = 0; k < 10; k++) suma += Number(base10[k]) * pesos[k];
+  const resto = suma % 11;
+  return resto === 0 ? 0 : 11 - resto;
+}
+
+app.get('/cuit/:valor', soloLectura, (q, s) => {
+  const v = String(q.params.valor || "").replace(/\\D/g, "");
+  const db = abrirPadron();
+  const fila = (sql, arg) => { try { return db.prepare(sql).get(arg); } catch (_) { return null; } };
+  const nombre = (f) => (f ? [f.apellido, f.nombre].filter(Boolean).join(" ") : null);
+  if (v.length >= 11) {
+    const c = v.slice(-11);
+    const ok = cuilDv(c.slice(0, 10)) === Number(c[10]);
+    const f = fila("SELECT dni, apellido, nombre FROM personas WHERE cuit = ? LIMIT 1", c);
+    return s.json({ cuil: c, valido: ok, dni: (f && f.dni) || null, nombre: nombre(f), fuente: "LOCAL" });
+  }
+  if (v.length < 6) return s.status(400).json({ error: "uso: /cuit dni o cuit" });
+  const d = v.padStart(8, "0").slice(-8);
+  const f = fila("SELECT cuit, apellido, nombre FROM personas WHERE dni = ? LIMIT 1", d);
+  if (f && f.cuit) return s.json({ cuil: String(f.cuit), valido: true, dni: d, nombre: nombre(f), fuente: "PADRON" });
+  const out = [];
+  for (const p of [20, 27, 24, 23]) { const b = p + d; const dv = cuilDv(b); if (dv !== 10) out.push(b + dv); }
+  s.json({ cuil: null, candidatos: out, dni: d, fuente: "CALCULADO" });
+});
+
 app.get('/argos/health', soloLectura, async (q, s) => {
   try { s.json(await argos.health()); } catch (e) { s.status(500).json({ ok: false, error: String(e?.message || e) }); }
 });

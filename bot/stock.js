@@ -378,28 +378,22 @@ async function cmdDomicilios(chat, args) {
   await enviarPre(chat, L.join(String.fromCharCode(10)));
 }
 
-/* CUIL por modulo 11, todo local: sin red ni limites. */
-function cuilDe(dni, prefijo) {
-  const base = String(prefijo) + dni;
-  const pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
-  let suma = 0;
-  for (let k = 0; k < 10; k++) suma += Number(base[k]) * pesos[k];
-  const resto = suma % 11;
-  const dv = resto === 0 ? 0 : 11 - resto;
-  if (dv === 10) return null;
-  return base + dv;
-}
-
 async function cmdCuit(chat, args) {
-  const dni = String(args[0] || "").replace(/\D/g, "");
-  if (dni.length < 7) { await enviar(chat, "Uso: /cuit 30756789"); return; }
-  const d = dni.padStart(8, "0").slice(-8);
+  const v = String(args[0] || "").replace(/\\D/g, "");
+  if (v.length < 6) { await enviar(chat, "Uso: /cuit dni o cuit"); return; }
+  const j = await pedir("/cuit/" + v);
+  if (!j) { await enviar(chat, "Sin datos."); return; }
+  const fmt = (c) => c.slice(0, 2) + "-" + c.slice(2, 10) + "-" + c.slice(-1);
   const L = [];
-  for (const p of [20, 27, 24, 23]) {
-    const c = cuilDe(d, p);
-    if (c) L.push("CUIL " + c.slice(0, 2) + "-" + c.slice(2, 10) + "-" + c.slice(-1));
+  if (j.cuil) {
+    L.push("CUIL " + fmt(j.cuil) + (j.valido ? " VALIDO" : " INVALIDO"));
+    if (j.fuente === "PADRON") L.push("(dato del padron)");
+  } else {
+    for (const c of j.candidatos || []) L.push("CUIL " + fmt(c));
+    if (L.length) L.push("(DNI ausente del padron: son candidatos)");
   }
-  if (!L.length) { await enviar(chat, "Sin CUIL para ese DNI."); return; }
+  if (j.nombre) L.push(j.nombre);
+  if (!L.length) { await enviar(chat, "Sin datos."); return; }
   await enviarPre(chat, L.join(String.fromCharCode(10)));
 }
 
