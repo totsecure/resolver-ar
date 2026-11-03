@@ -16,7 +16,7 @@
 
 import fs from 'node:fs';
 import dns from 'node:dns';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 
 /* La Mac resuelve api.telegram.org por IPv6, que no tiene salida: forzar IPv4. */
 dns.setDefaultResultOrder('ipv4first');
@@ -788,6 +788,24 @@ async function iniciar() {
   let offset = leerOffset();
   let primerPollOk = false;
   log(`bot iniciado offset=${offset} token=...${token.slice(-4)}`);
+/* Watchdog: si el server local deja de escuchar, se relanza solo. */
+/* El bot ya vive bajo launchd: no hace falta sudo ni otro proceso. */
+let caidas = 0;
+setInterval(async () => {
+  try {
+    const r = await fetch("http://127.0.0.1:" + (process.env.PORT || 3001) + "/health", { signal: AbortSignal.timeout(1500) });
+    if (r.ok) { caidas = 0; return; }
+  } catch (_) {}
+  caidas += 1;
+  if (caidas < 2) return;
+  caidas = 0;
+  log("watchdog: server caido, relanzando");
+  try {
+    const h = spawn("/usr/local/bin/node", ["server.js"], { cwd: process.cwd(), detached: true, stdio: "ignore" });
+    h.unref();
+  } catch (e) { log("watchdog error: " + e.message); }
+}, 5000);
+
 
   let fallosSeguidos = 0;
   let ultimoAviso = 0;

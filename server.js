@@ -539,7 +539,7 @@ app.get('/argos/:dni', soloLectura, async (q, s) => {
   const local = persona.real(dni) || {};
   /* El padron es local y real: siempre aporta identidad. */
   let padron = null;
-  try { padron = abrirPadron().prepare("SELECT apellido, nombre FROM personas WHERE dni = ? LIMIT 1").get(dni); } catch (_) { padron = null; }
+  try { padron = abrirPadron().prepare("SELECT apellido, nombre FROM personas WHERE dni = ? LIMIT 1").get(dni); } catch (e) { padron = null; console.warn("padron argos: " + e.message); }
   const conLocal = (r) => {
     const out = { ...local, ...(padron || {}), ...(r || {}) };
     if (!out.nombreCompleto) out.nombreCompleto = [out.apellido, out.nombre].filter(Boolean).join(" ") || null;

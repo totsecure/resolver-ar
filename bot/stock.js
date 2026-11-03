@@ -12,7 +12,7 @@ function log(msg) {
   try { fs.appendFileSync(RUTA_LOG, new Date().toISOString() + ' stock ' + msg + '\n'); } catch (_) {}
 }
 
-const baseUrl = () => process.env.RESOLVER_URL || ('http://127.0.0.1:' + (process.env.PORT || 3001));
+const baseUrl = () => process.env.RESOLVER_URL || ('http://127.0.1:' + (process.env.PORT || 3001));
 
 async function pedir(ruta, params = {}, cuerpo = null) {
   const q = new URLSearchParams({ token: process.env.RESOLVER_TOKEN || '', ...params });
@@ -504,7 +504,8 @@ async function cmdNosis(chat, args) {
 
 async function pedirTexto(ruta) {
   const q = new URLSearchParams({ token: process.env.RESOLVER_TOKEN || '' });
-  const r = await fetch(baseUrl() + ruta + '&' + q);
+  const sep = ruta.includes('?') ? '&' : '?';
+  const r = await fetch(baseUrl() + ruta + sep + q);
   return await r.text();
 }
 /* === fin informes === */
