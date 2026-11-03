@@ -381,20 +381,52 @@ async function cmdDomicilios(chat, args) {
 async function cmdCuit(chat, args) {
   const v = String(args[0] || "").replace(/\\D/g, "");
   if (v.length < 6) { await enviar(chat, "Uso: /cuit dni o cuit"); return; }
-  const j = await pedir("/cuit/" + v);
-  if (!j) { await enviar(chat, "Sin datos."); return; }
   const fmt = (c) => c.slice(0, 2) + "-" + c.slice(2, 10) + "-" + c.slice(-1);
-  const L = [];
-  if (j.cuil) {
-    L.push("CUIL " + fmt(j.cuil) + (j.valido ? " VALIDO" : " INVALIDO"));
-    if (j.fuente === "PADRON") L.push("(dato del padron)");
-  } else {
-    for (const c of j.candidatos || []) L.push("CUIL " + fmt(c));
-    if (L.length) L.push("(DNI ausente del padron: son candidatos)");
+  /* CUIL completo: se valida contra ARGOS por el DNI que lleva adentro. */
+  if (v.length >= 11) {
+    const c = v.slice(-11);
+    const d = c.slice(2, 10);
+    let j = await pedir("/argos/" + d);
+    if (!j || !j.cuit) { await new Promise((ok) => setTimeout(ok, 1500)); j = await pedir("/argos/" + d); }
+    const L = [];
+    if (j && j.cuit) {
+      L.push("CUIL " + fmt(c) + (String(j.cuit) === c ? " VALIDO" : " NO COINCIDE" + " (ARGOS: " + fmt(String(j.cuit)) + ")"));
+      if (j.nombreCompleto) L.push(j.nombreCompleto);
+    } else L.push("CUIL " + fmt(c) + "- sin datos de ARGOS para DNI " + d);
+    await enviarPre(chat, L.join(String.fromCharCode(10)));
+    return;
   }
-  if (j.nombre) L.push(j.nombre);
-  if (!L.length) { await enviar(chat, "Sin datos."); return; }
-  await enviarPre(chat, L.join(String.fromCharCode(10)));
+  const j = await pedir("/argos/" + v);
+  if (!j || !j.cuit) { await enviar(chat, "Sin CUIL en ARGOS para ese DNI."); return; }
+  await enviarPre(chat, "CUIL " + fmt(String(j.cuit)) + String.fromCharCode(10) + (j.nombreCompleto || ""));
+}
+
+/* Random real: DNI al azar del padron y ficha completa por ARGOS. */
+/* Random real: DNI al azar del padron y datos por ARGOS. */
+async function cmdRandomArgos(chat, args) {
+  const n = Math.min(Math.max(Number(args[0]) || 1, 1), 5);
+  await enviar(chat, "Buscando " + n + " persona(s) al azar en ARGOS...");
+  for (let k = 0; k < n; k++) {
+    const t = await pedirTexto("/random");
+    const m = String(t || "").match(/\\d{7,8}/);
+    if (!m) { await enviar(chat, "Sin DNI al azar."); continue; }
+    const dni = m[0];
+    let j = await pedir("/argos/" + dni);
+    if (!j || !j.nombreCompleto) { await new Promise((ok) => setTimeout(ok, 1800)); j = await pedir("/argos/" + dni); }
+    if (!j || (!j.nombreCompleto && !j.fuente)) { await enviar(chat, "DNI " + dni + ": sin datos en ARGOS"); continue; }
+    const L = [];
+    if (j.nombreCompleto) L.push(j.nombreCompleto);
+    L.push("DNI " + (j.dni || dni));
+    if (j.cuit) {const c = String(j.cuit); L.push("CUIL " + c.slice(0, 2) + "-" + c.slice(2, 10) + "-" + c.slice(-1));}
+    if (j.sexo) L.push("SEXO " + j.sexo);
+    if (j.fechaNac) L.push("NAC " + j.fechaNac);
+    if (j.direccion) L.push("DIRECCION " + j.direccion);
+    if (j.ciudad) L.push("CIUDAD " + j.ciudad);
+    if (j.provincia) L.push("PROVINCIA " + j.provincia);
+    if (j.cpostal) L.push("CP " + j.cpostal);
+    if (j.fallecido) L.push("FALLECIDO");
+    await enviarPre(chat, L.join(String.fromCharCode(10)));
+  }
 }
 
 async function cmdFallecido(chat, args) {
@@ -513,7 +545,7 @@ async function conNosis(fn) {
   try { return await fn(); } finally { nosisBotOcupado = false; }
 }
 
-const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
+const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
 
 /* === atajos === */
 const ALIAS = {
@@ -611,6 +643,7 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'ar') await cmdAr(chatId, args);
     else if (c === 'domicilios') await cmdDomicilios(chatId, args);
     else if (c === 'cuit') await cmdCuit(chatId, args);
+    else if (c === 'randomargos') await cmdRandomArgos(chatId, args);
     else if (c === 'fallecido') await cmdFallecido(chatId, args);
     else if (c === 'argos') await cmdArgos(chatId);
     else if (c === 'prewarm') await cmdPrewarm(chatId, args);

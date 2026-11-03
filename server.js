@@ -501,14 +501,17 @@ app.get('/argos/prewarm', soloLectura, async (q, s) => {
 });
 
 
-app.get('/random', soloLectura, async (q, s) => {
+/* /random es solo local: DNI al azar del padron, sin tocar ARGOS. */
+app.get('/random', soloLectura, (q, s) => {
   const n = Math.min(Math.max(Number(q.query.n) || 1, 1), 10);
-  const out = [];
-  for (let i = 0; i < n; i ++) {
+  const db = abrirPadron();
+  const st = db.prepare("SELECT dni, apellido, nombre FROM personas WHERE dni = ? LIMIT 1");
+  const res = [];
+  for (let i = 0; i < n; i++) {
     const d = dniAlAzar();
     if (!d) break;
-    const r = await persona.argosDe(d, { forzar: true });
-    out.push(r && r.fuente && r.fuente !== 'AUSENTE' ? r : { dni: d, fuente: 'AUSENTE', motivo: (r && r.motivo) || 'sin datos' });
+    const f = st.get(d);
+    res.push({ dni: d, nombreCompleto: f ? [f.apellido, f.nombre].filter(Boolean).join(" ") : null, fuente: "PADRON" });
   }
   s.json({ ok: true, pedidos: n, res });
 });
@@ -534,10 +537,13 @@ app.get('/ficha-argos/:dni', soloLectura, async (q, s) => {
 app.get('/argos/:dni', soloLectura, async (q, s) => {
   const dni = q.params.dni;
   const local = persona.real(dni) || {};
+  /* El padron es local y real: siempre aporta identidad. */
+  let padron = null;
+  try { padron = abrirPadron().prepare("SELECT apellido, nombre FROM personas WHERE dni = ? LIMIT 1").get(dni); } catch (_) { padron = null; }
   const conLocal = (r) => {
-    const out = { ...local, ...(r || {}) };
+    const out = { ...local, ...(padron || {}), ...(r || {}) };
     if (!out.nombreCompleto) out.nombreCompleto = [out.apellido, out.nombre].filter(Boolean).join(" ") || null;
-    if (!out.fuente || out.fuente === "AUSENTE") out.fuente = out.nombreCompleto ? "LOCAL" : "AUSENTE";
+    if (!out.fuente || out.fuente === "AUSENTE") out.fuente = out.nombreCompleto ? (padron ? "PADRON" : "LOCAL") : "AUSENTE";
     return out;
   };
   try {
