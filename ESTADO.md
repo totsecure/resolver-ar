@@ -55,15 +55,23 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 - Atiende: /info /cuit /renaper /ar /familia /domicilios /fallecido /nosis /local /randomargos /random /argos /prewarm.
 - Unit /etc/systemd/system/resolver-consultas.service y env /etc/resolver-consultas.env ya creados.
 - El env hoy tiene el token VIEJO como placeholder: hay que poner el token nuevo de BotFather y hacer `systemctl enable --now resolver-consultas`.
-- Sin token nuevo NO se puede arrancar: dos pollers con el mismo token se comen las updates (409).
+- Probado de punta a punta el 2026-11-04 (parando el bot de ventas para liberar el token): arranca, pollea sin 409, y atender() responde /start, /info (3,7 s) y /cuit, y rechaza chats fuera de TELEGRAM_ALLOW.
+- Sin token nuevo NO se puede dejar andando: dos pollers con el mismo token se comen las updates (409).
+
+## Backups (revisado 2026-11-04)
+- litestream corre en la MAC (pid propio, config deploy/litestream.yml) y replica datos/stock.db al disco Boveda. Verificado: restore a /tmp OK, integrity ok, 36 tablas, 59 cc.
+- OJO: litestream cubre la base de la MAC, no la de produccion. Por eso se agrego:
+  scripts/backup-stock-server.sh (server) -> VACUUM INTO + PRAGMA integrity_check + retencion 20.
+  Cron de root: `0 */6 * * * /opt/resolver/scripts/backup-stock-server.sh >> /var/log/resolver-backup.log 2>&1`.
+  Copia offsite: /Volumes/Boveda/resolver-backups/server/.
+- Los unicos backups previos eran 2 del padron de Oct 22 (1.1 GB en datos/backups, duplicados).
 
 ## Pendientes en orden
 1. Token del bot de consultas por BotFather -> editar /etc/resolver-consultas.env y `systemctl enable --now resolver-consultas`; probar /info y /cuit desde Telegram.
 2. Rotar clave del panel de PrivateLayer y clave de root; actualizar envs y dejar registro.
-3. Rutas que faltan en server.js: /argos/prewarm ya existe; revisar /nosis-argos/:dni. Setear GORDO_BASE y ARGOS_BASE en los envs (hoy solo ARGOS_OFICIAL=1).
+3. Automatizar el traido del backup del server a la Mac (hoy es manual con rsync).
 4. Pasar opts.red desde entrega()/reentrega() a asignarTitulares.
-5. Verificar integridad de la replica de litestream.
-6. Limpiar pidfiles de sesion viejos.
+5. Limpiar pidfiles de sesion viejos (datos/caffeinate.pid y datos/keepalive.pid apuntan a procesos muertos).
 
 ## Trampas conocidas del entorno
 - El server NO tiene sqlite3: usar node:sqlite (DatabaseSync).
