@@ -3,6 +3,7 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let CSRF = '';
 $('#codigo').value = new URLSearchParams(location.search).get('codigo') || '';
+if (!$('#codigo').value) $('#sinCodigo').style.display = 'block';
 
 async function preparar() {
   const r = await fetch('/api/auth/csrf');

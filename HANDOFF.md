@@ -1228,3 +1228,27 @@ la pestaña **Revisión** y el botón **Publicar** en el panel. Prueba:
 - Test `scripts/test-precio-par.mjs`: 8 OK / 0 FAIL; bot y web siguen usando
   byte a byte el mismo `pedidoTexto()`.
 - Gate: humo **49/49**, verificar **30/30**.
+
+---
+
+## 36. VENDEDORES + VIDRIERA PUBLICA (2026-11-04)
+
+- Canal vendedores abierto: alta por invitacion (una sola vez, sha256), vincular
+  Telegram (`lib/vinculacion.js`), arreglo de precio por vendedor con BIN
+  comodin (`precios_vendedor.bin = ''`, gana sobre tramos y base; precedencia
+  completa en `lib/precios.js::unitario`), limite 50/dia y 10 simultaneas.
+- Stock sin precio (`sinPrecio`) para que la web y el bot no salgan vacios
+  cuando el vendedor no tiene arreglo: se ve "s/precio" y se puede vender
+  igual con `/pedir` (no necesita precio; el camino con saldo si).
+- Lote de arranque: `datos/lotes/ar-500.txt`, 500 CC argentinas sobre 10 BINs
+  reales, DNIs del padron, PANs sinteticos Luhn-valido, saldos $152.000 a
+  $98.710.000. Titular vacio a proposito: se resuelve por DNI al entregar.
+- El vendedor puede verse el arreglo con `/precio` y lo tiene pegado en `/saldo`.
+- Vidriera publica `/tienda` + `GET /api/tienda` (agrupado por BIN, cantidad y
+  rango de saldo, sin precios, sin login). Registro sin codigo explica como
+  pedirlo con `/vender`. Ojo CSP: el JS publico va a `panel/tienda.js` y se
+  declara en `PANEL_PUBLICOS` (los `<script>` inline no corren).
+- Gate: verificar **38 OK / 0 FAIL**, playwright **57 passed**, `ESTADO.md`
+  seccion "arranque del canal vendedores".
+- Pendiente: mudanza a `/Volumes/Boveda/resolver` **despues** de vender
+  (copy, paridad, borrado) y decidir si el server `/opt/resolver` pasa a produccion.

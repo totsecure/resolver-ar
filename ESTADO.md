@@ -109,5 +109,7 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 - Invitaciones vigentes (30 dias, sin usar): EA7WN-4OGYY, 4O32P-T7NNA, NE6ZD-TD67Z.
 - Flujo verificado end-to-end por HTTP: invitacion -> /registro -> queda pendiente -> Aprobar en el panel -> login -> /stock ve SU precio -> reserva y debita SU saldo -> entrega con titular RENAPER real.
 - Panel admin: la lista de precios por vendedor mostraba vendedor y BIN pero no el precio y no se podia borrar; arreglado (celda de precio + boton Borrar).
-- Suite: scripts/verificar.js 38 OK / 0 FAIL (incluye aislamiento de comodin entre vendedores) y playwright 53 passed.
+- El vendedor ve SU arreglo: `/precio` en el bot (comodin y BINs puntuales, o "todavia no tenes precio" con la salida por `/pedir`), mas el resumen pegado en el encabezado de `/saldo`. Los mensajes de `sin_precio` en el panel y en el bot ahora dicen que mire `/precio` o pida el arreglo.
+- Vidriera publica `/tienda`: stock DISPONIBLE agrupado por BIN con cantidad y rango de saldo, SIN precios (cada vendedor tiene su arreglo), sin sesion ni token. API publica `GET /api/tienda` (total, bins, saldos, usuario del bot). CTA a `/registro` y al bot; `/registro` sin codigo muestra como pedirlo con `/vender`; `/login` linkea a la tienda; `ayudaPublico()` suma la URL de la vidriera. Bug encontrado: el script inline no corria por el CSP (script-src 'self') -> `panel/tienda.js` + alta en PANEL_PUBLICOS.
+- Suite: scripts/verificar.js 38 OK / 0 FAIL (incluye aislamiento de comodin entre vendedores) y playwright 57 passed.
 

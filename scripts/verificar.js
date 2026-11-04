@@ -617,6 +617,11 @@ const tests = [
       assert(r.items.length > 0 && r.items.every((x) => x.precio === 900), 'el catalogo del vendedor toma el comodin');
       const rs = cat.resumen(U, { sinPrecio: true });
       assert(rs.length > 0 && rs.every((x) => x.precio_min === 900), 'el resumen del bot toma el comodin');
+      const txt = precios.resumenVendedor(U);
+      assert(txt.includes('Comodín: $900'), 'el vendedor ve su comodin con /precio');
+      assert(txt.includes('999999 = $1200'), 'y tambien su precio por BIN');
+      assert(precios.resumenVendedor(U + 1).includes('$1500'), 'cada vendedor ve su propio arreglo');
+      assert(precios.resumenVendedor(U + 2).includes('Todavía no tenés precio'), 'sin arreglo el vendedor se entera');
     } finally {
       precios.setPrecioVendedor(U, '999999', 0);
       precios.setPrecioVendedor(U, 'todos', 0);

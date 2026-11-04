@@ -1037,6 +1037,27 @@ function fallo(res, e, status = 400) {
 const usuarioIdDe = (req) => Number(req.auth.usuario.id);
 
 app.get('/registro', (req, res) => res.sendFile(path.join(RAIZ, 'panel', 'registro.html')));
+
+/* Tienda publica: vidriera del stock sin precios (cada vendedor tiene su arreglo)
+ * y sin sesion ni token. Solo lectura, sin datos de titulares. */
+app.get('/tienda', (req, res) => res.sendFile(path.join(RAIZ, 'panel', 'tienda.html')));
+app.get('/api/tienda', envolver(() => {
+  const filas = catalogo.resumen(null, { sinPrecio: true });
+  return {
+    ok: true,
+    total: filas.reduce((s, f) => s + f.n, 0),
+    bins: filas.length,
+    actualizado: new Date().toISOString(),
+    bot: process.env.TELEGRAM_BOT_USER || 'resolver_ar_datos_bot',
+    items: filas.map((f) => ({
+      bin: f.bin,
+      n: f.n,
+      banco: f.banco || null,
+      saldo_min: f.saldo_min,
+      saldo_max: f.saldo_max,
+    })),
+  };
+}));
 app.get('/catalogo', (req, res) => {
   const ctx = contexto(req);
   if (!ctx || ctx.tipo !== 'sesion') return res.redirect('/login?next=%2Fcatalogo');
@@ -1597,7 +1618,7 @@ app.use('/panel/vendor', express.static(path.join(RAIZ, 'panel', 'vendor'), {
   maxAge: '1y', immutable: true, fallthrough: true,
 }));
 /* Static del panel detras del login. login.html y tema.css son publicos. */
-const PANEL_PUBLICOS = new Set(['/app.js', '/panel.css', '/login.html', '/tema.css', '/login.js', '/mi.js', '/admin.js', '/catalogo.js', '/registro.js', '/vendedores.js']);
+const PANEL_PUBLICOS = new Set(['/app.js', '/panel.css', '/login.html', '/tema.css', '/login.js', '/mi.js', '/admin.js', '/catalogo.js', '/registro.js', '/vendedores.js', '/tienda.js']);
 app.use('/panel', (req, res, next) => {
   if (PANEL_PUBLICOS.has(req.path)) return next();
   /* Iconos de la marca y manifest: públicos (los necesita el login y el PWA). */

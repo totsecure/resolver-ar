@@ -136,7 +136,10 @@ const AYUDA_PUBLICO = [
   '/vender - código de alta para vender (pedidos y precios propios)',
 ].join('\n');
 
-export function ayudaPublico() { return AYUDA_PUBLICO; }
+export function ayudaPublico() {
+  const base = String(process.env.URL_PUBLICA || '').replace(/\/+$/, '');
+  return AYUDA_PUBLICO + (base ? '\n\nVidriera web: ' + base + '/tienda' : '');
+}
 
 const MENU_PUBLICO = {
   inline_keyboard: [[

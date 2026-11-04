@@ -13,7 +13,7 @@ function log(msg) {
   try { fs.appendFileSync(RUTA_LOG, new Date().toISOString() + ' vendedor ' + msg + '\n'); } catch (_) {}
 }
 
-const CMD = new Set(['stock', 'bin', 'pedir', 'revisar', 'mis', 'saldo', 'pagar', 'datos', 'ok', 'falla', 'chk', 'recargar', 'recuperar', 'ayuda', 'start', 'help', 'comandos', 'desvincular']);
+const CMD = new Set(['stock', 'bin', 'precio', 'pedir', 'revisar', 'mis', 'saldo', 'pagar', 'datos', 'ok', 'falla', 'chk', 'recargar', 'recuperar', 'ayuda', 'start', 'help', 'comandos', 'desvincular']);
 /* Los resuelve manejarStock (bot/stock.js) tal cual, sin pasar por vb. */
 const PARIDAD = new Set(['vender', 'saldeadas', 'dead', 'anular', 'ventas', 'cancel', 'cancelar']);
 
@@ -95,6 +95,15 @@ export async function manejarVendedor(chatId, cmd, args, payload, ctx) {
   const u = vinculado;
   if (!u || u.rol !== 'vendedor') return false;
 
+  /* /precio pelado = el arreglo del vendedor. Con argumentos (/precio <bin> <valor>)
+   * sigue siendo el precio base y lo resuelve manejarStock. */
+  if (c === 'precio' && args.length === 0) {
+    const r = vb.precio(chatId);
+    log('chat=' + chatId + ' cmd=precio ok=' + r.ok);
+    await ctx.enviar(chatId, ctx.escapeHtml(r.texto));
+    return true;
+  }
+
   if (!CMD.has(c)) {
     /* Estos los resuelve manejarStock: el vendedor ve las mismas opciones que
      * en el bot de referencia (vender, saldeadas, dead, anular, ventas, cancel). */
@@ -110,6 +119,7 @@ export async function manejarVendedor(chatId, cmd, args, payload, ctx) {
     if (c === 'ayuda' || c === 'start' || c === 'help' || c === 'comandos') r = { ok: true, texto: vb.ayuda(), mono: false };
     else if (c === 'stock') r = vb.stock(chatId, pagina);
     else if (c === 'bin') r = vb.bin(chatId, args[0], pagina);
+    else if (c === 'precio') r = vb.precio(chatId);
     else if (c === 'pedir') r = vb.pedir(chatId, args[0], args[1]);
     else if (c === 'revisar') r = vb.revisar(chatId, args[0]);
     else if (c === 'mis') r = vb.mis(chatId, pagina);

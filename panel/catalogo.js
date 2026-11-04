@@ -103,7 +103,7 @@ async function reservar(cuerpo, msgSel) {
     const map = {
       saldo_insuficiente: 'Saldo insuficiente. Cargá saldo para reservar.',
       sin_stock: 'Ya no hay stock suficiente: otro vendedor se adelantó.',
-      sin_precio: 'Esas tarjetas no tienen precio asignado.',
+      sin_precio: 'Esas tarjetas no tienen precio asignado. Mirá tu precio con /precio en el bot o pedile al admin que te lo cargue.',
       limite_simultaneas: j && j.detalle,
       limite_diario: j && j.detalle,
       csrf: 'Recargá la página.',
