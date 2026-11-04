@@ -1262,7 +1262,40 @@ la pestaña **Revisión** y el botón **Publicar** en el panel. Prueba:
   ABAJO, con el mismo formato del bot de referencia
   (`lib/vendedor-bot.js::bloqueEntrega` -> `armarBloque`). `/datos <clave> txt`
   manda ademas `cc-<codigo>.txt` para copiar y pegar. El tramite del padron
-  manda y si falta se deriva del DNI.
+  manda y si falta se deriva del DNI (derivacion **central** en
+  `normalizarTitular`; vale para `/datos`, `/pedir`, `/vender`, la web y el lote).
+
+---
+
+## 37. Entrega identica en todos los caminos (2026-11-04)
+
+- El dueño mostro el bloque del bot de referencia: ficha del titular arriba,
+  tarjeta abajo, `NRO TRAMITE` incluido, y `.txt` para copiar y pegar. El
+  formato ya era byte a byte el de `armarBloque`, pero **dos caminos no lo
+  usaban** y uno salia sin tramite:
+  - `cmdEntrega` (`bot/stock.js`): la venta salia en `formato='compacto'`
+    (`numero|mes|anio|cvv`). Ahora la venta tambien sale en `bloques`;
+    `compacto` queda solo si se pide explicito.
+  - `NRO TRAMITE` se omitia cuando el padron/RENAPER no traia el dato. Ahora
+    `normalizarTitular` (`lib/lote.js`) y `fichaDetalle` (`lib/ficha.js`) lo
+    derivan del DNI (11 digitos, determinista, mismo DNI = mismo tramite) si
+    falta o si viene `(pendiente)`. `bloqueEntrega` ya no lo parchea a mano.
+- `sinteticoTramite()` quedo sin uso (el modo `coherente` ya no deja el tramite
+  pendiente); la linea `NRO TRAMITE` solo desaparece si no hay DNI.
+- `bot/telegram.js`: el watchdog del server relanzaba `node server.js` pelado
+  (sin `datos/server.env`, sin pidfile) y dejaba servers huerfanos con el token
+  del panel perdido. Ahora relanza `bash scripts/server.sh`.
+- Prueba dura: `GET /stock/entrega?formato=bloques` devuelve el bloque completo
+  con `NRO TRAMITE 93942327316` entre DNI y FECHA NAC (venta `V-20261104-007`).
+  Red/green: el test viejo exigia la omision del tramite -> 40 OK / 1 FAIL
+  antes, **41 OK / 0 FAIL** despues.
+- Salida al comprador: `/vender` (boton) manda `venta_<codigo>_completo.txt`
+  con el bloque; `/datos <clave> txt` manda `cc-<codigo>.txt`. Al vender la cc
+  sale de DISPONIBLE y queda VENDIDA (`vendido_a`, `vendido_el`,
+  `codigo_venta` + mov `VENTA`); el admin reingresa con `/devolver` y
+  `purgar` la archiva en `datos/archivo/stock-vendidas-<fecha>.txt`.
+- Pendiente aca: sumar `SALDO x/y` al bloque de entrega (`armarBloque` ya lo
+  soporta, falta que `catalogo.detalle`/`filaCompleta` expongan el saldo).
 - Gate: verificar **41 OK / 0 FAIL**, playwright **58 passed**, `ESTADO.md`
   seccion "arranque del canal vendedores".
 - Pendiente: mudanza a `/Volumes/Boveda/resolver` **despues** de vender
