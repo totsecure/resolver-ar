@@ -193,7 +193,9 @@ async function cmdMovs(chat, args) {
 }
 
 async function cmdEntrega(chat, args, quien, esVenta) {
-  const formato = args.find((a) => /^(bloques|compacto|listado)$/.test(a)) || (esVenta ? 'compacto' : 'bloques');
+  /* La venta tambien sale en bloques: los datos del titular arriba y la
+   * tarjeta abajo (igual que /pedir). 'compacto' queda a pedido. */
+  const formato = args.find((a) => /^(bloques|compacto|listado)$/.test(a)) || 'bloques';
   const bin = args.find((a) => /^\d{6}$/.test(a)) || undefined;
   const cantidad = num(args.find((a) => /^\d{1,3}$/.test(a)), 1);
   const comprador = args.filter((a) => !/^\d+$/.test(a) && !/^(bloques|compacto|listado)$/.test(a)).join(' ').trim() || undefined;

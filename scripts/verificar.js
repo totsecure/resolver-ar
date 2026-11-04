@@ -332,7 +332,7 @@ const tests = [
     assert(lineas[lineas.length - 1] === 'PAIS Argentina', 'PAIS: ' + lineas[lineas.length - 1]);
   }],
 
-  ['ficha() sin red para un DNI inexistente: sin lanzar, nacimiento según modo y trámite omitido/pendiente', async () => {
+  ['ficha() sin red para un DNI inexistente: sin lanzar, nacimiento según modo y trámite derivado del DNI', async () => {
     const modo = modoNacimiento();
     const texto = await ficha('99999997', { red: false });
     const lineas = validarFicha(texto, 'ficha inexistente');
@@ -342,11 +342,7 @@ const tests = [
     };
     assert(lineas[0] === 'TITULAR -', 'TITULAR: ' + lineas[0]);
     assert(lineas[1] === 'DNI 99999997', 'DNI: ' + lineas[1]);
-    if (modo === '1') {
-      assert(/^\d{11}$/.test(valor('NRO TRAMITE') || ''), 'NRO TRAMITE modo 1: ' + valor('NRO TRAMITE'));
-    } else {
-      assert(valor('NRO TRAMITE') === null, 'NRO TRAMITE no debería imprimirse: ' + valor('NRO TRAMITE'));
-    }
+    assert(/^\d{11}$/.test(valor('NRO TRAMITE') || ''), 'NRO TRAMITE derivado: ' + valor('NRO TRAMITE'));
     if (modo === '0') {
       assert(valor('FECHA NAC') === '(pendiente)', 'FECHA NAC modo 0: ' + valor('FECHA NAC'));
     } else {

@@ -889,7 +889,9 @@ setInterval(async () => {
   caidas = 0;
   log("watchdog: server caido, relanzando");
   try {
-    const h = spawn(process.execPath, ["server.js"], { cwd: process.cwd(), detached: true, stdio: "ignore" });
+    /* Via server.sh: carga datos/server.env (token incluido) y deja el pidfile,
+     * asi el daemon de launchd no levanta un segundo server. */
+    const h = spawn("bash", ["scripts/server.sh"], { cwd: process.cwd(), detached: true, stdio: "ignore" });
     h.unref();
   } catch (e) { log("watchdog error: " + e.message); }
 }, 5000);
