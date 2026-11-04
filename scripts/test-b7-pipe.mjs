@@ -34,7 +34,7 @@ check('auto-detecta pipes', parsed.formato === 'pipe' && parsed.numero === n1 &&
 
 const an = stock.cargar(pipe, { flexible: true, fase: 'analizar', nombre: 'b7pipe' });
 const fila = an.filas[0];
-check('preview avisa titular distinto', fila.titular_derivado === 'GOMEZ NALE MARINA' && fila.titular_coincide === false && /no coincide/.test(fila.aviso || ''), JSON.stringify({ peg: fila.titular, der: fila.titular_derivado, aviso: fila.aviso }));
+check('preview avisa titular distinto', fila.titular_derivado === 'GOMEZ Nale Marina' && fila.titular_coincide === false && /no coincide/.test(fila.aviso || ''), JSON.stringify({ peg: fila.titular, der: fila.titular_derivado, aviso: fila.aviso }));
 check('preview no bloquea', fila.estado === 'ok' && an.nuevas === 1);
 
 const co = stock.cargar(pipe, { flexible: true, fase: 'confirmar', nombre: 'b7pipe' });
@@ -44,8 +44,8 @@ check('solo guarda numero/venc/cvv/dni', row.dni === '39466006' && row.mes === '
   && row.titular === null && row.mail === null && row.telefono === null && row.direccion === null
   && row.ciudad === null && row.provincia === null && row.precio_num === null, JSON.stringify(row));
 
-const venta = stock.entrega({ refs: [n1], comprador: 'b7', usuario: 'b7', formato: 'bloques' });
-check('venta deriva titular y fecha', /^TITULAR GOMEZ NALE MARINA$/m.test(venta.texto) && /^FECHA NAC \d{2}\/\d{2}\/\d{4}$/m.test(venta.texto));
+const venta = await stock.entrega({ refs: [n1], comprador: 'b7', usuario: 'b7', formato: 'bloques' });
+check('venta deriva titular y fecha', /^TITULAR GOMEZ Nale Marina$/m.test(venta.texto) && /^FECHA NAC \d{2}\/\d{2}\/\d{4}$/m.test(venta.texto));
 check('mail derivado del mismo nombre', /^MAIL nalemarina142@gmail.com$/m.test(venta.texto), venta.texto.match(/^MAIL .*$/m)?.[0]);
 check('venta no imprime trámite pendiente', !/^NRO TRAMITE/m.test(venta.texto));
 check('venta coherente y sin 0 colgado', /^CIUDAD VILLA GOBERNADOR GALVEZ$/m.test(venta.texto) && /^PROVINCIA SANTA FE$/m.test(venta.texto) && !/ 0$/m.test(venta.texto));

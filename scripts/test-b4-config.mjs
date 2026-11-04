@@ -107,11 +107,11 @@ try {
   const rCarr = catalogo.reservar(u4, { refs: [cA] });
   check('reserva para carrera', rCarr.ok);
   process.env.VENDEDOR_GANA_CARRERA = '1';
-  const v1 = stock.entrega({ refs: [cAnum], comprador: 'bot', usuario: 'bot', cantidad: 1 });
+  const v1 = await stock.entrega({ refs: [cAnum], comprador: 'bot', usuario: 'bot', cantidad: 1 });
   const cA1 = base.prepare('SELECT estado FROM cc WHERE id=?').get(cA);
   check('carrera=1 protege al vendedor', v1.codigo === null && cA1.estado === 'RESERVADA', 'estado=' + cA1.estado);
   process.env.VENDEDOR_GANA_CARRERA = '0';
-  const v0 = stock.entrega({ refs: [cAnum], comprador: 'bot', usuario: 'bot', cantidad: 1 });
+  const v0 = await stock.entrega({ refs: [cAnum], comprador: 'bot', usuario: 'bot', cantidad: 1 });
   const cA0 = base.prepare('SELECT estado FROM cc WHERE id=?').get(cA);
   check('carrera=0 permite vender', Boolean(v0.codigo) && cA0.estado === 'VENDIDA', 'estado=' + cA0.estado);
   const resA = base.prepare('SELECT * FROM reservas WHERE cc_id=? ORDER BY id DESC LIMIT 1').get(cA);

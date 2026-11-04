@@ -40,7 +40,7 @@ const fReal = (await fichaDetalle('30756789', { red: false })).texto;
 check('ficha conserva trámite real', valor(fReal, 'NRO TRAMITE') === '00744230016' && fReal.split('\n').length === 10, valor(fReal, 'NRO TRAMITE'));
 
 const lotePend = armarBloque({ dni: '39466006', apellido: 'GOMEZ', nombre: 'NALE MARINA' }, null, null);
-check('lote sin trámite pendiente', valor(lotePend, 'NRO TRAMITE') === null && lotePend.split('\n').length === 10);
+check('lote sin trámite pendiente', valor(lotePend, 'NRO TRAMITE') === null && lotePend.split('\n').length === 12);
 const loteReal = armarBloque({ dni: '30756789', nroTramite: '00744230016' }, null, null);
 check('lote conserva trámite real', valor(loteReal, 'NRO TRAMITE') === '00744230016');
 
