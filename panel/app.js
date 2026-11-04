@@ -1179,7 +1179,7 @@
     var box = document.createElement('div'); box.id = 'cargarBox';
     box.innerHTML = '<div class="filtros" style="grid-template-columns:1fr">'
       + '<div><label>Nombre del lote</label><input id="cc_nombre" placeholder="lote octubre"></div>'
-      + '<div><label>Pegar tarjetas (numero, venc MM/YY, CVV, titular, DNI, banco, 1 pago, en cuotas, saldo, nota — o bloques de TARJETA #…)</label><textarea id="cc_texto" placeholder="4111111111111111,12/28,123,Juan Perez,30123456,Banco,150,180,21m/61m696k"></textarea></div>'
+      + '<div><label>Pegar tarjetas — un renglón por tarjeta: <b>numero, venc MM/AA, cvv</b> y, si querés, DNI, saldo (152k o 1.2m), banco, precio. Acepta coma, punto y coma, tab o pipe. También el formato largo con titular y los bloques "TARJETA #".</label><textarea id="cc_texto" placeholder="4111111111111111,12/28,123&#10;4509951234567890,05/29,456,30123456,152k&#10;= o subí un .txt/.csv abajo"></textarea></div>'
       + '<div><label>O subir .txt / .csv</label><input type="file" id="cc_file" accept=".txt,.csv,text/plain" aria-label="Archivo de tarjetas"></div>'
       + '<div class="botones"><button class="prim" id="cc_analizar">Analizar</button>'
       + '<button class="prim" id="cc_confirmar" disabled>Confirmar</button>'
@@ -1225,13 +1225,14 @@
         + '<span>Duplicadas <b>' + esc(r.duplicadas_count || 0) + '</b></span>'
         + '<span>Invalidas <b>' + esc(r.invalidas_count || 0) + '</b></span>'
         + (r.reactivadas_count ? '<span>Reactivadas <b>' + esc(r.reactivadas_count) + '</b></span>' : '')
-        + (r.lote_id ? '<span>Lote <b>#' + esc(r.lote_id) + '</b></span>' : '') + '</div>';
-      if (reactivables) h += '<label style="display:flex;gap:7px;align-items:center;margin:8px 0;font-size:13px"><input type="checkbox" id="cc_reactivar" data-nuevas="' + esc(r.nuevas || 0) + '"> Reactivar ' + reactivables + ' duplicada(s) en BAJA</label>';
+        + (r.lote_id ? '<span>Lote <b>#' + esc(r.lote_id) + '</b></span>' : '')
+        + (r.estado ? '<span>Van a <b>' + esc(r.publicar_directo ? 'DISPONIBLE' : 'REVISIÓN') + '</b></span>' : '') + '</div>';      if (reactivables) h += '<label style="display:flex;gap:7px;align-items:center;margin:8px 0;font-size:13px"><input type="checkbox" id="cc_reactivar" data-nuevas="' + esc(r.nuevas || 0) + '"> Reactivar ' + reactivables + ' duplicada(s) en BAJA</label>';
       h += '<table><thead><tr><th>Estado</th><th>Numero</th><th>Venc</th><th>Titular</th><th>DNI</th><th>Banco</th><th>Precio</th><th>Codigo / motivo</th></tr></thead><tbody>'
         + tp.map(filaC).join('') + '</tbody></table>';
       if (confirmado && r.lote_id) h += '<a class="cc-link" href="/panel/cc/export?id=' + encodeURIComponent(r.lote_id) + '&token=' + encodeURIComponent(TOKEN) + '">Descargar resumen CSV</a>';
       $('#cc_preview').innerHTML = h;
       $('#cc_confirmar').disabled = !(r.nuevas > 0 || (reactivables && $('#cc_reactivar') && $('#cc_reactivar').checked));
+      $('#cc_confirmar').textContent = r.publicar_directo ? 'Confirmar y publicar' : 'Confirmar (queda en Revisión)';
     }
     async function post(ruta, cuerpo) {
       var h = { 'Content-Type': 'application/json' };
@@ -1259,9 +1260,9 @@
         if (r.error) { $('#cc_info').textContent = 'error: ' + r.error; return; }
         pintarC(r, true);
         var quedan = Number(r.nuevas || 0) + Number(r.reactivadas_count || 0);
-        $('#cc_info').innerHTML = quedan
-          ? '✅ ' + quedan + ' cargadas en <b>Revisión</b> (todavía no se venden). <button class="prim" id="cc_irRevision">Ir a Revisión y publicar</button>'
-          : 'confirmado: ' + Number(r.nuevas || 0) + ' cargadas';
+        if (!quedan) $('#cc_info').textContent = 'confirmado: no entró ninguna tarjeta nueva';
+        else if (r.publicar_directo) $('#cc_info').innerHTML = '✅ ' + quedan + ' cargadas y <b>publicadas</b>: ya se venden (catálogo, /stock y la vidriera).';
+        else $('#cc_info').innerHTML = '✅ ' + quedan + ' cargadas en <b>Revisión</b> (todavía no se venden). <button class="prim" id="cc_irRevision">Ir a Revisión y publicar</button>';
         $('#cc_confirmar').disabled = true;
         cargar();
       } catch (e) { $('#cc_info').textContent = 'error de red'; }

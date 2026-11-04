@@ -125,3 +125,19 @@ test('editar el saldo inline guarda disp y referencia', async ({ page }) => {
   expect(f.saldo_num).toBe(7000000);
   expect(f.saldo_ref_num).toBe(8000000);
 });
+
+test('la caja de carga explica el formato mínimo y el saldo con k/m', async ({ page }) => {
+  await abrirPanelAny(page);
+  await page.click('#btnCargar');
+  const ayuda = page.locator('#cargarBox label').filter({ hasText: 'Pegar tarjetas' });
+  await expect(ayuda).toContainText('numero, venc MM/AA, cvv');
+  await expect(ayuda).toContainText('152k');
+  await expect(page.locator('#cc_texto')).toHaveAttribute('placeholder', /4111111111111111,12\/28,123/);
+
+  // Con PUBLICAR_DIRECTO=0 (el e2e) el botón avisa que queda en Revisión.
+  await page.fill('#cc_texto', '4111222233334448,03/30,321,31222333,45k');
+  await page.click('#cc_analizar');
+  await expect(page.locator('#cc_info')).toContainText('1 validas');
+  await expect(page.locator('#cc_confirmar')).toContainText('Revisión');
+  await expect(page.locator('#cc_preview tbody tr').first()).toContainText('31222333');
+});

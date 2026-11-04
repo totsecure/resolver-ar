@@ -629,6 +629,38 @@ const tests = [
     }
   }],
 
+  ['carga: formatos de pegado y destino de las tarjetas', async () => {
+    const { parsearEntradaFlexible } = await import('../lib/stock.js');
+    const uno = (t) => parsearEntradaFlexible(t)[0];
+    const conComas = uno('4111111111111111,12/28,123,30123456,152k');
+    assert(conComas.dni === '30123456' && conComas.cvv === '123', 'con comas toma DNI y CVV');
+    assert(conComas.saldo === '152k', 'con comas toma el saldo');
+    const conPipes = uno('4111111111111111|12/28|123|30123456|152k');
+    assert(conPipes.dni === '30123456' && conPipes.cvv === '123', 'con pipes no corre el DNI al CVV');
+    assert(conPipes.saldo === '152k', 'con pipes toma el saldo');
+    const conTitular = uno('4111111111111111|12/28|123|Juan Perez|30123456|152k');
+    assert(conTitular.titular === 'Juan Perez' && conTitular.dni === '30123456', 'con titular lo guarda y no lo come el CVV');
+    const viejo = uno('4111111111111111|12|28|123|152k');
+    assert(viejo.cvv === '123' && viejo.saldo === '152k' && !viejo.dni, 'el formato viejo numero|venc|anio|cvv|saldo sigue igual');
+    const { analizar } = await import('../lib/carga-cc.js');
+    const luhnOk = (n) => { let s = 0, alt = false; for (let i = n.length - 1; i >= 0; i--) { let d = +n[i]; if (alt) { d *= 2; if (d > 9) d -= 9; } s += d; alt = !alt; } return s % 10 === 0; };
+    const base15 = '4000' + String(Date.now()).slice(-11);
+    let N = base15 + '0';
+    for (let d = 0; d < 10; d++) { if (luhnOk(base15 + d)) { N = base15 + d; break; } }
+    const antes = process.env.PUBLICAR_DIRECTO;
+    try {
+      process.env.PUBLICAR_DIRECTO = '0';
+      const r = analizar(N + ',12/28,123,30123456,152k');
+      assert(r.nuevas === 1 && r.invalidas.length === 0, 'la fila valida se acepta');
+      assert(r.publicar_directo === false && r.estado === 'REVISION', 'sin PUBLICAR_DIRECTO queda en REVISION');
+      process.env.PUBLICAR_DIRECTO = '1';
+      const r2 = analizar(N + ',12/28,123,30123456,152k');
+      assert(r2.publicar_directo === true && r2.estado === 'DISPONIBLE', 'con PUBLICAR_DIRECTO=1 avisa que va DISPONIBLE');
+    } finally {
+      if (antes === undefined) delete process.env.PUBLICAR_DIRECTO; else process.env.PUBLICAR_DIRECTO = antes;
+    }
+  }],
+
   ['ventas: historial agrupado por codigo de venta', () => {
     const vs = ventas();
     assert(Array.isArray(vs), 'ventas() debe devolver un array');
