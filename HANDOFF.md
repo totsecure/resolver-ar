@@ -1248,7 +1248,11 @@ la pestaña **Revisión** y el botón **Publicar** en el panel. Prueba:
   rango de saldo, sin precios, sin login). Registro sin codigo explica como
   pedirlo con `/vender`. Ojo CSP: el JS publico va a `panel/tienda.js` y se
   declara en `PANEL_PUBLICOS` (los `<script>` inline no corren).
-- Gate: verificar **38 OK / 0 FAIL**, playwright **57 passed**, `ESTADO.md`
+- Ficha al entregar: `fichaDeDni(dni)` completa titular/mail/telefono/direccion
+  al vuelo (real si esta, sintetico determinista si el padron no tiene el DNI) y
+  `catalogo.detalle` la aplica cuando faltan datos. Sin esto, 1345 de 1354
+  disponibles se entregaban "Sin titular" aunque la tarjeta traiga DNI.
+- Gate: verificar **40 OK / 0 FAIL**, playwright **58 passed**, `ESTADO.md`
   seccion "arranque del canal vendedores".
 - Pendiente: mudanza a `/Volumes/Boveda/resolver` **despues** de vender
   (copy, paridad, borrado) y decidir si el server `/opt/resolver` pasa a produccion.

@@ -661,6 +661,23 @@ const tests = [
     }
   }],
 
+  ['entrega: la ficha del titular se completa aunque la tarjeta no lo traiga', async () => {
+    const { fichaDeDni, base } = await import('../lib/stock.js');
+    const sinDatos = fichaDeDni('39988777');
+    assert(sinDatos.titular && sinDatos.titular !== '-', 'titular derivado: ' + sinDatos.titular);
+    assert(sinDatos.mail && sinDatos.mail.includes('@'), 'mail derivado: ' + sinDatos.mail);
+    assert(sinDatos.direccion && sinDatos.direccion !== '-', 'direccion derivada: ' + sinDatos.direccion);
+    assert(fichaDeDni('39988777').titular === sinDatos.titular, 'el mismo DNI da siempre el mismo titular');
+    assert(fichaDeDni('39988777', { titular: 'TITULAR PROPIO' }).titular === 'TITULAR PROPIO', 'lo provisto no se pisa');
+    assert(!fichaDeDni('').titular, 'sin DNI no inventa ficha');
+    const fila = base().prepare("SELECT id FROM cc WHERE estado='DISPONIBLE' AND COALESCE(dni,'')<>'' AND COALESCE(titular,'')='' LIMIT 1").get();
+    if (fila) {
+      const cat = await import('../lib/catalogo.js');
+      const it = cat.detalle(base(), fila.id);
+      assert(it && it.titular && it.titular !== '-', 'la entrega completa el titular de una tarjeta sin datos');
+    }
+  }],
+
   ['ventas: historial agrupado por codigo de venta', () => {
     const vs = ventas();
     assert(Array.isArray(vs), 'ventas() debe devolver un array');
