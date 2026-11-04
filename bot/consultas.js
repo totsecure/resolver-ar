@@ -67,7 +67,7 @@ function guardarOffset(n) {
   try { fs.writeFileSync(RUTA_OFFSET, JSON.stringify({ offset: n })); } catch (_) {}
 }
 
-async function atender(msg) {
+export async function atender(msg) {
   const chat = msg.chat?.id;
   if (!chat) return;
   const texto = typeof msg.text === 'string' ? msg.text.trim() : '';
