@@ -379,7 +379,7 @@ async function cmdDomicilios(chat, args) {
 }
 
 async function cmdCuit(chat, args) {
-  const v = String(args[0] || "").replace(/\\D/g, "");
+  const v = String(args[0] || "").replace(/\D/g, "");
   if (v.length < 6) { await enviar(chat, "Uso: /cuit dni o cuit"); return; }
   const fmt = (c) => c.slice(0, 2) + "-" + c.slice(2, 10) + "-" + c.slice(-1);
   /* CUIL completo: se valida contra ARGOS por el DNI que lleva adentro. */

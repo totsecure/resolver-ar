@@ -801,7 +801,7 @@ setInterval(async () => {
   caidas = 0;
   log("watchdog: server caido, relanzando");
   try {
-    const h = spawn("/usr/local/bin/node", ["server.js"], { cwd: process.cwd(), detached: true, stdio: "ignore" });
+    const h = spawn(process.execPath, ["server.js"], { cwd: process.cwd(), detached: true, stdio: "ignore" });
     h.unref();
   } catch (e) { log("watchdog error: " + e.message); }
 }, 5000);
