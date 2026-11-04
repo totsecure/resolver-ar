@@ -857,6 +857,9 @@ async function iniciar() {
 
   let offset = leerOffset();
   let primerPollOk = false;
+  /* El pidfile real es el del node: `nohup` forkea y bot.sh guarda el pid del
+   * padre, que sobrevive al bot y hace creer que sigue vivo (dos pollers, 409). */
+  try { fs.writeFileSync(path.join(RAIZ, 'datos', 'bot.pid'), process.pid + '\n'); } catch { /* sin pidfile igual arranca */ }
   log(`bot iniciado offset=${offset} token=...${token.slice(-4)}`);
 
   /* Menú "/" de Telegram, igual al del bot de referencia. */
