@@ -3,12 +3,10 @@
 **Nombre del proyecto:** resolver-ar (resolver de titulares + venta de tarjetas + padrón AFIP + bot Telegram + panel).
 **Dueño / repo:** `cucucho-svg/resolver-ar` (privado).
 **Máquina:** Mac del usuario, zsh, herramientas BSD. Raíz: `/Users/bunker/resolver`.
-**Última actualización:** 2026-10-22.
-**Estado global:** plataforma web completa (fases 1–6) en producción local; T2 y T3 cerrados; T4 resuelto sin PAT; **T1 (login Nosis) bloqueado por contraseña**.
+**Última actualización:** 2026-11-04.
+**Estado global:** plataforma web completa (fases 1–6) en producción local; T2 y T3 cerrados; T4 resuelto sin PAT; **T1 (login Nosis) bloqueado por contraseña**. Canal vendedores abierto: alta por invitación, precio propio con BIN comodín y stock sin precio (ver `ESTADO.md`, sección "arranque del canal vendedores"). Pendiente el traslado a la Bóveda (vender primero, mudar después).
 
-> Este documento es para que otra IA (o el usuario) entienda dónde estamos sin
-> releer todo el chat. No contiene credenciales: viven en `datos/server.env` y
-> `datos/bot.env`, que están fuera de git.
+> Atajo: el detalle fino y al día vive en `ESTADO.md`. Este archivo es el mapa largo y no contiene credenciales: viven en `datos/server.env` y `datos/bot.env`, que están fuera de git.
 
 ---
 
