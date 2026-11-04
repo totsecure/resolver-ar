@@ -19,9 +19,9 @@ const COMANDOS = new Set([
 ]);
 
 const AYUDA = [
-  '<b>Consultas</b> (padron + ARGOS)',
+  '<b>Consultas</b> (padron)',
   '/info &lt;dni&gt; - datos del padron',
-  '/cuit &lt;dni|cuit&gt; - CUIL de ARGOS',
+  '/cuit &lt;dni|cuit&gt; - CUIL',
   '/renaper &lt;dni&gt; - datos del renaper',
   '/ar &lt;dni&gt; - ARCA / afip',
   '/familia &lt;dni&gt; - grupo familiar',
@@ -29,9 +29,9 @@ const AYUDA = [
   '/fallecido &lt;dni&gt; - si esta fallecido',
   '/nosis &lt;dni|cuit&gt; - nosis',
   '/local &lt;dni&gt; - datos locales',
-  '/randomargos [n] - n personas al azar por ARGOS',
+  '/randomargos [n] - n personas al azar',
   '/random [n] - n personas al azar del padron',
-  '/argos - estado del cache ARGOS',
+  '/argos - estado del cache',
 ].join('\n');
 
 function log(msg) {

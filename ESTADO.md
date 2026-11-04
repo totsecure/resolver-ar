@@ -50,13 +50,17 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 - El plist del bot de la Mac se dejo con SIGSTOP para no pelear el 409 de Telegram contra el server.
 - Mac y server tienen copias de stock.db: la de produccion manda. Divergencia posible si se escribe en las dos.
 
-## Bot de consultas (separado del de ventas) - LISTO, FALTA TOKEN
+## Bot de consultas (separado del de ventas) - ANDANDO
 - bot/consultas.js: poller propio (getUpdates + offset en datos/consultas-offset.json + lista blanca TELEGRAM_ALLOW) que reutiliza manejarStock() de bot/stock.js. No toca stock, ventas ni outbox.
 - Atiende: /info /cuit /renaper /ar /familia /domicilios /fallecido /nosis /local /randomargos /random /argos /prewarm.
-- Unit /etc/systemd/system/resolver-consultas.service y env /etc/resolver-consultas.env ya creados.
-- El env hoy tiene el token VIEJO como placeholder: hay que poner el token nuevo de BotFather y hacer `systemctl enable --now resolver-consultas`.
-- Probado de punta a punta el 2026-11-04 (parando el bot de ventas para liberar el token): arranca, pollea sin 409, y atender() responde /start, /info (3,7 s) y /cuit, y rechaza chats fuera de TELEGRAM_ALLOW.
-- Sin token nuevo NO se puede dejar andando: dos pollers con el mismo token se comen las updates (409).
+- Unit /etc/systemd/system/resolver-consultas.service y env /etc/resolver-consultas.env: active + enabled.
+- Token nuevo propio (bot @resolver_consultas_bot) en /etc/resolver-consultas.env. El de ventas quedo con el otro token: ya no pelean el 409.
+- Probado de punta a punta: arranca, pollea sin 409, atender() responde y rechaza chats fuera de TELEGRAM_ALLOW.
+
+## Textos de los bots: sin la palabra ARGOS
+- Al usuario no se le nombra ARGOS en ningun mensaje. Se saca de la ayuda, de los informes y del campo FUENTE (ARGOS_DNI -> DNI).
+- Se mantienen los nombres de comando (/argos, /randomargos) y las rutas internas (/argos/:dni, /ficha-argos/:dni).
+- Barrido automatico de todos los comandos de consulta: 0 lineas con "argos" en el texto enviado.
 
 ## Backups (revisado 2026-11-04)
 - litestream corre en la MAC (pid propio, config deploy/litestream.yml) y replica datos/stock.db al disco Boveda. Verificado: restore a /tmp OK, integrity ok, 36 tablas, 59 cc.
@@ -67,18 +71,17 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 - Los unicos backups previos eran 2 del padron de Oct 22 (1.1 GB en datos/backups, duplicados).
 
 ## Pendientes en orden
-1. Token del bot de consultas por BotFather -> editar /etc/resolver-consultas.env y `systemctl enable --now resolver-consultas`; probar /info y /cuit desde Telegram.
-2. Rotar clave del panel de PrivateLayer y clave de root; actualizar envs y dejar registro.
-3. Automatizar el traido del backup del server a la Mac (hoy es manual con rsync).
-4. Pasar opts.red desde entrega()/reentrega() a asignarTitulares.
-5. Limpiar pidfiles de sesion viejos (datos/caffeinate.pid y datos/keepalive.pid apuntan a procesos muertos).
+1. Rotar clave del panel de PrivateLayer y clave de root; actualizar envs y dejar registro.
+2. Automatizar el traido del backup del server a la Mac (hoy es manual con rsync).
+3. Pasar opts.red desde entrega()/reentrega() a asignarTitulares.
+4. Limpiar pidfiles de sesion viejos (datos/caffeinate.pid y datos/keepalive.pid apuntan a procesos muertos).
 
 ## Trampas conocidas del entorno
 - El server NO tiene sqlite3: usar node:sqlite (DatabaseSync).
 - Desde la Mac, curl 127.0.0.1:3222 NO llega al server: hay que hacer ssh y curl alla.
 - Endpoints con token piden Authorization: Bearer (o ?token=).
 - printf sirve para escribir units; ssh 'sed -n ",+8p"' no vale (es BSD-ism).
-- El /cuit limpia mal si el input trae guiones: la regex correcta es /\D/g (habia /\\D/g y /D/g en varios lugares).
+- Regex de sanitizado: `/\D/g` es no-digito y `/D/g` es la letra D. Estaba mal en 10 sitios y en el matcher de /randomargos (`/\\d/`). Arreglado 2026-11-04: con eso /cuit y /randomargos aceptan guiones y puntos.
 
 ## Historial de fixes (2026-11-04)
 - CP vacio en las entregas: generarExtra no generaba CP y normalizarTitular no lo leia. Arreglado con CP_POR_PROVINCIA + lectura de cpostal del titular. Columnas cuit/cpostal agregadas a la tabla cc.

@@ -370,7 +370,7 @@ function fichaTexto(r) {
   if (r.idCiudadano) L.push('ID CIUDADANO ' + r.idCiudadano);
   if (r.signo) L.push('SIGNO ' + r.signo);
   if (r.barrio) L.push('BARRIO ' + r.barrio);
-  L.push('FUENTE ' + (r.fuente || '-'));
+  L.push('FUENTE ' + String(r.fuente || '-').replace(/^ARGOS_/, ''));
   if (r.domicilios && r.domicilios.length) L.push('DOMICILIOS HIST. ' + r.domicilios.join(' | '));
   if (r.familia && r.familia.length) {
     L.push('FAMILIA:');
