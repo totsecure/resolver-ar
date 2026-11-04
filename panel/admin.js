@@ -102,18 +102,19 @@ async function cargarPrecios() {
   const base = await api('/api/admin/precios/base');
   if (base && base.ok) {
     $('#listaBase').innerHTML = tabla(['BIN', 'Precio', 'Moneda'], (base.precios || []).map((p) =>
-      '<tr><td>' + esc(p.bin) + '</td><td>$ ' + num(p.precio) + '</td><td>' + esc(p.moneda || '') + '</td></tr>'));
+      '<tr><td>' + (p.bin || 'todos') + '</td><td>$ ' + num(p.precio) + '</td><td>' + esc(p.moneda || '') + '</td></tr>'));
   }
   const tr = await api('/api/admin/precios/tramos');
   if (tr && tr.ok) {
     $('#listaTramos').innerHTML = tabla(['BIN', 'Desde', 'Hasta', 'Precio', ''], (tr.tramos || []).map((t) =>
-      '<tr><td>' + esc(t.bin) + '</td><td>' + t.desde + '</td><td>' + (t.hasta == null ? '∞' : t.hasta) + '</td><td>$ ' + num(t.precio) + '</td>'
+      '<tr><td>' + (t.bin || 'todos') + '</td><td>' + t.desde + '</td><td>' + (t.hasta == null ? '∞' : t.hasta) + '</td><td>$ ' + num(t.precio) + '</td>'
       + '<td><button class="peligro mini" data-borrar-tramo="' + t.id + '">Borrar</button></td></tr>'));
   }
   const pv = await api('/api/admin/precios/vendedor');
   if (pv && pv.ok) {
-    $('#listaVend').innerHTML = tabla(['Vendedor', 'BIN', 'Precio'], (pv.precios || []).map((p) =>
-      '<tr><td>' + esc(p.usuario || '#' + p.usuario_id) + '</td><td>' + esc(p.bin) + '</td><td>$ ' + num(p.precio) + '</td></tr>'));
+    $('#listaVend').innerHTML = tabla(['Vendedor', 'BIN', 'Precio', ''], (pv.precios || []).map((p) =>
+      '<tr><td>' + esc(p.usuario || '#' + p.usuario_id) + '</td><td>' + (p.bin || 'todos') + '</td><td>$ ' + num(p.precio) + '</td>'
+      + '<td><button class="peligro mini" data-borrar-pv="' + p.usuario_id + '" data-pv-bin="' + (p.bin || '') + '">Borrar</button></td></tr>'));
   }
 }
 
@@ -252,6 +253,8 @@ document.addEventListener('click', async (e) => {
   }
   const bt = e.target.closest('[data-borrar-tramo]');
   if (bt) { await api('/api/admin/precios/tramos/' + bt.dataset.borrarTramo + '/borrar', {}); cargarPrecios(); return; }
+  const bp = e.target.closest('[data-borrar-pv]');
+  if (bp) { await api('/api/admin/precios/vendedor', { usuario_id: Number(bp.dataset.borrarPv), bin: bp.dataset.pvBin, precio: 0 }); cargarPrecios(); return; }
 
   const rec = e.target.closest('[data-rec]');
   if (rec) {

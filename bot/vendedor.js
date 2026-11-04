@@ -14,6 +14,8 @@ function log(msg) {
 }
 
 const CMD = new Set(['stock', 'bin', 'pedir', 'revisar', 'mis', 'saldo', 'pagar', 'datos', 'ok', 'falla', 'chk', 'recargar', 'recuperar', 'ayuda', 'start', 'help', 'comandos', 'desvincular']);
+/* Los resuelve manejarStock (bot/stock.js) tal cual, sin pasar por vb. */
+const PARIDAD = new Set(['vender', 'saldeadas', 'dead', 'anular', 'ventas', 'cancel', 'cancelar']);
 
 export function esVendedorChat(chatId) {
   try { return vb.esVendedor(chatId); } catch (_) { return false; }
@@ -94,6 +96,9 @@ export async function manejarVendedor(chatId, cmd, args, payload, ctx) {
   if (!u || u.rol !== 'vendedor') return false;
 
   if (!CMD.has(c)) {
+    /* Estos los resuelve manejarStock: el vendedor ve las mismas opciones que
+     * en el bot de referencia (vender, saldeadas, dead, anular, ventas, cancel). */
+    if (PARIDAD.has(c)) return false;
     /* Un vendedor nunca debe llegar a los comandos de admin. */
     await ctx.enviar(chatId, 'Comando no disponible para vendedores.\n\n' + ctx.escapeHtml(vb.ayuda()));
     return true;

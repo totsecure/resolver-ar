@@ -23,7 +23,10 @@ import { ficha, fichaDetalle } from '../lib/ficha.js';
 import { armarBloque, generarLote, seleccionarTitulares } from '../lib/lote.js';
 import { resolver } from '../lib/resolver.js';
 import { renderizar } from '../lib/informe.js';
-import { normalizarDni, parsearMensaje } from '../bot/telegram.js';
+import { normalizarDni, parsearMensaje, publicoActivo, ayudaPublico } from '../bot/telegram.js';
+import { ayudaVendedor } from '../bot/vendedor.js';
+import { stockPublico, binPublico } from '../lib/vendedor-bot.js';
+import { stats, ventas } from '../lib/stock.js';
 import { asegurarPool, sembrarPool, elegirDelPool } from './pool.js';
 import {
   normalizarTexto, buscarPorPrefijo, ambiguedades, buscarPorCuit, personasPorDni,
@@ -408,7 +411,7 @@ const tests = [
         assert(!mostrarTramitePendiente(), 'bloque ' + (i + 1) + ' sin tramite y flag 0');
       }
       assert(/^FECHA NAC (\d{2}\/\d{2}\/\d{4}|\(pendiente\))$/m.test(bloque), 'bloque ' + (i + 1) + ' con fecha invalida');
-      assert(/^VENCIMIENTO \d{2}\/\d{2}$/m.test(bloque), 'bloque ' + (i + 1) + ' con vencimiento invalido');
+      assert(/^VENCIMIENTO \d{2}\/\d{4}$/m.test(bloque), 'bloque ' + (i + 1) + ' con vencimiento invalido');
       assert(/^CODIGO \d{3}$/m.test(bloque), 'bloque ' + (i + 1) + ' con codigo invalido');
     });
   }],
@@ -522,6 +525,114 @@ const tests = [
       'una sola linea suelta no es lote');
     assert(parsearMensaje('30123456').tipo === 'dni', 'un DNI sigue siendo DNI');
     assert(parsearMensaje('hola').tipo === 'texto', 'texto suelto no es DNI ni lote');
+  }],
+
+  ['publico: flag y ayuda publica', () => {
+    const prev = process.env.TELEGRAM_PUBLICO;
+    try {
+      delete process.env.TELEGRAM_PUBLICO;
+      assert(publicoActivo() === false, 'sin TELEGRAM_PUBLICO el bot debe ser privado');
+      process.env.TELEGRAM_PUBLICO = '1';
+      assert(publicoActivo() === true, 'con TELEGRAM_PUBLICO=1 el bot debe ser publico');
+      const a = String(ayudaPublico());
+      assert(/\/stock/.test(a), 'la ayuda publica menciona /stock');
+      assert(/\/bin/.test(a), 'la ayuda publica menciona /bin');
+      assert(!/Vincul/i.test(a), 'la ayuda publica no exige vinculacion');
+    } finally {
+      if (prev === undefined) delete process.env.TELEGRAM_PUBLICO; else process.env.TELEGRAM_PUBLICO = prev;
+    }
+  }],
+
+  ['publico: stock y bin sin vendedor vinculado', async () => {
+    const prevPub = process.env.TELEGRAM_PUBLICO;
+    const prevTie = process.env.PRECIO_TIENDA;
+    try {
+      process.env.TELEGRAM_PUBLICO = '1';
+      /* Sin precio (estado real de hoy): igual tiene que verse el stock. */
+      delete process.env.PRECIO_TIENDA;
+      const sp = stockPublico();
+      assert(sp.ok, 'stockPublico debe funcionar sin vendedor: ' + sp.texto);
+      assert(!/Vincul/i.test(sp.texto), 'stockPublico no debe pedir vinculacion: ' + sp.texto);
+      assert(/\d{6}/.test(sp.texto), 'stockPublico debe mostrar BINs aunque no haya precio: ' + sp.texto);
+      assert(/s\/precio/.test(sp.texto), 'sin precio debe decir s/precio: ' + sp.texto);
+      const bp = binPublico('469700');
+      assert(bp.ok, 'binPublico debe funcionar sin vendedor: ' + bp.texto);
+      assert(/\d{4}/.test(bp.texto), 'binPublico debe listar la tarjeta aunque no haya precio: ' + bp.texto);
+      /* Con precio: mismo listado, con el monto. */
+      process.env.PRECIO_TIENDA = '1500';
+      const s = stockPublico();
+      assert(s.ok && /BIN/.test(s.texto), 'stockPublico debe listar BINs: ' + s.texto);
+      assert(/\$1500/.test(s.texto), 'con precio debe mostrar el monto: ' + s.texto);
+      assert(!/Vincul/i.test(s.texto), 'stockPublico no debe pedir vinculacion: ' + s.texto);
+      assert(!/s\/precio/.test(s.texto), 'con precio no debe decir s/precio: ' + s.texto);
+    } finally {
+      if (prevPub === undefined) delete process.env.TELEGRAM_PUBLICO; else process.env.TELEGRAM_PUBLICO = prevPub;
+      if (prevTie === undefined) delete process.env.PRECIO_TIENDA; else process.env.PRECIO_TIENDA = prevTie;
+    }
+  }],
+
+  ['bot: el vendedor tiene las mismas opciones que el bot de referencia', async () => {
+    const prev = process.env.BOT_NO_OUTBOX;
+    process.env.BOT_NO_OUTBOX = '1';
+    try {
+      const { ALIAS, COMANDOS } = await import('../bot/stock.js');
+      /* Menu de referencia: mismos nombres y mismo efecto. */
+      const menu = ['vender', 'stock', 'bin', 'saldeadas', 'dead', 'ventas', 'anular', 'help', 'cancel'];
+      for (const c of menu) {
+        const real = ALIAS[c] || c;
+        assert(COMANDOS.has(real) || c === 'help', 'falta el comando /' + c);
+      }
+      assert(ALIAS.anular === 'devolver', '/anular tiene que anular la venta');
+      assert(ALIAS.dead === 'revisar', '/dead tiene que sacar la tarjeta del stock');
+      const a = ayudaVendedor();
+      for (const c of menu) assert(a.includes('/' + c), 'la ayuda del vendedor no lista /' + c);
+    } finally {
+      if (prev === undefined) delete process.env.BOT_NO_OUTBOX; else process.env.BOT_NO_OUTBOX = prev;
+    }
+  }],
+
+  ['refs: varios refs separados por coma o espacio', async () => {
+    const { refsDe } = await import('../bot/stock.js');
+    assert(refsDe(['1', '2']).length === 2, 'refs separados por espacio');
+    assert(refsDe(['1,2']).length === 2, 'refs separados por coma');
+    assert(refsDe(['1, 2']).length === 2, 'refs separados por coma y espacio');
+  }],
+
+  ['precios: comodin de BIN para el precio del vendedor', async () => {
+    const precios = await import('../lib/precios.js');
+    const U = 999999;
+    try {
+      precios.setPrecioVendedor(U, '999999', 1200);
+      assert(precios.unitario(null, U, '999999', 1, null) === 1200, 'el precio exacto del vendedor manda');
+      precios.setPrecioVendedor(U, 'todos', 900);
+      assert(precios.unitario(null, U, '411012', 1, null) === 900, 'el comodin cubre cualquier BIN');
+      assert(precios.unitario(null, U, '999999', 1, null) === 1200, 'el precio exacto gana al comodin');
+      assert(precios.unitario(null, U + 1, '411012', 1, 700) === 700, 'sin precio del vendedor cae a la base de la tarjeta');
+      assert(precios.unitario(null, null, '411012', 1, null) === null, 'sin precio da null');
+      precios.setPrecioVendedor(U + 1, 'todos', 1500);
+      assert(precios.unitario(null, U, '411012', 1, null) === 900, 'cada vendedor conserva su propio comodin');
+      assert(precios.unitario(null, U + 1, '411012', 1, 700) === 1500, 'el otro vendedor tiene su propio arreglo');
+      const cat = await import('../lib/catalogo.js');
+      const r = cat.consultar({ sinPrecio: true, por: 5 }, U);
+      assert(r.items.length > 0 && r.items.every((x) => x.precio === 900), 'el catalogo del vendedor toma el comodin');
+      const rs = cat.resumen(U, { sinPrecio: true });
+      assert(rs.length > 0 && rs.every((x) => x.precio_min === 900), 'el resumen del bot toma el comodin');
+    } finally {
+      precios.setPrecioVendedor(U, '999999', 0);
+      precios.setPrecioVendedor(U, 'todos', 0);
+      precios.setPrecioVendedor(U + 1, 'todos', 0);
+    }
+  }],
+
+  ['ventas: historial agrupado por codigo de venta', () => {
+    const vs = ventas();
+    assert(Array.isArray(vs), 'ventas() debe devolver un array');
+    for (const v of vs) {
+      assert(v.codigo && Number(v.n) >= 1, 'cada venta necesita codigo y cantidad: ' + JSON.stringify(v));
+    }
+    const codigos = vs.map((v) => v.codigo);
+    assert(new Set(codigos).size === codigos.length, 'los codigos de venta no deben repetirse');
+    if (Number(stats().ventas) > 0) assert(vs.length > 0, 'hay ventas cargadas pero el historial vino vacio');
   }],
 
   ['/random devuelve un DNI que esta en el pool', () => {

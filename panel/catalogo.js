@@ -2,6 +2,7 @@
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const num = (v) => Number(v || 0).toLocaleString('es-AR');
+const monto = (v) => (Number(v) > 0 ? '$ ' + num(v) : 's/precio');
 let CSRF = '', SALDO = 0, ITEMS = [], SEL = new Set(), RESERVAS = [], PEDIDOS = [], TIMER = null;
 
 async function api(ruta, cuerpo, metodo) {
@@ -41,7 +42,7 @@ function mostrarDatos(items, titulo) {
       + '<span class="badge">' + esc(d.marca || '') + ' ' + esc(d.bin) + '</span>'
       + (d.codigo ? '<span class="badge">#' + esc(d.codigo) + '</span>' : '')
       + '<span class="badge ok">' + esc(d.estado || '') + '</span></div>'
-      + '<div class="meta sub" style="margin-top:4px">Vence ' + esc(d.exp) + ' · CVV ' + esc(d.cvv) + ' · $ ' + num(d.precio) + '</div>'
+      + '<div class="meta sub" style="margin-top:4px">Vence ' + esc(d.exp) + ' · CVV ' + esc(d.cvv) + ' · ' + monto(d.precio) + '</div>'
       + '<div style="margin-top:6px"><b>' + esc(titular || 'Titular sin datos') + '</b></div>'
       + (d.nro_tramite ? '<div class="meta sub">Trámite ' + esc(d.nro_tramite) + ' · Nac. ' + esc(d.fecha_nac || '-') + '</div>' : '')
       + (extra ? '<div class="meta sub">' + esc(extra) + '</div>' : '')
@@ -66,7 +67,7 @@ function item(f) {
     + '<input class="chk" type="checkbox" data-id="' + esc(f.id) + '"' + (on ? ' checked' : '') + '>'
     + '<div class="cuerpo"><div class="num">' + esc(f.numero_mask) + '</div>'
     + '<div class="meta">' + esc(f.bin) + ' · ' + esc(f.banco || '-') + ' · ' + esc(f.marca || '-') + ' · ' + esc(f.exp) + '</div></div>'
-    + '<div class="precio">$ ' + num(f.precio) + '</div></div>';
+    + '<div class="precio">' + monto(f.precio) + '</div></div>';
 }
 
 async function cargarCatalogo() {
@@ -152,7 +153,7 @@ async function cargarReservas() {
       + '<span class="num">' + esc(r.numero_mask) + '</span>'
       + '<span class="badge ' + cls + '">' + esc(r.estado) + '</span>'
       + (vence ? '<span class="timer" data-vence="' + esc(r.expira) + '">' + restante(r.expira) + '</span>' : '')
-      + '<span style="margin-left:auto;font-weight:800">$ ' + num(r.precio) + '</span></div>'
+      + '<span style="margin-left:auto;font-weight:800">' + monto(r.precio) + '</span></div>'
       + '<div class="meta sub">' + (r.codigo ? '#' + esc(r.codigo) + ' · ' : '') + esc(r.bin) + ' · ' + esc(r.banco || '-') + ' · grupo ' + esc(r.grupo) + (pagada ? ' · auto-OK al vencer la ventana' : '') + '</div>'
       + '<div class="acciones">' + botones + '</div></div>';
   }).join('');

@@ -795,6 +795,7 @@ import {
   expirarReservas as sExpirar, stats as sStats, alertas as sAlertas, precios as sPrecios,
   setPrecio as sSetPrecio, porCodigo as sPorCodigo, exportar as sExportar,
   purgar as sPurgar, backup as sBackup, saldeadas as sSaldeadas, bloqueDe as sBloqueDe, revisar as sRevisar, porId as sPorId, ultimaVenta as sUltimaVenta,
+  ventas as sVentas,
 } from './lib/stock.js';
 import { saldeadasLista, saldeadaPorNumero } from './lib/pedido.js';
 import { lookup as binLookup } from './lib/bininfo.js';
@@ -807,7 +808,7 @@ const cuerpo = (req, k, d) => {
   return typeof req.query[k] === 'string' ? req.query[k] : d;
 };
 const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
-const refsDe = (v) => String(v || '').split(/[,\s] /).filter(Boolean);
+const refsDe = (v) => String(v || '').split(/[,\s]+/).filter(Boolean);
 
 /* Acepta handlers sync y async: si devuelven promesa se espera antes de responder. */
 function envolver(fn) {
@@ -1096,6 +1097,8 @@ app.get('/api/catalogo', accesoCatalogo, (req, res) => {
       bins: qs(req, 'bins'), bancos: qs(req, 'bancos'), marcas: qs(req, 'marcas'),
       paises: qs(req, 'paises'), pmin: qs(req, 'pmin'), pmax: qs(req, 'pmax'),
       q: qs(req, 'q'), orden: qs(req, 'orden'), por: qs(req, 'por'), pagina: qs(req, 'pagina'),
+      /* Sin precio tambien: se ve el stock aunque el arreglo del vendedor no este cargado. */
+      sinPrecio: true,
     }, req.auth.rol === 'vendedor' ? usuarioIdDe(req) : null);
     res.json({
       ok: true, ...r,
@@ -1493,15 +1496,22 @@ app.get('/stock/saldeada/:n', soloLectura, (req, res) => {
   const cc = sPorId(item.id);
   res.json({ ok: true, n: item.n, item, bloque: cc ? sBloqueDe(cc, item.n) : null, cc: cc || null });
 });
-/* Pedir la N: la envía y la marca VENDIDA (sale de la lista). */
+/* Pedir la N: la envía y la marca VENDIDA (sale de la lista).
+ * Si el número tiene 4+ dígitos y no es una posición, se busca por los
+ * últimos 4 del PAN: es como se pide en el bot (la lista muestra la máscara). */
 app.post('/stock/pedir', soloLectura, (req, res) => {
-  const n = num(cuerpo(req, 'n'), 0);
-  const item = saldeadaPorNumero(n);
+  const crudo = String(cuerpo(req, 'n') ?? '');
+  const n = num(crudo, 0);
+  let item = saldeadaPorNumero(n);
+  if (!item) {
+    const d = crudo.replace(/\D/g, '');
+    if (d.length >= 4) item = saldeadasLista().find((x) => x.mask.slice(-4) === d.slice(-4)) || null;
+  }
   if (!item) return res.status(404).json({ error: 'no_encontrada', n });
   const r = sVender({ refs: [String(item.numero)], usuario: cuerpo(req, 'usuario'), chat_id: cuerpo(req, 'chat_id'), comprador: cuerpo(req, 'comprador') });
   if (!r.codigo || !r.ccs.length) return res.status(409).json({ error: 'no_vendible', n });
-  const bloque = sBloqueDe(r.ccs[0], n);
-  res.json({ ok: true, n, codigo: r.codigo, bloque });
+  const bloque = sBloqueDe(r.ccs[0], item.n);
+  res.json({ ok: true, n: item.n, codigo: r.codigo, bloque });
 });
 /* Si el cliente se queja: saca la CC (por posición N, ref o últimos dígitos) y
  * la manda a REVISION. Sin N: revisa la última tarjeta vendida por ese chat. */
@@ -1519,6 +1529,7 @@ app.post('/stock/revisar', soloLectura, (req, res) => {
   res.json({ ok: true, n: hechas.length });
 });
 app.get('/stock/stats', soloLectura, envolver(() => sStats()));
+app.get('/stock/ventas', soloLectura, envolver((req) => ({ ventas: sVentas(num(qs(req, 'limite'), 50)) })));
 app.get('/stock/alertas', soloLectura, envolver((req) => ({ alertas: sAlertas(num(qs(req, 'umbral', 2), 2)) })));
 app.get('/stock/bin/:bin', soloLectura, envolver((req) => ({ bin: req.params.bin, texto: sListarBin(req.params.bin, { refs: true }) })));
 app.get('/stock/cc/:ref', soloLectura, envolver((req) => ({ ccs: sBuscar(req.params.ref) })));

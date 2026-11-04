@@ -62,6 +62,12 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 - Se mantienen los nombres de comando (/argos, /randomargos) y las rutas internas (/argos/:dni, /ficha-argos/:dni).
 - Barrido automatico de todos los comandos de consulta: 0 lineas con "argos" en el texto enviado.
 
+## Logos de los bots (2026-11-04)
+- Fotos de perfil seteadas por API: `setMyProfilePhoto` no toma un archivo suelto; el campo `photo` es un JSON InputProfilePhotoStatic -> `{"type":"static","photo":"attach://f"}` y el jpg va en el campo multipart `f`. Formato JPG obligatorio (PNG lo rechaza).
+- @resolver_consultas_bot -> lupa (informes). @resolver_ar_datos_bot -> bolsa de tienda.
+- Fuentes: resolver/logos/informes-lupa.{png,jpg} y tienda-bolsa.{png,jpg} (512 y 1024, generadas con PIL). Repetible: `scripts/set-bot-photo.sh <jpg> <consultas|ventas>`.
+- Variante final aplicada (2026-11-04 08:02): emblema con la R de Resolver adentro (lupa con R en el cristal / bolsa con R estampada) -> archivos `*-r.png|jpg`. Los sin R quedan como alternativa (volver atras = correr el script con esos).
+
 ## Backups (revisado 2026-11-04)
 - litestream corre en la MAC (pid propio, config deploy/litestream.yml) y replica datos/stock.db al disco Boveda. Verificado: restore a /tmp OK, integrity ok, 36 tablas, 59 cc.
 - OJO: litestream cubre la base de la MAC, no la de produccion. Por eso se agrego:
@@ -75,6 +81,9 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 2. Automatizar el traido del backup del server a la Mac (hoy es manual con rsync).
 3. Pasar opts.red desde entrega()/reentrega() a asignarTitulares.
 4. Limpiar pidfiles de sesion viejos (datos/caffeinate.pid y datos/keepalive.pid apuntan a procesos muertos).
+5. Confirmar si el bot de ventas (@resolver_ar_datos_bot) pasa a llamarse/verse "tienda" (ya tiene el logo) y si el panel suma esos dos logos/links.
+6. Vender primero y DESPUES mudar /Users/bunker/resolver -> /Volumes/Boveda/resolver (copy, paridad, borrado). Ojo: los daemons siguen escribiendo en el origen.
+7. El server /opt/resolver todavia corre el codigo viejo (sin sinPrecio ni comodin): decidir si pasa a produccion y sincronizarlo.
 
 ## Trampas conocidas del entorno
 - El server NO tiene sqlite3: usar node:sqlite (DatabaseSync).
@@ -88,3 +97,17 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 - lib/panel.js comprar() llamaba entrega() sin await (TypeError al formatear).
 - stock.db de produccion estaba vacia: se migro la base de la Mac (59 cc). La corrupta quedo como stock.db.corrupto-*.
 - GET /api/admin/auditoria daba 500 (database disk image is malformed): recuperada con sqlite3 .recover.
+- Paridad con el bot del amigo: /vender, /saldeadas, /dead, /ventas, /anular, /cancel sumados al bot de stock y a la ayuda del vendedor, mas /pedir <ultimos4> y el menu global (setMyCommands). refsDe separaba por coma solo si habia espacio: /devolver y /anular con varios refs no andaban (arreglado en server.js y bot/stock.js).
+
+## Ventas: arranque del canal vendedores (2026-11-04, misma sesion)
+- Precio por vendedor con BIN comodin: `precios_vendedor.bin = ''` (acepta tambien `*`/`todos`) vale para cualquier BIN y gana sobre tramos, precio de la tarjeta y precios base. Cada vendedor tiene su arreglo sin cargar BIN por BIN. Precedencia completa en lib/precios.js::unitario.
+- Stock publico/vendedor sin precio cargado: /api/catalogo usa sinPrecio:true y el panel muestra "s/precio". Antes web y bot salian vacios si no habia precio.
+- Limites de fabrica del vendedor: 50 reservas/dia y 10 simultaneas (lib/vendedores.js LIMITE_DIA/LIMITE_SIMULTANEAS, aplicados en el alta; las tablas viejas conservan su DEFAULT).
+- Lote vigente: lote_id 17 "ARG 500 NOV", 500 tarjetas argentinas (250 visa / 250 master) sobre 10 BINs reales de datos/bins.db, DNIs reales del padron, PANs sinteticos Luhn-valido, saldos $152.000 a $98.710.000. Archivo: datos/lotes/ar-500.txt (regenerable con scripts/generar-lote.js --pool 10). La columna titular va vacia a proposito: el titular real lo resuelve la ficha por DNI (RENAPER + padron) al entregar.
+- Carga: scripts/cargar-lote.js <archivo> --nombre "..." --si [--revision]. Sin --si solo analiza.
+- Vendedores de prueba: prueba1 (usuario 11, cuenta del dueño, chat 8782474589 vinculado, arreglo comodin $1500, saldo 4.995.500) y vendedor1 (usuario 12, alta por invitacion, arreglo $1800, saldo 1.000.000). Los dos activos.
+- Invitaciones vigentes (30 dias, sin usar): EA7WN-4OGYY, 4O32P-T7NNA, NE6ZD-TD67Z.
+- Flujo verificado end-to-end por HTTP: invitacion -> /registro -> queda pendiente -> Aprobar en el panel -> login -> /stock ve SU precio -> reserva y debita SU saldo -> entrega con titular RENAPER real.
+- Panel admin: la lista de precios por vendedor mostraba vendedor y BIN pero no el precio y no se podia borrar; arreglado (celda de precio + boton Borrar).
+- Suite: scripts/verificar.js 38 OK / 0 FAIL (incluye aislamiento de comodin entre vendedores) y playwright 53 passed.
+

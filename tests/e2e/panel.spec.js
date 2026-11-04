@@ -523,13 +523,13 @@ test('a papelera, restaurar y borrado definitivo', async ({ page, request }) => 
   await page.locator('#borradasBanner a#borrOcultar').click();
   await esperarTotal(page, TOTALES.DISPONIBLE);
 
-  /* el catálogo sólo muestra DISPONIBLE con precio y sin borrar (3 en el fixture). */
+  /* el catálogo muestra DISPONIBLE sin borrar, con o sin precio (8 en el fixture). */
   const catalogoTotal = async () => {
     const r = await request.get('/api/catalogo?token=' + encodeURIComponent(TOKEN) + '&por=60');
     const j = await r.json();
     return j.total;
   };
-  expect(await catalogoTotal()).toBe(3);
+  expect(await catalogoTotal()).toBe(8);
 
   // 1) Market -> papelera: sale del listado y del catálogo.
   await buscar(page, 'E2E-01', 1);
@@ -537,7 +537,7 @@ test('a papelera, restaurar y borrado definitivo', async ({ page, request }) => 
   await page.click('#btnBorrar');
   await confirmarSwal(page);
   await esperarTotal(page, 0);
-  await expect.poll(catalogoTotal).toBe(2);
+  await expect.poll(catalogoTotal).toBe(7);
   await expect(page.locator('#borradasBanner')).toContainText('3');
 
   await page.click('#btnLimpiar');
@@ -550,7 +550,7 @@ test('a papelera, restaurar y borrado definitivo', async ({ page, request }) => 
   await page.click('#btnRestaurar');
   await confirmarSwal(page);
   await esperarTotal(page, 0);
-  expect(await catalogoTotal()).toBe(3);
+  expect(await catalogoTotal()).toBe(8);
 
   await page.click('#btnLimpiar');
   await esperarTotal(page, TOTALES.DISPONIBLE);

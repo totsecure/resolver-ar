@@ -34,6 +34,8 @@ import { parsearTarjetas } from '../lib/parse-tarjetas.js';
 import { manejarStock, resolverOperacion } from './stock.js';
 import { manejarVendedor, manejarVinculacion, esVendedorChat, ayudaVendedor, iniciarNotificaciones } from './vendedor.js';
 import { vinculadoA } from '../lib/vinculacion.js';
+import { stockPublico, binPublico } from '../lib/vendedor-bot.js';
+import * as vendedores from '../lib/vendedores.js';
 
 /* Preferir IPv4: en esta red el AAAA de Telegram a veces cuelga. */
 dns.setDefaultResultOrder('ipv4first');
@@ -64,8 +66,9 @@ const HELP = [
   '/bin &lt;bin&gt; - listado y datos del BIN',
   '/full - todo el disponible en .txt',
   '/saldeadas [todo] - saldeadas disponibles, numero xxxx + saldo',
-  '/pedir &lt;n&gt; - envía la #n completa y la marca VENDIDA',
+  '/pedir &lt;n|ultimos4&gt; - envía la #n (o la que termina en esos 4) y la marca VENDIDA',
   '/revisar [n] - cliente se quejó: saca la #n (o la última venta) a REVISION',
+  '/dead &lt;n&gt; - igual que /revisar',
   '/cc &lt;ref&gt; - detalle y trazabilidad',
   '/vender [n] [bin] [comprador] - vende y entrega .txt',
   '/reentrega &lt;codigo&gt; - rearma la entrega',
@@ -73,7 +76,8 @@ const HELP = [
   '/reservar &lt;min&gt; &lt;refs&gt; | /expirar',
   '/saldo &lt;ref&gt; &lt;disp&gt; [total] | /etiqueta &lt;ref&gt; &lt;txt&gt;',
   '/precio &lt;bin&gt; &lt;valor&gt; | /precios | /bininfo &lt;bin&gt;',
-  '/exportar [csv|txt] | /movs [ref] | /stats | /alertas | /backup',
+  '/exportar [csv|txt] | /movs [ref] | /stats | /ventas | /alertas | /backup',
+  '/anular &lt;refs&gt; - igual que /devolver | /cancel - cancela la operación pendiente',
   '',
   '<b>atajos</b>',
   '/v &lt;bin&gt; &lt;n&gt; - venta con confirmacion por boton',
@@ -117,6 +121,29 @@ function tokenBusqueda(texto) {
   if (busquedas.size > 200) busquedas.delete(busquedas.keys().next().value);
   return token;
 }
+
+/* Modo publico: cualquiera ve stock a precio de tienda y se puede dar de alta
+ * como vendedor, sin estar en TELEGRAM_ALLOW. Se prende con TELEGRAM_PUBLICO=1. */
+export function publicoActivo() {
+  return String(process.env.TELEGRAM_PUBLICO || '') === '1';
+}
+
+const AYUDA_PUBLICO = [
+  '<b>resolver-ar</b> · stock disponible',
+  '',
+  '/stock - stock disponible por BIN',
+  '/bin &lt;bin&gt; - que hay de ese BIN',
+  '/vender - código de alta para vender (pedidos y precios propios)',
+].join('\n');
+
+export function ayudaPublico() { return AYUDA_PUBLICO; }
+
+const MENU_PUBLICO = {
+  inline_keyboard: [[
+    { text: '📦 Stock', callback_data: 'vp|stock|1' },
+    { text: '❓ Ayuda', callback_data: 'vp|ayuda|1' },
+  ]],
+};
 
 /* Lista blanca explicita: vacia => nadie. El dueño va en datos/bot.env. */
 function permitido(chatId) {
@@ -493,6 +520,18 @@ function renderAmbig(db, offset) {
 
 async function procesarCallback(cq, db) {
   const chatId = cq?.message?.chat?.id;
+  if (chatId && !permitido(chatId) && publicoActivo()) {
+    const p = String(cq.data || '').split('|');
+    await api('answerCallbackQuery', { callback_query_id: cq.id }).catch(() => {});
+    const pagina = Number(p[p.length - 1]) || 1;
+    const enviarStock = async (r) => {
+      await enviar(chatId, '<pre>' + escapeHtml(r.texto) + '</pre>', r.markup ? { reply_markup: r.markup } : {});
+    };
+    if (p[0] === 'vp' && p[1] === 'stock') { await enviarStock(stockPublico(pagina)); return; }
+    if (p[0] === 'vp' && p[1] === 'bin') { await enviarStock(binPublico(p.slice(2, -1).join('|'), pagina)); return; }
+    await enviar(chatId, escapeHtml(ayudaPublico()), { reply_markup: MENU_PUBLICO });
+    return;
+  }
   if (!chatId || !permitido(chatId)) {
     await api('answerCallbackQuery', {
       callback_query_id: cq.id,
@@ -582,18 +621,45 @@ async function avisarPrivado(chatId) {
   await enviar(chatId, 'Este bot es privado. Pedile acceso al dueño.').catch(() => {});
 }
 
+/* Flujo publico (chat no habilitado): ver stock y darse de alta como vendedor. */
+async function manejarPublico(chatId, msg) {
+  const t = String(msg?.text || '').trim();
+  const cmd = (t.split(/\s+/)[0] || '').split('@')[0].toLowerCase();
+  const args = t.replace(/^\/[^\s@]+(?:@\w+)?\s*/, '').trim().split(/\s+/).filter(Boolean);
+  const enviarStock = async (r) => {
+    await enviar(chatId, '<pre>' + escapeHtml(r.texto) + '</pre>', r.markup ? { reply_markup: r.markup } : {});
+  };
+  if (cmd === '/stock' || cmd === '/s') { await enviarStock(stockPublico(Number(args[0]) || 1)); return; }
+  if (cmd === '/bin' || cmd === '/b') { await enviarStock(binPublico(args[0], Number(args[1]) || 1)); return; }
+  if (cmd === '/vender') {
+    const inv = vendedores.crearInvitacion({ dias: 7, nota: 'tg:' + chatId });
+    const base = String(process.env.URL_PUBLICA || '').replace(/\/+$/, '');
+    await enviar(chatId, [
+      '<b>Alta de vendedor</b>',
+      '',
+      'Código: <code>' + escapeHtml(inv.codigo) + '</code> (vence en ' + inv.dias + ' días)',
+      base
+        ? 'Registrate acá y quedás habilitado: ' + escapeHtml(base + '/registro?codigo=' + inv.codigo)
+        : 'Pasale este código al dueño para que te dé el alta.',
+    ].join('\n'));
+    return;
+  }
+  await enviar(chatId, escapeHtml(ayudaPublico()), { reply_markup: MENU_PUBLICO });
+}
+
 export async function procesarUpdate(update, db) {
   /* /comandos */
   {
     const _m = update?.message;
     const _t = String(_m?.text || '').trim().toLowerCase().split('@')[0];
-    if (_t === '/comandos' || _t === '/comando' || _t === '/ayuda') {
+    if (_t === '/comandos' || _t === '/comando' || _t === '/ayuda' || _t === '/start') {
       const _c = _m?.chat?.id;
       if (_c && permitido(_c)) {
         if (esVendedorChat(_c)) await enviar(_c, escapeHtml(ayudaVendedor()), { reply_markup: MENU });
         else await enviar(_c, COMANDOS, { reply_markup: MENU });
         return;
       }
+      if (_c && publicoActivo()) { await manejarPublico(_c, _m); return; }
     }
   }
 
@@ -616,6 +682,7 @@ export async function procesarUpdate(update, db) {
   }
 
   if (!permitido(chatId)) {
+    if (publicoActivo()) { await manejarPublico(chatId, msg); return; }
     await avisarPrivado(chatId);
     return;
   }
@@ -788,6 +855,21 @@ async function iniciar() {
   let offset = leerOffset();
   let primerPollOk = false;
   log(`bot iniciado offset=${offset} token=...${token.slice(-4)}`);
+
+  /* Menú "/" de Telegram, igual al del bot de referencia. */
+  try {
+    await api('setMyCommands', { commands: [
+      { command: 'vender', description: 'Vender tarjetas' },
+      { command: 'stock', description: 'Ver stock por país' },
+      { command: 'bin', description: 'Buscar por BIN' },
+      { command: 'saldeadas', description: 'Tarjetas con saldo' },
+      { command: 'dead', description: 'Marcar dead' },
+      { command: 'ventas', description: 'Historial de ventas' },
+      { command: 'anular', description: 'Anular una venta' },
+      { command: 'help', description: 'Ayuda' },
+      { command: 'cancel', description: 'Cancelar operación' },
+    ] });
+  } catch (e) { log('setMyCommands: ' + e.message); }
 /* Watchdog: si el server local deja de escuchar, se relanza solo. */
 /* El bot ya vive bajo launchd: no hace falta sudo ni otro proceso. */
 let caidas = 0;

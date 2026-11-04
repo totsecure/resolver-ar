@@ -78,7 +78,7 @@ function aliasDe(chatId) {
 }
 
 const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
-const refsDe = (args) => args.join(' ').split(/[\s,] /).filter(Boolean);
+export const refsDe = (args) => args.join(' ').split(/[,\s]+/).filter(Boolean);
 const umbral = () => num(process.env.STOCK_UMBRAL, 2);
 
 function avisoBajo(j) {
@@ -131,7 +131,8 @@ async function cmdSaldeadas(chat, args) {
   else await enviarDoc(chat, 'saldeadas-' + fechaArchivo() + '.txt', texto + '\n', 'Saldeadas');
 }
 
-/* /pedir N — envía la tarjeta N (igual que /saldeadas) completa y la marca VENDIDA. */
+/* /pedir N — envía la tarjeta N (igual que /saldeadas) completa y la marca VENDIDA.
+ * N también puede ser los últimos 4 del PAN (como se ve en la lista). */
 async function cmdPedir(chat, args, quien) {
   const primero = String((args || [])[0] || '').trim();
   /* /pedir sin número (o "saldeadas"): lista como /saldeadas. */
@@ -139,11 +140,16 @@ async function cmdPedir(chat, args, quien) {
   const n = Number(primero);
   if (!Number.isFinite(n) || n < 1) { await enviar(chat, 'Uso: /pedir <numero>  (mirá la lista con /saldeadas)'); return; }
   const j = await pedir('/stock/pedir', {}, { n: String(n), usuario: quien, chat_id: String(chat), comprador: '' });
-  if (j && j.error === 'no_encontrada') { await enviar(chat, 'No existe la #' + n + '. Mirá /saldeadas.'); return; }
-  if (j && j.error) { await enviar(chat, 'No se pudo pedir la #' + n + ': ' + esc(j.error)); return; }
-  await enviarDoc(chat, 'tarjeta-' + n + '.txt', (j.bloque || '') + '\n', 'Venta ' + (j.codigo || ''));
-  await enviar(chat, '✅ #' + n + ' enviada y marcada <b>VENDIDA</b>' + (j.codigo ? ' (' + esc(j.codigo) + ')' : '') +
-    '.\nEl cliente tiene 5 min para chequear.\nSi se queja: /revisar ' + n + ' (o solo /revisar dentro de los 5 min).\nSi está OK: no hacés nada.');
+  if (j && j.error === 'no_encontrada') {
+    const que = primero.length >= 4 ? 'ninguna tarjeta terminada en ' + primero : 'la #' + n;
+    await enviar(chat, 'No existe ' + esc(que) + '. Mirá /saldeadas.');
+    return;
+  }
+  if (j && j.error) { await enviar(chat, 'No se pudo pedir la ' + esc(primero) + ': ' + esc(j.error)); return; }
+  const ok = Number(j.n) || n;
+  await enviarDoc(chat, 'tarjeta-' + ok + '.txt', (j.bloque || '') + '\n', 'Venta ' + (j.codigo || ''));
+  await enviar(chat, '✅ #' + ok + ' enviada y marcada <b>VENDIDA</b>' + (j.codigo ? ' (' + esc(j.codigo) + ')' : '') +
+    '.\nEl cliente tiene 5 min para chequear.\nSi se queja: /revisar ' + ok + ' (o solo /revisar dentro de los 5 min).\nSi está OK: no hacés nada.');
 }
 
 /* /revisar [N] — el cliente se quejó: la saca de la venta y la manda a REVISION.
@@ -289,6 +295,30 @@ async function cmdStats(chat) {
   const j = await pedir('/stock/stats');
   const lineas = (j.porEstado || []).map((e) => e.estado + ': ' + e.n + ' · saldo ' + (e.saldo || 0));
   await enviarPre(chat, 'Total ' + j.total + ' · ventas ' + j.ventas + '\n' + lineas.join('\n'));
+}
+
+/* Historial de ventas agrupado por código (con totales). */
+async function cmdVentas(chat, args) {
+  const j = await pedir('/stock/ventas', { limite: String(num(args[0], 50)) });
+  const vs = (j && j.ventas) || [];
+  if (!vs.length) { await enviar(chat, 'Todavía no hay ventas.'); return; }
+  let total = 0;
+  const lineas = vs.map((v) => {
+    const s = Number(v.saldo) || 0;
+    total += s;
+    const f = String(v.fecha || '').slice(0, 16).replace('T', ' ');
+    return f + ' · ' + v.codigo + ' · ' + v.n + ' tarj.' + (s ? ' · ' + s : '') + (v.comprador ? ' · ' + v.comprador : '');
+  });
+  await enviarPre(chat, 'Ventas (' + vs.length + ')' + (total ? ' · saldo ' + total : '') + '\n' + lineas.join('\n'));
+}
+
+/* Cancela las confirmaciones pendientes de ESTE chat. */
+async function cmdCancel(chat) {
+  let n = 0;
+  for (const [id, p] of pendientes) {
+    if (String(p.chat) === String(chat)) { pendientes.delete(id); n++; }
+  }
+  await enviar(chat, n ? 'Canceladas ' + n + ' operaciones pendientes.' : 'No hay ninguna operación pendiente.');
 }
 
 async function cmdBackup(chat) {
@@ -549,10 +579,10 @@ async function conNosis(fn) {
   try { return await fn(); } finally { nosisBotOcupado = false; }
 }
 
-const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
+export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
 
 /* === atajos === */
-const ALIAS = {
+export const ALIAS = {
   v: 'vender', venta: 'venta', c: 'cotizar', s: 'stock', b: 'bin', d: 'devolver',
   x: 'baja', r: 'reservar', e: 'entrega', m: 'movs', p: 'precio', pl: 'precios',
   al: 'alertas', st: 'stats', et: 'etiqueta', sa: 'saldo', bi: 'bininfo',
@@ -562,9 +592,12 @@ const ALIAS = {
   loc: 'local', ren: 'renaper', ch: 'cache', lim: 'limites',
   sal: 'saldeadas', sd: 'saldeadas',
   q: 'pedir', pd: 'pedir', rv: 'revisar', dead: 'revisar', queja: 'revisar',
+  anular: 'devolver', cancelar: 'cancel',
 };
 COMANDOS.add('cotizar');
 COMANDOS.add('venta');
+COMANDOS.add('ventas');
+COMANDOS.add('cancel');
 
 function partesVenta(args) {
   const txt = (args || []).map((x) => String(x));
@@ -637,6 +670,8 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'exportar') await cmdExportar(chatId, args);
     else if (c === 'alertas') await cmdAlertas(chatId);
     else if (c === 'stats') await cmdStats(chatId);
+    else if (c === 'ventas') await cmdVentas(chatId, args);
+    else if (c === 'cancel') await cmdCancel(chatId);
     else if (c === 'backup') await cmdBackup(chatId);
     else if (c === 'purgar') await cmdPurgar(chatId, args);
     else if (c === 'bininfo') await cmdBinInfo(chatId, args);
@@ -784,6 +819,9 @@ async function cmdCotizar(chatId, args) {
 
 async function cmdVenderConBoton(chatId, args, quien) {
   const { n, bin, comprador } = partesVenta(args);
+  /* /vender 1234 — 4+ dígitos sueltos: no es una posición, es la tarjeta que
+   * termina en 1234. La entrega ya, sin botón (como en el bot de referencia). */
+  if (!bin && !comprador && n >= 1000) return cmdPedir(chatId, [String(n)], quien);
   const p = await precioDe(bin);
   const L = ['<b>Confirmar venta</b>'];
   if (n) L.push('cantidad: ' + n);
@@ -798,7 +836,7 @@ async function cmdVenderConBoton(chatId, args, quien) {
   if (n) norm.push(String(n));
   if (bin) norm.push(bin);
   if (comprador) norm.push(comprador);
-  pendientes.set(id, { tipo: 'vender', args: norm, ts: Date.now() });
+  pendientes.set(id, { tipo: 'vender', args: norm, ts: Date.now(), chat: chatId });
   await enviar(chatId, L.join('\n'), { reply_markup: { inline_keyboard: [[{ text: 'Confirmar', callback_data: 'op|ok|' + id }, { text: 'Cancelar', callback_data: 'op|no|' + id }]] } });
 }
 
