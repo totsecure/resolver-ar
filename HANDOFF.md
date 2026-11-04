@@ -1258,7 +1258,12 @@ la pestaña **Revisión** y el botón **Publicar** en el panel. Prueba:
   ademas un daemon launchd con `KeepAlive` (`ar.resolver.bot` ->
   `bot-foreground.sh`): para reiniciar el bot a mano, matar el node y dejar que
   launchd lo relance, NO correr `bot.sh` con el daemon activo.
-- Gate: verificar **40 OK / 0 FAIL**, playwright **58 passed**, `ESTADO.md`
+- Entrega al comprador: la ficha (padron electoral) va ARRIBA y la tarjeta
+  ABAJO, con el mismo formato del bot de referencia
+  (`lib/vendedor-bot.js::bloqueEntrega` -> `armarBloque`). `/datos <clave> txt`
+  manda ademas `cc-<codigo>.txt` para copiar y pegar. El tramite del padron
+  manda y si falta se deriva del DNI.
+- Gate: verificar **41 OK / 0 FAIL**, playwright **58 passed**, `ESTADO.md`
   seccion "arranque del canal vendedores".
 - Pendiente: mudanza a `/Volumes/Boveda/resolver` **despues** de vender
   (copy, paridad, borrado) y decidir si el server `/opt/resolver` pasa a produccion.

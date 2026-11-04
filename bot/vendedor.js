@@ -125,7 +125,7 @@ export async function manejarVendedor(chatId, cmd, args, payload, ctx) {
     else if (c === 'mis') r = vb.mis(chatId, pagina);
     else if (c === 'saldo') r = vb.saldo(chatId, pagina);
     else if (c === 'pagar') r = vb.pagar(chatId, args[0]);
-    else if (c === 'datos') r = vb.datos(chatId, args[0]);
+    else if (c === 'datos') r = vb.datos(chatId, args[0], { txt: args.slice(1).some((a) => String(a).toLowerCase() === 'txt') });
     else if (c === 'ok') r = vb.marcarOk(chatId, args[0]);
     else if (c === 'falla') r = vb.marcarFalla(chatId, args[0], args.slice(1).join(' '));
     else if (c === 'chk') r = await vb.chk(chatId, args[0]);
@@ -141,6 +141,11 @@ export async function manejarVendedor(chatId, cmd, args, payload, ctx) {
   const extra = r.markup ? { reply_markup: r.markup } : {};
   if (r.mono === false) await ctx.enviar(chatId, ctx.escapeHtml(r.texto), extra);
   else await ctx.enviar(chatId, '<pre>' + ctx.escapeHtml(r.texto) + '</pre>', extra);
+  /* /datos <clave> txt: además del mensaje, el archivo para copiar y pegar. */
+  if (r.archivo && ctx.enviarDoc) {
+    try { await ctx.enviarDoc(chatId, r.archivo.nombre, r.archivo.contenido); }
+    catch (e) { log('ERROR doc chat=' + chatId + ' cmd=' + c + ': ' + (e?.message || e)); }
+  }
   return true;
 }
 

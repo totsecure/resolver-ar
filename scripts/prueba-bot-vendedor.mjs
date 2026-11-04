@@ -29,8 +29,17 @@ const enviar = async (chatId, texto, extra = {}) => {
   return j;
 };
 const escapeHtml = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const enviarDoc = async (chatId, nombre, contenido) => {
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  form.append('document', new Blob([contenido], { type: 'text/plain; charset=utf-8' }), nombre);
+  const r = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendDocument`, { method: 'POST', body: form });
+  const j = await r.json();
+  console.log('telegram doc=' + nombre + ' ok=' + j.ok + (j.ok ? ' id=' + j.result.message_id : ' error=' + j.description));
+  return j;
+};
 
-const manejado = await manejarVendedor(Number(chat), cmd.replace(/^\//, '').toLowerCase(), args, '', { enviar, escapeHtml });
+const manejado = await manejarVendedor(Number(chat), cmd.replace(/^\//, '').toLowerCase(), args, '', { enviar, escapeHtml, enviarDoc });
 console.log('manejado=' + manejado);
 if (!manejado) console.log('manejarVendedor devolvio false: lo toma manejarStock.');
 process.exit(0);

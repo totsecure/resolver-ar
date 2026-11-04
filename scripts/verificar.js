@@ -678,6 +678,23 @@ const tests = [
     }
   }],
 
+  ['entrega: el bloque sale con la ficha del titular arriba y la tarjeta abajo', async () => {
+    const { bloqueEntrega, archivoEntrega } = await import('../lib/vendedor-bot.js');
+    const item = {
+      numero: '4541480000000001', mes: '09', anio: '29', cvv: '123',
+      codigo: 'ABC123', bin: '454148', dni: '20195777',
+    };
+    const texto = bloqueEntrega(item);
+    const iTarjeta = texto.indexOf('DATOS TARJETA');
+    assert(texto.indexOf('DATOS TITULAR') >= 0 && iTarjeta > 0, 'faltan los bloques de titular o tarjeta');
+    assert(texto.indexOf('PAIS Argentina') < iTarjeta, 'los datos del titular van arriba de la tarjeta');
+    assert(texto.includes('CC 4541480000000001'), 'la CC va en el bloque de la tarjeta');
+    assert(texto.includes('VENCIMIENTO 09/2029') && texto.includes('CODIGO 123'), 'vencimiento y codigo presentes');
+    assert(/NRO TRAMITE \d{11}/.test(texto), 'el tramite sale siempre (padron o derivado)');
+    const archivo = archivoEntrega(item);
+    assert(archivo.nombre.endsWith('.txt') && archivo.contenido === texto + '\n', 'el txt es el mismo bloque');
+  }],
+
   ['ventas: historial agrupado por codigo de venta', () => {
     const vs = ventas();
     assert(Array.isArray(vs), 'ventas() debe devolver un array');

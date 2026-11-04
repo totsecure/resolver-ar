@@ -311,7 +311,7 @@ function enviar(chatId, texto, extra = {}) {
 }
 
 /* Lo que consume bot/vendedor.js: transporte, nunca reglas de negocio. */
-const ctxBot = { enviar, escapeHtml };
+const ctxBot = { enviar, escapeHtml, enviarDoc: enviarDocumento };
 
 async function enviarDocumento(chatId, nombreArchivo, contenido, caption = '') {
   const url = `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}/sendDocument`;
