@@ -890,8 +890,12 @@ setInterval(async () => {
   log("watchdog: server caido, relanzando");
   try {
     /* Via server.sh: carga datos/server.env (token incluido) y deja el pidfile,
-     * asi el daemon de launchd no levanta un segundo server. */
-    const h = spawn("bash", ["scripts/server.sh"], { cwd: process.cwd(), detached: true, stdio: "ignore" });
+     * asi el daemon de launchd no levanta un segundo server.
+     * En Linux el server lo gobierna systemd: se setea RESOLVER_SERVICIO (p.ej.
+     * resolver.service) y el relanzamiento pasa por systemctl. */
+    const h = process.env.RESOLVER_SERVICIO
+      ? spawn("systemctl", ["restart", process.env.RESOLVER_SERVICIO], { cwd: process.cwd(), detached: true, stdio: "ignore" })
+      : spawn("bash", ["scripts/server.sh"], { cwd: process.cwd(), detached: true, stdio: "ignore" });
     h.unref();
   } catch (e) { log("watchdog error: " + e.message); }
 }, 5000);
@@ -899,9 +903,11 @@ setInterval(async () => {
 
   let fallosSeguidos = 0;
   let ultimoAviso = 0;
+  let avisado = false;
   while (true) {
     try {
       const updates = await getUpdates(offset);
+      if (avisado) { avisado = false; alertarBot('Bot reconectado con Telegram'); }
       fallosSeguidos = 0;
       if (!primerPollOk) { primerPollOk = true; log(`poll OK timeout=${POLL_TIMEOUT}s`); }
       for (const u of updates) {
@@ -923,14 +929,20 @@ setInterval(async () => {
       fallosSeguidos += 1;
       const backoff = Math.min(60000, 5000 * Math.pow(2, Math.min(6, fallosSeguidos - 1)));
       log(`ERROR loop: ${msg}; fallos=${fallosSeguidos} backoff=${Math.round(backoff / 1000)}s`);
-      if (fallosSeguidos >= 3 && Date.now() - ultimoAviso > 600000) {
+      if (fallosSeguidos >= 5 && Date.now() - ultimoAviso > 1800000) {
         ultimoAviso = Date.now();
-        execFile('/bin/bash', ['/Users/bunker/resolver/scripts/alertar.sh',
-          `Bot sin conexión con Telegram (${fallosSeguidos} fallos): ${msg}`], () => {});
+        avisado = true;
+        alertarBot(`Bot sin conexión con Telegram (${fallosSeguidos} fallos): ${msg}`);
       }
       await sleep(backoff);
     }
   }
+}
+
+/* Alerta al admin. El umbral y el cooldown evitan el spam: una caida corta de red
+ * no molesta, una caida larga avisa cada 30 min y se cierra con "reconectado". */
+function alertarBot(texto) {
+  execFile('/bin/bash', [path.join(RAIZ, 'scripts', 'alertar.sh'), texto], () => {});
 }
 
 const esMain = process.argv[1]

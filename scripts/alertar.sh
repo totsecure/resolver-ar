@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # alertar.sh — manda una alerta al Telegram del admin (o al primer permitido).
 set -uo pipefail
-RAIZ="/Users/bunker/resolver"
+# RAIZ sale del propio script: aguanta mudanzas de carpeta y el deploy en el server.
+RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [ -f "$RAIZ/datos/bot.env" ] && set -a && . "$RAIZ/datos/bot.env" && set +a
 [ -f "$RAIZ/datos/server.env" ] && set -a && . "$RAIZ/datos/server.env" && set +a
 MSG="${1:-Alerta de resolver}"

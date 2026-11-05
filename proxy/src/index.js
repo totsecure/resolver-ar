@@ -12,7 +12,9 @@
  * Secrets: RESOLVER_TOKEN, NGROK_USER, NGROK_PASS. GH_TOKEN es opcional.
  */
 
-const UP = "https://action-early-pants.ngrok-free.dev";
+/* Upstream: el server propio en el VPS. Va por nip.io, no por la IP pelada,
+ * porque Cloudflare contesta "error code: 1003" cuando el host es una IP. */
+const UP = "http://179.43.134.10.nip.io:8080";
 const GH_REPO = "cucucho-svg/resolver-ar";
 const GH_BRANCH = "main";
 
