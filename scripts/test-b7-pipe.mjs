@@ -82,6 +82,22 @@ const n2 = stock.demoNumero('550000', 16);
 const viejo = stock.parsearEntradaFlexible(`${n2},12/28,123,Juan Perez,30111222`)[0];
 check('comas siguen siendo formato viejo', viejo.formato === 'viejo' && viejo.titular === 'Juan Perez', JSON.stringify(viejo).slice(0, 140));
 
+/* Formato de la lista de saldeadas: numero|venc|cvv - saldoDisp/saldoTotal */
+const sald = stock.parsearEntradaFlexible('5165850103486989|05/27|975 - 17m/16m845k')[0];
+check('acepta pipe con cvv y saldos', sald.numero === '5165850103486989' && sald.mes === '05' && sald.anio === '2027'
+  && sald.cvv === '975' && sald.saldo_disp === '17m' && sald.saldo_total === '16m845k' && !sald.notas, JSON.stringify(sald).slice(0, 170));
+const sinSaldo = stock.parsearEntradaFlexible('5165850103486989|05/27|975')[0];
+check('pipe de 3 campos sin saldo no cambia', sinSaldo.cvv === '975' && sinSaldo.mes === '05' && !sinSaldo.saldo, JSON.stringify(sinSaldo).slice(0, 140));
+const soloDisp = stock.parsearEntradaFlexible('5165850103486989|05/27|975 - 3m')[0];
+check('total de saldo es opcional', soloDisp.cvv === '975' && soloDisp.saldo_disp === '3m' && !soloDisp.saldo_total, JSON.stringify(soloDisp).slice(0, 140));
+const t3 = `5165850103486989|05/27|975 - 17m/16m845k\n${stock.demoNumero('516585', 16)}|09/29|456 - 10m750k\n${stock.demoNumero('553649', 16)}|11/26|606 - 7m800k/7m729k`;
+const an3 = stock.cargar(t3, { flexible: true, fase: 'analizar', nombre: 'saldos' });
+check('el analisis acepta el lote con saldos', an3.nuevas === 3 && an3.invalidas.length === 0, JSON.stringify({ nuevas: an3.nuevas, inv: an3.invalidas.length }));
+const conf3 = stock.cargar(t3, { flexible: true, fase: 'confirmar', nombre: 'saldos' });
+const rSaldo = base.prepare('SELECT cvv,saldo_disp,saldo_total,saldo_disp_num,saldo_total_num FROM cc WHERE numero=?').get('5165850103486989');
+check('confirmar guarda cvv y saldos', conf3.nuevas === 3 && rSaldo.cvv === '975' && rSaldo.saldo_disp === '17m'
+  && rSaldo.saldo_total === '16m845k' && rSaldo.saldo_disp_num === 17000000 && rSaldo.saldo_total_num === 16845000, JSON.stringify(rSaldo));
+
 padron.close();
 console.log('');
 console.log('RESUMEN: ' + OK + ' OK / ' + FAIL + ' FAIL');
