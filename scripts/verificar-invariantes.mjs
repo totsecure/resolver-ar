@@ -5,9 +5,10 @@
  *   node scripts/verificar-invariantes.mjs
  */
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
-const RAIZ = '/Users/bunker/resolver';
+const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RUTA = process.env.RESOLVER_STOCK_DB || path.join(RAIZ, 'datos', 'stock.db');
 const db = new DatabaseSync(RUTA, { readOnly: true });
 db.exec('PRAGMA busy_timeout = 5000');
