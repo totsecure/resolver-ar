@@ -21,16 +21,18 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 - Trampa de la mudanza: los datos tienen PORT=3001 en datos/server.env. En el VPS el server
   corre con /etc/resolver.env (PORT=8080), asi que ese archivo se corrigio para que el
   vigilar y los scripts apunten al puerto real.
-- Compatibilidad: /Volumes/Boveda/resolver es un symlink a /opt/resolver en el VPS, para los
-  scripts viejos que traen la ruta de la Mac escrita adentro.
+- Ruta del proyecto: en la Mac/Boveda el arbol vive en /Volumes/Boveda/resolver (mudado el
+  2026-11-05 desde /Users/bunker/resolver, que ya no existe). En el VPS /Volumes/Boveda/resolver
+  es un symlink a /opt/resolver, para los scripts viejos que traen la ruta escrita adentro.
 - delta, delta-lector y reca son de terceros en el mismo server: NO tocarlos.
 - Deploy: rsync -az -e "ssh -i ~/.ssh/privlayer_ed25519" <archivos> root@179.43.134.10:/opt/resolver/ y despues systemctl restart.
 - Copiar una SQLite viva con rsync la corrompe: usar .backup o el dump de node:sqlite.
 
 ## Acceso
 - SSH: ssh -i ~/.ssh/privlayer_ed25519 root@179.43.134.10 (solo publickey, llave ya autorizada).
-- Clave root: 7TWEyDEJCK3#@*(JK. Ticket de alta #774873. Panel: panel.privatelayer.com, usuario cucucho@proton.me, clave 155452das.
-- PENDIENTE: rotar la clave del panel y la de root, y actualizar envs.
+- Credenciales (clave root, panel de PrivateLayer, RESOLVER_TOKEN, cuentas de prueba): **fuente unica en `SECRETOS.md`**.
+- Clave root rotada el 2026-11-05: la vieja queda en el historial de git ya sin validez (SSH es solo publickey).
+- PENDIENTE: rotar la clave del panel de PrivateLayer (`155452das`) y la de `prueba1`.
 - Panel web privado: /login (POST /api/auth/login, no /login) con CSRF (GET /api/auth/csrf deja cookie resolver_precsrf) y 2FA. Credenciales en datos/admin-2fa.txt.
 - RESOLVER_TOKEN (64 chars) en datos/server.env (Mac) y /etc/resolver.env (server): Bearer para los endpoints de servicio.
 
@@ -147,8 +149,9 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 - Suite: scripts/verificar.js 41 OK / 0 FAIL (incluye aislamiento de comodin entre vendedores) y playwright 60 passed.
 - **GitHub: cuenta nueva `totsecure`, repo privado `totsecure/resolver-ar`** (2026-11-05). La cuenta vieja
   `cucucho-svg` quedo suspendida (la API daba Not Found y su token ya era invalido), asi que se deslogueo y se
-  creo el repo con la historia completa (100 commits, `main` al dia). Es PRIVADO porque ESTADO.md tiene los
-  secretos en texto plano. El helper de credenciales de git es `gh auth git-credential` (no el keychain), asi
+  creo el repo con la historia completa (`main` al dia). Los secretos quedaron centralizados en `SECRETOS.md`,
+  afuera del codigo y con la clave de root ya rotada, asi que el repo puede ser PUBLICO sin filtrar nada critico.
+  El helper de credenciales de git es `gh auth git-credential` (no el keychain), asi
   que el push sale como la cuenta activa. El remoto `origin` ya apunta al repo nuevo; en el VPS sigue el
   respaldo `datos/repo.bundle`. `git config --global user.name/user.email` = `totsecure` + noreply, para
   que cualquier repo clonado pueda commitear sin configurar nada. Ojo: `gh auth logout` reescribe la config
@@ -156,4 +159,11 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 - Vidriera en celular: tabla apilada con `@media(max-width:640px)` + chips de los 8 bancos con mas stock
   (documento 5300 px -> 2487 px a 390 px). `panel/login.js` cancelaba mal el body del 401 de `/api/auth/yo`
   y dejaba la conexion colgada (la pagina no llegaba a `load`): ahora `r.body?.cancel()`.
+- Mudanza a la Boveda (2026-11-05): el arbol de la Mac paso de /Users/bunker/resolver (disco interno) a
+  /Volumes/Boveda/resolver (volumen cifrado). rsync 3 -aHAX --delete con 0 borrados, HEAD y sha256 verificados
+  de los dos lados; 119 archivos con la ruta absoluta adentro reescritos (deploy/daemons, scripts, docs);
+  symlink .e2e/padron.db y los 6 plists de /Library/LaunchDaemons + 2 de ~/Library/LaunchAgents reapuntados.
+  Verificado DESDE la Boveda: invariantes 23 OK / 0 FAIL, playwright 60 passed, /health /tienda /panel 200.
+  Recien despues se borro el origen. ojo en la Mac: /usr/bin/rsync es openrsync (no acepta -A/-X): usar
+  /opt/homebrew/bin/rsync.
 
