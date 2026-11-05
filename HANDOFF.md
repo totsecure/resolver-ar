@@ -1,7 +1,7 @@
 # HANDOFF — PROYECTO "resolver-ar"
 
 **Nombre del proyecto:** resolver-ar (resolver de titulares + venta de tarjetas + padrón AFIP + bot Telegram + panel).
-**Dueño / repo:** `cucucho-svg/resolver-ar` (privado).
+**Dueño / repo:** `totsecure/resolver-ar` (**público** desde 2026-11-05; los secretos viven en `SECRETOS.md`).
 **Máquina:** producción en el VPS `root@179.43.134.10` (`/opt/resolver`, node `/opt/delta-node/bin/node`); esta copia en la Mac (`/Volumes/Boveda/resolver`) es desarrollo y quedó congelada con SIGSTOP.
 **Última actualización:** 2026-11-05.
 **Estado global:** **el sistema corre en el VPS y la web pública sale por el Worker de Cloudflare** (ver sección 38). Plataforma web completa (fases 1–6); T2 y T3 cerrados; T4 resuelto sin PAT; **T1 (login Nosis) bloqueado por contraseña**. Canal vendedores abierto: alta por invitación, precio propio con BIN comodín y stock sin precio (ver `ESTADO.md`, sección "arranque del canal vendedores"). Pendiente el traslado de la Mac a la Bóveda (vender primero, mudar después).
@@ -107,8 +107,9 @@ Hosts permitidos: `*.gob.ar`, `*.msal.gov.ar`, `cuitonline.com`, `binlist.net`,
 - El KV no tiene URL pública: solo lo lee el Worker.
 - El bot solo atiende chat ids de `TELEGRAM_ALLOW`.
 
-**Conclusión: todo el proyecto está privado.** El único punto que dependía de una
-identidad externa (PAT de GitHub) fue eliminado.
+**Conclusión: el proyecto no filtra por afuera.** Los secretos quedaron centralizados en
+`SECRETOS.md` y el repo paso a publico el 2026-11-05 (sin valores adentro). El único punto que
+dependía de una identidad externa (PAT de GitHub) fue eliminado.
 
 ---
 
@@ -166,7 +167,7 @@ extraerDni(documento)     -> 8 dígitos del medio del CUIT
 - Verificado: DNI `38418216` (con CUIT, sin datos locales) muestra `PROVINCIA Cordoba` con fuente `NOSIS`; DNI `77777777` (sin CUIT) sigue sintético y no rompe.
 
 ### T4 — `/gh` sin PAT: RESUELTO
-- Repo ya privado.
+- Repo en cuenta propia (`totsecure`, hoy publico): dejo de depender del PAT viejo.
 - `/gh` lee snapshot KV + `__manifest__.json` (ver §2). Worker deployado: versión `d7ccccfb-db13-4c4d-9ba6-dbec615032ce`.
 
 ---
@@ -1423,8 +1424,26 @@ Adminium) porque el proyecto es vanilla sin build; `binlist.io` / `paylike/binlo
 enriquecimiento de BIN quedan para cuando aparezca un BIN sin banco local.
 
 **Respaldo en GitHub arreglado.** La cuenta `cucucho-svg` quedaba suspendida con el token muerto; se
-deslogueo y el repo paso a la cuenta `totsecure` como **privado** (`totsecure/resolver-ar`), con la
+deslogueo y el repo paso a la cuenta `totsecure` (`totsecure/resolver-ar`, hoy publico), con la
 historia completa (100 commits) y `main` al dia. `origin` apunta al repo nuevo y el helper de git es
 `gh auth git-credential`. Ojo con el orden: `gh auth logout` reescribe la config del helper y si un
 push corre en el medio falla con "could not read Username" — se arregla con `gh auth setup-git`.
 El autor de los commits quedo con el noreply de la cuenta para que figuren en su perfil.
+
+**Mudanza del arbol a la Boveda (2026-11-05).** El proyecto dejo el disco interno: vive en
+`/Volumes/Boveda/resolver` y `/Users/bunker/resolver` ya no existe. Se hizo con rsync 3
+(`/opt/homebrew/bin/rsync -aHAX --delete`, porque `/usr/bin/rsync` es openrsync y no acepta `-A`/`-X`),
+0 archivos borrados, con verificacion de HEAD y sha256 de los archivos clave de los dos lados. Despues
+se reescribio la ruta absoluta dentro de 119 archivos (deploy/daemons, scripts, docs, venv de datasette)
+y se reapuntaron el symlink `.e2e/padron.db` y los 8 plists de launchd (6 en `/Library/LaunchDaemons`,
+2 en `~/Library/LaunchAgents`). Recien con todo verificado **desde la Boveda** (invariantes 23 OK / 0 FAIL,
+playwright 60 passed, `/health` `/tienda` `/panel` 200) se borro el origen. Ojo: los plists de
+`/Library/LaunchDaemons` necesitan root; se resuelve con un solo dialogo via
+`osascript -e 'do shell script "..." with administrator privileges'`.
+
+**Secretos centralizados y repo publico.** Los valores que estaban desperdigados (clave de root del VPS,
+login del panel de PrivateLayer, `RESOLVER_TOKEN`, cuentas de prueba) pasaron a `SECRETOS.md`, que es la
+unica fuente. La clave de root se roto (la vieja del historial ya no sirve: el SSH es solo publickey) y los
+`.env` de runtime siguen gitignoreados. Con eso el repo `totsecure/resolver-ar` paso a **publico**. Si
+molesta que el `RESOLVER_TOKEN` quede a la vista, se rota con `openssl rand -hex 32` en los dos envs y
+`systemctl restart resolver resolver-consultas` (hay que actualizar tambien el link del panel).
