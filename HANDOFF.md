@@ -1323,7 +1323,7 @@ Que quedo como esta:
   `http://179.43.134.10.nip.io:8080`.
 - Camino público: Worker → VPS. `https://resolver-api.correonube.workers.dev`
   sirve `/panel`, `/tienda`, `/registro`, `/api/catalogo` y `/health` (probados
-  200). `URL_PUBLICA` del bot apunta ahí. El `/ness` y `/proxy` siguen saliendo
+  200). `URL_PUBLICA` del bot apunta ahí. El `/nosis` y `/proxy` siguen saliendo
   del Worker, no del VPS.
 - Alertas: umbral 5 fallos y cooldown 30 min, con "reconectado" al volver. El
   watchdog usa `RESOLVER_SERVICIO=resolver.service` para reiniciar por systemd.
