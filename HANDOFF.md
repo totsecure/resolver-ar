@@ -1335,3 +1335,51 @@ Que quedo como esta:
 Deuda anotada: apagar del todo los daemons de la Mac (necesita la clave de
 sudo), rotar la clave del panel de PrivateLayer y la de root, y sacar la venta
 de prueba `V-20261105-008` / `cc_id 60`.
+
+---
+
+## 39. La Mac no vuelve nunca y la vigilancia pasa al VPS (2026-11-05)
+
+Se pidio: "no quiero que los daemons vuelvan, quiero que funcione perfecto".
+Lo primero es literal: la Mac quedo **deshabilitada en launchd**, no solo apagada.
+Apagado se deshace con un reinicio; deshabilitado no.
+
+Como se hizo (Mac, con `osascript ... with administrator privileges` porque `sudo -n` no anda):
+
+    sudo launchctl bootout system/ar.resolver.<bot|server|tunel|vigilar|datasette|litestream>
+    launchctl disable system/ar.resolver.<los mismos seis>
+    launchctl bootout gui/501/ar.resolver.{caffeinate,backup}
+    launchctl disable gui/501/ar.resolver.{caffeinate,backup}
+
+- `bootout` descarta el job (y su KeepAlive), `disable` es lo que sobrevive al reinicio.
+- Comprobacion: `launchctl print-disabled system | grep ar.resolver` => los 6 en "disabled".
+- Los procesos ya no existian, pero ojo: los que estaban en SIGSTOP no procesan SIGTERM;
+  hay que `kill -CONT` y despues `kill`. Se verifico que no quedo nada escuchando 3001/3003/4040.
+- Quedan habilitados a proposito `ai.boveda.vigia` y `ar.resolver.backup-server`.
+- Los plists siguen en /Library/LaunchDaemons y ~/Library/LaunchAgents: deshabilitado no es
+  borrado. Volver atras: `launchctl enable ...` + `launchctl bootstrap system /Library/...plist`.
+
+Que el bot no vigilaba a nadie: al matar el vigilar de la Mac quedo un agujero. Se porto el
+script y ahora corre **en el VPS por cron de root cada minuto**:
+
+    * * * * * /usr/bin/flock -n /run/lock/resolver-vigilar.lock /opt/resolver/scripts/vigilar.sh >> /var/log/resolver-vigilar.log 2>&1
+
+- `scripts/vigilar.sh` deriva su RAIZ del propio archivo (igual que `alertar.sh`), y su puerto
+  sale de `PORT`, que ahora esta corregido a 8080 en `/opt/resolver/datos/server.env`.
+- Chequea: salud local en 8080, web publica por el Worker, proceso del bot (pidfile, que en el
+  VPS coincide con el MainPID de systemd) y `getMe`. Alerta a los 2 fallos, cooldown 30 min.
+- Primera corrida real: los 4 chequeos en UP y alerta de "recuperado" por el falso down inicial.
+
+Arreglos de portabilidad que aparecieron en el camino:
+
+- `scripts/verificar-invariantes.mjs` tenia `/Users/bunker/resolver` adentro y en el VPS no
+  podia abrir la base (la suite daba 40 OK / 1 FAIL). Ahora deriva la RAIZ. Suite: **41 OK / 0 FAIL**
+  en la Mac y en el VPS, e invariantes 23 OK sueltos.
+- Los `.sh` del VPS estaban en 644/600: cron los ejecutaba igual por el fallback del shell, pero
+  `flock` no. `chmod +x` a scripts/*.sh.
+- `/Users/bunker/resolver` -> symlink a `/opt/resolver` en el VPS, por los ~20 scripts que todavia
+  traen la ruta de la Mac escrita.
+- Backup de stock verificado a mano: `cc=1359`, 1,6 MB en datos/backups/.
+
+Deuda que sigue: la venta de prueba `V-20261105-008` / `cc_id 60`, rotar claves, y decidir si se
+borran los plists de la Mac (hoy deshabilitados).

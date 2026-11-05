@@ -15,6 +15,14 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
   (y /tienda, /registro). El Worker valida el token de /gh y reenvia el resto al VPS.
 - /health responde 200 {"ok":true,"personas":5664575}.
 - Envs: /etc/resolver.env y /etc/resolver-bot.env (permisos root, 600 en el del bot).
+- Vigilancia: scripts/vigilar.sh corre por cron de root CADA MINUTO (flock, log en
+  datos/vigilar.log) contra 4 chequeos: salud local 8080, web publica, proceso del bot y
+  token getMe. Alerta a los 2 fallos seguidos, cooldown 30 min. Antes vivia en la Mac.
+- Trampa de la mudanza: los datos tienen PORT=3001 en datos/server.env. En el VPS el server
+  corre con /etc/resolver.env (PORT=8080), asi que ese archivo se corrigio para que el
+  vigilar y los scripts apunten al puerto real.
+- Compatibilidad: /Users/bunker/resolver es un symlink a /opt/resolver en el VPS, para los
+  scripts viejos que traen la ruta de la Mac escrita adentro.
 - delta, delta-lector y reca son de terceros en el mismo server: NO tocarlos.
 - Deploy: rsync -az -e "ssh -i ~/.ssh/privlayer_ed25519" <archivos> root@179.43.134.10:/opt/resolver/ y despues systemctl restart.
 - Copiar una SQLite viva con rsync la corrompe: usar .backup o el dump de node:sqlite.
@@ -55,12 +63,19 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
   El camino de la alerta (scripts/alertar.sh) deriva su RAIZ del propio script: aguanta mudanzas.
 
 ## Mac (desarrollo y panel)
-- API local en 127.0.0.1:3001 con launchd (ar.resolver.server.plist, KeepAlive): si la matan, revive sola.
-- La Mac quedo CONGELADA (SIGSTOP) para que no pelee el 409 de Telegram ni escriba stock viejo:
-  `kill -STOP <pid>` del server y del bot; se revierte con `kill -CONT <pid>`.
-  Al reiniciar la Mac vuelven solos (RunAtLoad); para que no vuelvan nunca hace falta
-  `sudo launchctl bootout system/ar.resolver.bot` (y .server, .tunel, .vigilar) y
-  `launchctl bootout gui/501/ar.resolver.*` para los del usuario.
+- APAGADA del todo (2026-11-05). Los 6 daemons del sistema quedaron fuera de launchd y
+  DESHABILITADOS, asi no vuelven ni reiniciando la Mac:
+  `sudo launchctl bootout system/ar.resolver.<bot|server|tunel|vigilar|datasette|litestream>` +
+  `launchctl disable system/ar.resolver.<igual>`. En el dominio del usuario, lo mismo con
+  `gui/501/ar.resolver.caffeinate` y `gui/501/ar.resolver.backup`.
+  Se comprueba con `launchctl print-disabled system | grep ar.resolver` (los 6 dicen disabled).
+- Para volver a levantarlos: `launchctl enable ...` + `launchctl bootstrap system /Library/LaunchDaemons/ar.resolver.<x>.plist`.
+- Los plists siguen en /Library/LaunchDaemons y ~/Library/LaunchAgents (deshabilitado != borrado).
+  Quedan habilitados a proposito: `ai.boveda.vigia` y `ar.resolver.backup-server`.
+- Mac y server tienen copias de stock.db: la de produccion es la del server. La Mac quedo
+  vieja (no tiene la venta de prueba ni las cargas nuevas).
+- El tunel ngrok de la Mac (`action-early-pants.ngrok-free.dev`) quedo como camino alterno:
+  el Worker ya no lo usa.
 - Mac y server tienen copias de stock.db: la de produccion manda. Divergencia posible si se escribe en las dos.
 - El tunel ngrok de la Mac (`action-early-pants.ngrok-free.dev`) quedo como camino alterno:
   el Worker ya no lo usa.
