@@ -1421,3 +1421,10 @@ Mac y en el VPS. El banner del panel ahora aclara que las SIN PRECIO si salen en
 Referencias miradas y descartadas a proposito: los templates Next.js de storefront (Dezinet,
 Adminium) porque el proyecto es vanilla sin build; `binlist.io` / `paylike/binlookup` como
 enriquecimiento de BIN quedan para cuando aparezca un BIN sin banco local.
+
+**Respaldo en GitHub arreglado.** La cuenta `cucucho-svg` quedaba suspendida con el token muerto; se
+deslogueo y el repo paso a la cuenta `totsecure` como **privado** (`totsecure/resolver-ar`), con la
+historia completa (100 commits) y `main` al dia. `origin` apunta al repo nuevo y el helper de git es
+`gh auth git-credential`. Ojo con el orden: `gh auth logout` reescribe la config del helper y si un
+push corre en el medio falla con "could not read Username" — se arregla con `gh auth setup-git`.
+El autor de los commits quedo con el noreply de la cuenta para que figuren en su perfil.
