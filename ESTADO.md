@@ -150,7 +150,9 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
   creo el repo con la historia completa (100 commits, `main` al dia). Es PRIVADO porque ESTADO.md tiene los
   secretos en texto plano. El helper de credenciales de git es `gh auth git-credential` (no el keychain), asi
   que el push sale como la cuenta activa. El remoto `origin` ya apunta al repo nuevo; en el VPS sigue el
-  respaldo `datos/repo.bundle`. Git no tiene `user.name`/`user.email` globales: el autor se configura por repo.
+  respaldo `datos/repo.bundle`. `git config --global user.name/user.email` = `totsecure` + noreply, para
+  que cualquier repo clonado pueda commitear sin configurar nada. Ojo: `gh auth logout` reescribe la config
+  del helper y un push que corra en el medio falla con "could not read Username" → `gh auth setup-git`.
 - Vidriera en celular: tabla apilada con `@media(max-width:640px)` + chips de los 8 bancos con mas stock
   (documento 5300 px -> 2487 px a 390 px). `panel/login.js` cancelaba mal el body del 401 de `/api/auth/yo`
   y dejaba la conexion colgada (la pagina no llegaba a `load`): ahora `r.body?.cancel()`.
