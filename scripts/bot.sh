@@ -3,7 +3,7 @@
 # La vida del proceso se chequea por datos/bot.pid + kill -0, nunca por pgrep.
 set -uo pipefail
 
-cd /Users/bunker/resolver || { echo "ERROR: no existe /Users/bunker/resolver"; exit 1; }
+cd /Volumes/Boveda/resolver || { echo "ERROR: no existe /Volumes/Boveda/resolver"; exit 1; }
 mkdir -p datos
 
 # Token y allow list desde datos/bot.env (el bot tambien lo lee).

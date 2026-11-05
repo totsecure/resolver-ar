@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 
-const env = fs.readFileSync('/Users/bunker/resolver/datos/server.env', 'utf8');
+const env = fs.readFileSync('/Volumes/Boveda/resolver/datos/server.env', 'utf8');
 const TOKEN = ((env.match(/^RESOLVER_TOKEN=(.*)$/m) || [null, ''])[1] || '').trim().replace(/^["']|["']$/g, '');
 const BASE = 'https://resolver-api.correonube.workers.dev/nosis?token=' + TOKEN;
 

@@ -7,7 +7,7 @@
 # Usa `.backup` de SQLite (consistente aunque el server esté corriendo) y deja
 # los archivos en dist-migracion/. Nunca copia el WAL crudo.
 set -euo pipefail
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 DEST="$RAIZ/dist-migracion"
 CON_PADRON="${1:-}"
 

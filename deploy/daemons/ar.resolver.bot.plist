@@ -11,10 +11,10 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/bunker/resolver/scripts/bot-foreground.sh</string>
+    <string>/Volumes/Boveda/resolver/scripts/bot-foreground.sh</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/bunker/resolver</string>
+  <string>/Volumes/Boveda/resolver</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>HOME</key>
@@ -29,8 +29,8 @@
   <key>ThrottleInterval</key>
   <integer>10</integer>
   <key>StandardOutPath</key>
-  <string>/Users/bunker/resolver/datos/bot.log</string>
+  <string>/Volumes/Boveda/resolver/datos/bot.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/bunker/resolver/datos/bot.log</string>
+  <string>/Volumes/Boveda/resolver/datos/bot.log</string>
 </dict>
 </plist>

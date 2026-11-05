@@ -12,7 +12,7 @@
  */
 import fs from 'node:fs';
 
-const ENV = '/Users/bunker/resolver/datos/server.env';
+const ENV = '/Volumes/Boveda/resolver/datos/server.env';
 const TOKEN = ((fs.readFileSync(ENV, 'utf8').match(/^RESOLVER_TOKEN=(.*)$/m) || [, ''])[1] || '').trim();
 const WORKER = 'https://resolver-api.correonube.workers.dev/proxy';
 const DNI = process.argv[2] || '30756789';

@@ -11,7 +11,7 @@ recargas, reclamos, auditoría y checker.
 
 ARRANQUE
 --------
-  cd /Users/bunker/resolver
+  cd /Volumes/Boveda/resolver
   # El admin ya fue creado en B1 (2026-10-22) con 2FA activo.
   # Secreto TOTP y códigos de respaldo: datos/admin-2fa.txt (0600).
   # Para recrear desde cero: node scripts/crear-usuario.mjs admin --rol admin

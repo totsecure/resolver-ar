@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
-const P = '/Users/bunker/resolver/lib/renaper.js';
+const P = '/Volumes/Boveda/resolver/lib/renaper.js';
 let s = fs.readFileSync(P, 'utf8');
 const notas = [];
 

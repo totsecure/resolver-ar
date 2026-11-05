@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # alertar.sh — manda una alerta al Telegram del admin (o al primer permitido).
 set -uo pipefail
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 [ -f "$RAIZ/datos/bot.env" ] && set -a && . "$RAIZ/datos/bot.env" && set +a
 [ -f "$RAIZ/datos/server.env" ] && set -a && . "$RAIZ/datos/server.env" && set +a
 MSG="${1:-Alerta de resolver}"

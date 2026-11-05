@@ -2,6 +2,6 @@
 # padron.db es estática y ya tiene backup semanal: no se replica.
 # Destino local en el disco externo; el wrapper espera el montaje al arrancar.
 dbs:
-  - path: /Users/bunker/resolver/datos/stock.db
+  - path: /Volumes/Boveda/resolver/datos/stock.db
     replica:
       path: /Volumes/Boveda/litestream/stock

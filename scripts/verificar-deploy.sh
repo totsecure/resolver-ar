@@ -6,7 +6,7 @@
 #
 # Usa un puerto y DBs descartables. No toca producción.
 set -uo pipefail
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 PUERTO="${DEPLOY_PORT:-3023}"
 DIR="$(mktemp -d -t resolver-deploy.XXXXXX)"
 TOK="deploy-test-token"

@@ -44,7 +44,7 @@ Aclaraciones:
 ## Arranque
 
 ```bash
-cd /Users/bunker/resolver
+cd /Volumes/Boveda/resolver
 
 bash scripts/server.sh                 # server en :3001 con datos/server.env
 bash scripts/bot.sh                    # bot de Telegram

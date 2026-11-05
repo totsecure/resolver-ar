@@ -17,7 +17,7 @@
 #   nohup bash scripts/keepalive.sh >> datos/keepalive.log 2>&1 &
 set -uo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 INTERVALO="60"
 
 cd "$RAIZ" || { echo "ERROR: no existe $RAIZ"; exit 1; }

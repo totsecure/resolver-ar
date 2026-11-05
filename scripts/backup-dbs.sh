@@ -14,7 +14,7 @@
 # una copia rota. Destino local: datos/backups/. Remoto: $BACKUP_REMOTO.
 set -uo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 LOG="$RAIZ/datos/backup.log"
 LOCAL="$RAIZ/datos/backups"
 BASE_REMOTO="${BACKUP_REMOTO_BASE:-/Volumes/Boveda}"

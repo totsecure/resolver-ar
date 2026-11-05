@@ -21,7 +21,7 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 - Trampa de la mudanza: los datos tienen PORT=3001 en datos/server.env. En el VPS el server
   corre con /etc/resolver.env (PORT=8080), asi que ese archivo se corrigio para que el
   vigilar y los scripts apunten al puerto real.
-- Compatibilidad: /Users/bunker/resolver es un symlink a /opt/resolver en el VPS, para los
+- Compatibilidad: /Volumes/Boveda/resolver es un symlink a /opt/resolver en el VPS, para los
   scripts viejos que traen la ruta de la Mac escrita adentro.
 - delta, delta-lector y reca son de terceros en el mismo server: NO tocarlos.
 - Deploy: rsync -az -e "ssh -i ~/.ssh/privlayer_ed25519" <archivos> root@179.43.134.10:/opt/resolver/ y despues systemctl restart.
@@ -112,7 +112,7 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 3. Pasar opts.red desde entrega()/reentrega() a asignarTitulares.
 4. Limpiar pidfiles de sesion viejos (datos/caffeinate.pid y datos/keepalive.pid apuntan a procesos muertos).
 5. Confirmar si el bot de ventas (@resolver_ar_datos_bot) pasa a llamarse/verse "tienda" (ya tiene el logo) y si el panel suma esos dos logos/links.
-6. Vender primero y DESPUES mudar /Users/bunker/resolver -> /Volumes/Boveda/resolver (copy, paridad, borrado). Ojo: los daemons siguen escribiendo en el origen.
+6. Vender primero y DESPUES mudar /Volumes/Boveda/resolver -> /Volumes/Boveda/resolver (copy, paridad, borrado). Ojo: los daemons siguen escribiendo en el origen.
 7. El server /opt/resolver todavia corre el codigo viejo (sin sinPrecio ni comodin): decidir si pasa a produccion y sincronizarlo.
 
 ## Trampas conocidas del entorno

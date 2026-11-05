@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-const R = '/Users/bunker/resolver';
+const R = '/Volumes/Boveda/resolver';
 for (const a of ['datos/server.env', 'datos/bot.env']) {
   for (const l of fs.readFileSync(R + '/' + a, 'utf8').split('\n')) {
     const m = /^([A-Z0-9_]+)=(.*)$/.exec(l.trim());

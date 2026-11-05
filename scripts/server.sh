@@ -9,7 +9,7 @@
 # nunca por pgrep (en macOS pgrep puede no ver el proceso).
 set -uo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 cd "$RAIZ" || { echo "ERROR: no existe $RAIZ"; exit 1; }
 mkdir -p datos
 

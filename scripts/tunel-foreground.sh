@@ -4,7 +4,7 @@
 # No hay loop de sleep ni auto-relanzado dentro del script.
 set -euo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 URL="https://action-early-pants.ngrok-free.dev"
 cd "$RAIZ" || exit 1
 mkdir -p datos

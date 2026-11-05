@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
-const P = '/Users/bunker/resolver/bot/telegram.js';
+const P = '/Volumes/Boveda/resolver/bot/telegram.js';
 let s = fs.readFileSync(P, 'utf8');
 
 if (s.includes('\n  HELP,\n')) { console.log('ya estaba corregido'); process.exit(0); }

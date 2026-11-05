@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
-const ST = '/Users/bunker/resolver/bot/stock.js';
-const TG = '/Users/bunker/resolver/bot/telegram.js';
+const ST = '/Volumes/Boveda/resolver/bot/stock.js';
+const TG = '/Volumes/Boveda/resolver/bot/telegram.js';
 const notas = [];
 let st = fs.readFileSync(ST, 'utf8');
 let tg = fs.readFileSync(TG, 'utf8');

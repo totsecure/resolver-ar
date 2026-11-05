@@ -8,7 +8,7 @@
 # Lo usa playwright.config.js como webServer. Tambien se puede correr a mano.
 set -euo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 DIR="$RAIZ/.e2e"
 PUERTO="${E2E_PORT:-3002}"
 

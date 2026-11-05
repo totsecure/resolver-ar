@@ -18,7 +18,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
-const RAIZ = '/Users/bunker/resolver';
+const RAIZ = '/Volumes/Boveda/resolver';
 const PROXY = path.join(RAIZ, 'proxy');
 const TOML = path.join(PROXY, 'wrangler.toml');
 const WORKER = 'https://resolver-api.correonube.workers.dev';

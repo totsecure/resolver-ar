@@ -2,7 +2,7 @@
 
 **Nombre del proyecto:** resolver-ar (resolver de titulares + venta de tarjetas + padrón AFIP + bot Telegram + panel).
 **Dueño / repo:** `cucucho-svg/resolver-ar` (privado).
-**Máquina:** producción en el VPS `root@179.43.134.10` (`/opt/resolver`, node `/opt/delta-node/bin/node`); esta copia en la Mac (`/Users/bunker/resolver`) es desarrollo y quedó congelada con SIGSTOP.
+**Máquina:** producción en el VPS `root@179.43.134.10` (`/opt/resolver`, node `/opt/delta-node/bin/node`); esta copia en la Mac (`/Volumes/Boveda/resolver`) es desarrollo y quedó congelada con SIGSTOP.
 **Última actualización:** 2026-11-05.
 **Estado global:** **el sistema corre en el VPS y la web pública sale por el Worker de Cloudflare** (ver sección 38). Plataforma web completa (fases 1–6); T2 y T3 cerrados; T4 resuelto sin PAT; **T1 (login Nosis) bloqueado por contraseña**. Canal vendedores abierto: alta por invitación, precio propio con BIN comodín y stock sin precio (ver `ESTADO.md`, sección "arranque del canal vendedores"). Pendiente el traslado de la Mac a la Bóveda (vender primero, mudar después).
 
@@ -529,7 +529,7 @@ oficiales pero chicos.
 ## 7. Comandos
 
 ```bash
-cd /Users/bunker/resolver
+cd /Volumes/Boveda/resolver
 
 node scripts/nosis-entrar.mjs      # T1: login + informe (criterio de aceptación)
 node scripts/nosis-humo.mjs        # T2: búsqueda, caché, sin-CUIT, 0 requests
@@ -734,7 +734,7 @@ TELEGRAM_AUDIT=<chat_id>  # si falta, usa el primer TELEGRAM_ALLOW
 ### Puesta en marcha
 
 ```bash
-cd /Users/bunker/resolver
+cd /Volumes/Boveda/resolver
 node scripts/crear-usuario.mjs admin --rol admin --nombre "Dueño"
 # /login → activar 2FA → /panel/admin.html → invitación → /registro
 bash scripts/humo.sh     # 32 OK / 0 FAIL
@@ -1372,12 +1372,12 @@ script y ahora corre **en el VPS por cron de root cada minuto**:
 
 Arreglos de portabilidad que aparecieron en el camino:
 
-- `scripts/verificar-invariantes.mjs` tenia `/Users/bunker/resolver` adentro y en el VPS no
+- `scripts/verificar-invariantes.mjs` tenia `/Volumes/Boveda/resolver` adentro y en el VPS no
   podia abrir la base (la suite daba 40 OK / 1 FAIL). Ahora deriva la RAIZ. Suite: **41 OK / 0 FAIL**
   en la Mac y en el VPS, e invariantes 23 OK sueltos.
 - Los `.sh` del VPS estaban en 644/600: cron los ejecutaba igual por el fallback del shell, pero
   `flock` no. `chmod +x` a scripts/*.sh.
-- `/Users/bunker/resolver` -> symlink a `/opt/resolver` en el VPS, por los ~20 scripts que todavia
+- `/Volumes/Boveda/resolver` -> symlink a `/opt/resolver` en el VPS, por los ~20 scripts que todavia
   traen la ruta de la Mac escrita.
 - Backup de stock verificado a mano: `cc=1359`, 1,6 MB en datos/backups/.
 

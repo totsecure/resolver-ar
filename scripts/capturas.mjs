@@ -7,7 +7,7 @@ import path from 'node:path';
 import { chromium } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 
-const RAIZ = '/Users/bunker/resolver';
+const RAIZ = '/Volumes/Boveda/resolver';
 const ETIQUETA = process.argv[2] || 'actual';
 const token = (() => {
   const txt = fs.readFileSync(path.join(RAIZ, 'datos', 'server.env'), 'utf8');

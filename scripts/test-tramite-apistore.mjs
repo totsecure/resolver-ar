@@ -18,7 +18,7 @@
  */
 import fs from 'node:fs';
 
-const ENV = '/Users/bunker/resolver/datos/server.env';
+const ENV = '/Volumes/Boveda/resolver/datos/server.env';
 const env = (() => {
   const out = {};
   try {

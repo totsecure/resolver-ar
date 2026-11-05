@@ -31,7 +31,7 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/ar.resolver.server.plist
 Verificación integral:
 
 ```bash
-bash /Users/bunker/resolver/scripts/migrar-daemons.sh --verificar
+bash /Volumes/Boveda/resolver/scripts/migrar-daemons.sh --verificar
 ```
 
 ## 2. Después de un corte de luz
@@ -46,7 +46,7 @@ bash /Users/bunker/resolver/scripts/migrar-daemons.sh --verificar
 launchctl list | grep -i resolver
 curl -s -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:3001/health?token=$RESOLVER_TOKEN"
 curl -s -o /dev/null -w '%{http_code}\n' "https://resolver-api.correonube.workers.dev/health?token=$RESOLVER_TOKEN"
-bash /Users/bunker/resolver/scripts/humo.sh
+bash /Volumes/Boveda/resolver/scripts/humo.sh
 ```
 
 Para reinicios programados (actualizaciones, etc.) usar:
@@ -63,7 +63,7 @@ Pide credenciales, reinicia y desbloquea el volumen automáticamente. No usar
 ### 3.1 stock.db desde `datos/backups/`
 
 ```bash
-cd /Users/bunker/resolver
+cd /Volumes/Boveda/resolver
 sudo launchctl bootout system/ar.resolver.server
 sudo launchctl bootout system/ar.resolver.litestream
 
@@ -89,7 +89,7 @@ bash scripts/humo.sh
 ### 3.2 stock.db desde Litestream (point-in-time)
 
 ```bash
-cd /Users/bunker/resolver
+cd /Volumes/Boveda/resolver
 sudo launchctl bootout system/ar.resolver.server
 sudo launchctl bootout system/ar.resolver.litestream
 rm -f /tmp/stock-litestream.db
@@ -107,7 +107,7 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/ar.resolver.server.plist
 ### 3.3 padron.db (semanal)
 
 ```bash
-cd /Users/bunker/resolver
+cd /Volumes/Boveda/resolver
 sudo launchctl bootout system/ar.resolver.server
 sudo launchctl bootout system/ar.resolver.datasette
 
@@ -233,7 +233,7 @@ bash scripts/e2e.sh                         # 28 tests E2E
 stock/padrón. Para regenerarlo:
 
 ```bash
-cd /Users/bunker/resolver
+cd /Volumes/Boveda/resolver
 # el CSV vive en refs/ (ignorado por git)
 node scripts/importar-bins.mjs
 # completa banco/país/tipo/nivel en las tarjetas existentes

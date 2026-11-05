@@ -5,7 +5,7 @@ Destino: `docs/HANDOFF-REPOS.md`
 
 ## 0. Contexto
 
-Proyecto: `/Users/bunker/resolver` — panel web privado + bot de Telegram + resolver AFIP.
+Proyecto: `/Volumes/Boveda/resolver` — panel web privado + bot de Telegram + resolver AFIP.
 Vende CC (tarjetas) con saldo, en estado `REVISION / DISPONIBLE / RESERVADA / VENDIDA / PAPELERA`.
 Stack: Node ESM, Express, `node:sqlite` (SQLite en WAL), front-end vanilla sin bundler,
 server bajo launchd (`ar.resolver.server`), túnel ngrok + Worker proxy.
@@ -201,7 +201,7 @@ usando repos open-source maduros, **SIN migrar a un framework con build step**.
 ## 7. Comandos de clonado (`refs/`)
 
 ```sh
-mkdir -p /Users/bunker/resolver/refs && cd /Users/bunker/resolver/refs
+mkdir -p /Volumes/Boveda/resolver/refs && cd /Volumes/Boveda/resolver/refs
 git clone --depth 1 https://github.com/tabler/tabler
 git clone --depth 1 https://github.com/grid-js/gridjs
 git clone --depth 1 https://github.com/sweetalert2/sweetalert2

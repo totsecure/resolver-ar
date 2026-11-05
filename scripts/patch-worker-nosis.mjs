@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
-const P = '/Users/bunker/resolver/proxy/src/index.js';
+const P = '/Volumes/Boveda/resolver/proxy/src/index.js';
 let s = fs.readFileSync(P, 'utf8');
 
 if (s.includes('proxyNosis')) { console.log('ya estaba'); process.exit(0); }

@@ -11,7 +11,7 @@
 # Las credenciales salen de datos/server.env. No usa pgrep.
 set -uo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 WORKER_URL="https://resolver-api.correonube.workers.dev"
 CARDS="4111111111111111%7C12%7C28%7C123"
 TMP=$(mktemp -t resolver-humo.XXXXXX)

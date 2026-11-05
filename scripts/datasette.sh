@@ -6,7 +6,7 @@
 # PRAGMA query_only=1; no hay endpoints de escritura.
 set -euo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 PUERTO="${DATASETTE_PORT:-3003}"
 TOKEN_FILE="$RAIZ/datos/datasette.token"
 META="$RAIZ/datos/datasette-metadata.json"

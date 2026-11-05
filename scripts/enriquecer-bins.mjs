@@ -6,7 +6,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { lookup } from '../lib/bininfo.js';
 
-const RAIZ = '/Users/bunker/resolver';
+const RAIZ = '/Volumes/Boveda/resolver';
 const STOCK = process.env.RESOLVER_STOCK_DB || path.join(RAIZ, 'datos', 'stock.db');
 const db = new DatabaseSync(STOCK);
 db.exec('PRAGMA busy_timeout=8000');

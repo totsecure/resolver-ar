@@ -7,10 +7,10 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/bunker/resolver/scripts/litestream.sh</string>
+    <string>/Volumes/Boveda/resolver/scripts/litestream.sh</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/bunker/resolver</string>
+  <string>/Volumes/Boveda/resolver</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
@@ -23,8 +23,8 @@
   <key>ThrottleInterval</key>
   <integer>15</integer>
   <key>StandardOutPath</key>
-  <string>/Users/bunker/resolver/datos/litestream.log</string>
+  <string>/Volumes/Boveda/resolver/datos/litestream.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/bunker/resolver/datos/litestream.log</string>
+  <string>/Volumes/Boveda/resolver/datos/litestream.log</string>
 </dict>
 </plist>

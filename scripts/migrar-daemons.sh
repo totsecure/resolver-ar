@@ -15,7 +15,7 @@
 # deploy/daemons/.
 set -uo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 USUARIO="bunker"
 UID_USUARIO="${SUDO_UID:-$(id -u)}"
 AGENTS="/Users/$USUARIO/Library/LaunchAgents"

@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import * as fuentes from '../lib/fuentes-datos.js';
 
-const RAIZ = '/Users/bunker/resolver';
+const RAIZ = '/Volumes/Boveda/resolver';
 const RUTA_DB = process.env.RESOLVER_DB || path.join(RAIZ, 'datos', 'padron.db');
 const FUENTE = 'PADRON_IDACH_CHACO';
 const DRY = process.argv.includes('--dry');

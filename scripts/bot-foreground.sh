@@ -2,7 +2,7 @@
 # bot-foreground.sh — bot de Telegram en primer plano para launchd.
 # Escribe datos/bot.pid y lo borra al salir. No usa nohup: launchd supervisa.
 set -uo pipefail
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 cd "$RAIZ" || exit 1
 mkdir -p datos
 [ -f datos/server.env ] && set -a && . datos/server.env && set +a

@@ -15,7 +15,7 @@ import * as nosis from '../lib/nosis.js';
 const N = Math.max(1, Number(process.argv[2] || 1000));
 const DELAY = Number((process.argv.find((a) => a.startsWith('--delay=')) || '').split('=')[1] || process.env.NOSIS_DELAY_MS || 3000);
 const ESPERA = Number((process.argv.find((a) => a.startsWith('--espera=')) || '').split('=')[1] || 120000);
-const RUTA_DB = process.env.RESOLVER_DB || '/Users/bunker/resolver/datos/padron.db';
+const RUTA_DB = process.env.RESOLVER_DB || '/Volumes/Boveda/resolver/datos/padron.db';
 const SALIDA = '/tmp/cobertura-nosis.json';
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 

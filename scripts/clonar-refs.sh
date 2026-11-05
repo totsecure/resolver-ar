@@ -6,7 +6,7 @@
 #   bash scripts/clonar-refs.sh
 set -uo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 DESTINO="$RAIZ/refs"
 
 REPOS=(

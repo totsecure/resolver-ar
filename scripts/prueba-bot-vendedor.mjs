@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const RAIZ = '/Users/bunker/resolver';
+const RAIZ = '/Volumes/Boveda/resolver';
 for (const archivo of ['datos/server.env', 'datos/bot.env']) {
   const ruta = path.join(RAIZ, archivo);
   if (!fs.existsSync(ruta)) continue;

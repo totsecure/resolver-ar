@@ -110,7 +110,7 @@ node scripts/verificar.js   # 29 OK / 0 FAIL, offline
 - Worker: `https://resolver-api.correonube.workers.dev` → ngrok.
 
 ```bash
-cd /Users/bunker/resolver
+cd /Volumes/Boveda/resolver
 bash scripts/tunel.sh
 cat datos/tunel.url
 curl -s "https://resolver-api.correonube.workers.dev/health?token=$RESOLVER_TOKEN"

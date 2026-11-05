@@ -5,7 +5,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { marca, tipo, nivel, pais, pais2, moneda } from '../lib/normalizar-bin.js';
 
-const RAIZ = '/Users/bunker/resolver';
+const RAIZ = '/Volumes/Boveda/resolver';
 const stock = new DatabaseSync(path.join(RAIZ, 'datos', 'stock.db'));
 stock.exec('PRAGMA busy_timeout=8000');
 stock.exec('CREATE TABLE IF NOT EXISTS bininfo(bin TEXT PRIMARY KEY, marca TEXT, tipo TEXT, nivel TEXT, banco TEXT, pais TEXT, pais2 TEXT, moneda TEXT, json TEXT, fuente TEXT, actualizado TEXT)');

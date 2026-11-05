@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const RAIZ = '/Users/bunker/resolver';
+const RAIZ = '/Volumes/Boveda/resolver';
 const SRC = path.join(RAIZ, 'scripts', 'iconos-src');
 const DESTINO = path.join(RAIZ, 'panel', 'vendor', 'iconos.svg');
 const nombres = fs.readdirSync(SRC).filter((f) => f.endsWith('.svg')).map((f) => f.slice(0, -4)).sort();

@@ -13,7 +13,7 @@
  */
 import { DatabaseSync } from 'node:sqlite';
 
-const DB = process.env.RESOLVER_DB || '/Users/bunker/resolver/datos/padron.db';
+const DB = process.env.RESOLVER_DB || '/Volumes/Boveda/resolver/datos/padron.db';
 const FUENTE = 'PADRON_IDACH_CHACO';
 const N = Math.max(1, Number(process.argv[2] || 50));
 const d = new DatabaseSync(DB);

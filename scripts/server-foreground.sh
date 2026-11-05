@@ -4,7 +4,7 @@
 # (el PID no cambia), así humo.sh sigue verificando por pidfile + kill -0.
 set -uo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 cd "$RAIZ" || exit 1
 mkdir -p datos
 

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
-const ARCHIVOS = ['/Users/bunker/resolver/bot/telegram.js', '/Users/bunker/resolver/bot/stock.js'];
+const ARCHIVOS = ['/Volumes/Boveda/resolver/bot/telegram.js', '/Volumes/Boveda/resolver/bot/stock.js'];
 const REEMPLAZOS = [
   ['<refs>', '&lt;refs&gt;'],
   ['<ref>', '&lt;ref&gt;'],

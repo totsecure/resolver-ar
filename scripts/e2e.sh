@@ -9,7 +9,7 @@
 #   bash scripts/e2e.sh --grep "papelera"
 set -uo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 cd "$RAIZ" || exit 1
 
 npx playwright test "$@"

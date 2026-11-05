@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
-const P = '/Users/bunker/resolver/bot/telegram.js';
+const P = '/Volumes/Boveda/resolver/bot/telegram.js';
 const A1 = 'const PISTA = [';
 const A2 = 'export async function procesarUpdate(update, db) {';
 

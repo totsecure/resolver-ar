@@ -9,7 +9,7 @@
 # La vida de ngrok se chequea por datos/tunel.pid + kill -0, nunca por pgrep.
 set -uo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 URL="https://action-early-pants.ngrok-free.dev"
 
 cd "$RAIZ" || { echo "ERROR: no existe $RAIZ"; exit 1; }

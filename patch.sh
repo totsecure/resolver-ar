@@ -1,6 +1,6 @@
 #!/bin/bash
 set -u
-cd /Users/bunker/resolver || { echo "No existe /Users/bunker/resolver"; exit 1; }
+cd /Volumes/Boveda/resolver || { echo "No existe /Volumes/Boveda/resolver"; exit 1; }
 echo "Carpeta: $(pwd)"
 
 D="_bak/$(date +%Y%m%d-%H%M%S)"

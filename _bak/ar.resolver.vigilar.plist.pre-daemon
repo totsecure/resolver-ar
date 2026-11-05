@@ -7,10 +7,10 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/bunker/resolver/scripts/vigilar.sh</string>
+    <string>/Volumes/Boveda/resolver/scripts/vigilar.sh</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/bunker/resolver</string>
+  <string>/Volumes/Boveda/resolver</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
@@ -21,8 +21,8 @@
   <key>StartInterval</key>
   <integer>60</integer>
   <key>StandardOutPath</key>
-  <string>/Users/bunker/resolver/datos/vigilar.log</string>
+  <string>/Volumes/Boveda/resolver/datos/vigilar.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/bunker/resolver/datos/vigilar.log</string>
+  <string>/Volumes/Boveda/resolver/datos/vigilar.log</string>
 </dict>
 </plist>

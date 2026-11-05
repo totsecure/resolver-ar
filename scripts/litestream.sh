@@ -4,7 +4,7 @@
 # launchd lo relanza si sale (KeepAlive + ThrottleInterval).
 set -uo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="/Volumes/Boveda/resolver"
 BIN="$RAIZ/varios/bin/litestream"
 DESTINO="/Volumes/Boveda/litestream"
 

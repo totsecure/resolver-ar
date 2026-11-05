@@ -11,7 +11,7 @@ import readline from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 import { marca as nMarca, tipo as nTipo, nivel as nNivel, pais as nPais, pais2 as nPais2 } from '../lib/normalizar-bin.js';
 
-const RAIZ = '/Users/bunker/resolver';
+const RAIZ = '/Volumes/Boveda/resolver';
 const CSV = process.argv[2] || process.env.BINS_CSV || path.join(RAIZ, 'refs', 'binlist-data-tech', 'bins.csv');
 const DB = process.env.RESOLVER_BINS_DB || path.join(RAIZ, 'datos', 'bins.db');
 const SUMMARY = path.join(path.dirname(CSV), 'summary.json');

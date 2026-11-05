@@ -5,14 +5,14 @@
  * Borra esa base, crea el esquema con base() de lib/stock.js y carga un fixture
  * determinista de 24 tarjetas, todas con es_test=1.
  *
- *   RESOLVER_STOCK_DB=/Users/bunker/resolver/.e2e/stock.db node scripts/e2e-seed.mjs
+ *   RESOLVER_STOCK_DB=/Volumes/Boveda/resolver/.e2e/stock.db node scripts/e2e-seed.mjs
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
-const RAIZ = '/Users/bunker/resolver';
+const RAIZ = '/Volumes/Boveda/resolver';
 const RUTA = process.env.RESOLVER_STOCK_DB || path.join(RAIZ, '.e2e', 'stock.db');
 
 if (!RUTA.includes('.e2e')) {
