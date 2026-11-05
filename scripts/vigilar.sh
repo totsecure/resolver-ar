@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# vigilar.sh — chequeo de salud cada minuto (launchd ar.resolver.vigilar).
+# vigilar.sh — chequeo de salud cada minuto (cron de root en el VPS; antes launchd en la Mac).
 #
 # Mide servicios reales, no pidfiles:
 #   1) server local      GET /health?token=            -> 200 + ok:true
@@ -12,7 +12,7 @@
 # Estado por chequeo en datos/vigilar-<nombre>.estado. Log: datos/vigilar.log.
 set -uo pipefail
 
-RAIZ="/Users/bunker/resolver"
+RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKER_URL="${WORKER_URL:-https://resolver-api.correonube.workers.dev}"
 COOLDOWN="${VIGILAR_COOLDOWN:-1800}"
 cd "$RAIZ" || exit 1
