@@ -2,9 +2,9 @@
 
 **Nombre del proyecto:** resolver-ar (resolver de titulares + venta de tarjetas + padrón AFIP + bot Telegram + panel).
 **Dueño / repo:** `cucucho-svg/resolver-ar` (privado).
-**Máquina:** Mac del usuario, zsh, herramientas BSD. Raíz: `/Users/bunker/resolver`.
-**Última actualización:** 2026-11-04.
-**Estado global:** plataforma web completa (fases 1–6) en producción local; T2 y T3 cerrados; T4 resuelto sin PAT; **T1 (login Nosis) bloqueado por contraseña**. Canal vendedores abierto: alta por invitación, precio propio con BIN comodín y stock sin precio (ver `ESTADO.md`, sección "arranque del canal vendedores"). Pendiente el traslado a la Bóveda (vender primero, mudar después).
+**Máquina:** producción en el VPS `root@179.43.134.10` (`/opt/resolver`, node `/opt/delta-node/bin/node`); esta copia en la Mac (`/Users/bunker/resolver`) es desarrollo y quedó congelada con SIGSTOP.
+**Última actualización:** 2026-11-05.
+**Estado global:** **el sistema corre en el VPS y la web pública sale por el Worker de Cloudflare** (ver sección 38). Plataforma web completa (fases 1–6); T2 y T3 cerrados; T4 resuelto sin PAT; **T1 (login Nosis) bloqueado por contraseña**. Canal vendedores abierto: alta por invitación, precio propio con BIN comodín y stock sin precio (ver `ESTADO.md`, sección "arranque del canal vendedores"). Pendiente el traslado de la Mac a la Bóveda (vender primero, mudar después).
 
 > Atajo: el detalle fino y al día vive en `ESTADO.md`. Este archivo es el mapa largo y no contiene credenciales: viven en `datos/server.env` y `datos/bot.env`, que están fuera de git.
 
@@ -1300,3 +1300,38 @@ la pestaña **Revisión** y el botón **Publicar** en el panel. Prueba:
   seccion "arranque del canal vendedores".
 - Pendiente: mudanza a `/Volumes/Boveda/resolver` **despues** de vender
   (copy, paridad, borrado) y decidir si el server `/opt/resolver` pasa a produccion.
+
+---
+
+## 38. El bot y la web se mudaron al VPS (2026-11-05)
+
+Motivo: la Mac no puede sostener el long poll de Telegram. La red de la Mac
+(Mullvad + suspensión + ngrok flapeando) cortaba el `getUpdates` cada 13–15
+minutos y el bot alertaba "abortado" toda la noche; además el Worker devolvía
+404 en `/health`, así que `vigilar.sh` marcaba el sitio caído estando vivo.
+En el VPS el bot hace `poll OK timeout=50s` seguido y sin `409`.
+
+Que quedo como esta:
+
+- `resolver-bot.service` corre en el VPS y es el único que pollea
+  `resolver_ar_datos_bot`: la Mac se congeló con `kill -STOP` (server y bot) para
+  que no pelee el `409 Conflict`. Reversible con `kill -CONT`; definitivo con
+  `sudo launchctl bootout system/ar.resolver.bot`.
+- El server escucha en `0.0.0.0:8080` (antes `127.0.0.1:3222`). El 8080 y el
+  hostname son obligatorios: el Worker que proxea **no** acepta una IP pelada
+  como host (Cloudflare contesta `error code: 1003`) por eso el upstream es
+  `http://179.43.134.10.nip.io:8080`.
+- Camino público: Worker → VPS. `https://resolver-api.correonube.workers.dev`
+  sirve `/panel`, `/tienda`, `/registro`, `/api/catalogo` y `/health` (probados
+  200). `URL_PUBLICA` del bot apunta ahí. El `/ness` y `/proxy` siguen saliendo
+  del Worker, no del VPS.
+- Alertas: umbral 5 fallos y cooldown 30 min, con "reconectado" al volver. El
+  watchdog usa `RESOLVER_SERVICIO=resolver.service` para reiniciar por systemd.
+- `scripts/alertar.sh` deriva su RAIZ del propio archivo: anda igual en la Mac,
+  en la Bóveda o en el server.
+- Backups: cron de root cada 6 h a `/opt/resolver/datos/backups/` y copia
+  offsite a `/Volumes/Boveda/resolver-backups/server/`.
+
+Deuda anotada: apagar del todo los daemons de la Mac (necesita la clave de
+sudo), rotar la clave del panel de PrivateLayer y la de root, y sacar la venta
+de prueba `V-20261105-008` / `cc_id 60`.

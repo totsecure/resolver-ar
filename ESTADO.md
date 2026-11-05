@@ -1,5 +1,5 @@
 # ESTADO DEL TRABAJO (memoria persistente - NO borrar)
-Actualizado: 2026-11-04. Leer esto antes de cualquier cambio.
+Actualizado: 2026-11-05. Leer esto antes de cualquier cambio.
 
 ## Objetivo
 Entregas de CC con titular REAL (RENAPER) via bot Telegram, panel web privado como centro de control.
@@ -7,7 +7,12 @@ Formato de entrega: bloques TARJETA #N / DATOS TITULAR / DATOS TARJETA separados
 
 ## Produccion (pl1) - EN LINEA
 Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-node/bin/node.
-- resolver.service (API, 127.0.0.1:3222) y resolver-bot.service (bot ventas): active + enabled.
+- resolver.service (API, 0.0.0.0:8080) y resolver-bot.service (bot ventas): active + enabled.
+- El 8080 es a proposito: el Worker de Cloudflare no acepta puertos raros ni host-IP. Con
+  el server en 3222 y un host que sea la IP pelada, CF contesta "error code: 1003".
+  Por lo mismo el Worker proxea a `http://179.43.134.10.nip.io:8080` (ver proxy/src/index.js).
+- Web publica: https://resolver-api.correonube.workers.dev/panel/?token=<RESOLVER_TOKEN>
+  (y /tienda, /registro). El Worker valida el token de /gh y reenvia el resto al VPS.
 - /health responde 200 {"ok":true,"personas":5664575}.
 - Envs: /etc/resolver.env y /etc/resolver-bot.env (permisos root, 600 en el del bot).
 - delta, delta-lector y reca son de terceros en el mismo server: NO tocarlos.
@@ -24,7 +29,7 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 ## Canales que se usan (no todos en la lista original)
 - ARGOS oficial 5100 (filtrado por IP): solo si ARGOS_OFICIAL=1.
 - Puerta lateral 104.234.7.128:5000 ABIERTA: GET /api/dni/<dni> y /api/health. Es el camino real de ARGOS.
-- 8080 es el dashboard del bot de terceros (aiohttp), no nuestro.
+- El 8080 de ESTE server quedo para resolver: el dashboard aiohttp del bot de terceros vive en otro host.
 
 ## Reglas de datos (local primero: NO romper)
 - Identidad (apellido, nombre, DNI, CUIL): siempre del padron, local y sin red (lib/persona.js real() solo lee caches).
@@ -44,11 +49,21 @@ Server Linux root@179.43.134.10. Codigo en /opt/resolver, node en /opt/delta-nod
 - Descarte de comandos repetidos en 3 s (mata respuestas duplicadas).
 - Tope de 25 s por comando, configurable con BOT_TOPE_MS (no seteado: default 25000).
 - Watchdog: usa process.execPath para relanzar server.js (antes hardcodeaba /usr/local/bin/node, que no existe en el server).
+- En el server el watchdog reinicia por systemctl: el bot corre con RESOLVER_SERVICIO=resolver.service.
+- Alertas de caida: recien a los 5 fallos seguidos y como maximo cada 30 min, con aviso de
+  "reconectado" al volver. Antes avisaba a los 3 fallos cada 10 min y llenaba el chat.
+  El camino de la alerta (scripts/alertar.sh) deriva su RAIZ del propio script: aguanta mudanzas.
 
 ## Mac (desarrollo y panel)
 - API local en 127.0.0.1:3001 con launchd (ar.resolver.server.plist, KeepAlive): si la matan, revive sola.
-- El plist del bot de la Mac se dejo con SIGSTOP para no pelear el 409 de Telegram contra el server.
+- La Mac quedo CONGELADA (SIGSTOP) para que no pelee el 409 de Telegram ni escriba stock viejo:
+  `kill -STOP <pid>` del server y del bot; se revierte con `kill -CONT <pid>`.
+  Al reiniciar la Mac vuelven solos (RunAtLoad); para que no vuelvan nunca hace falta
+  `sudo launchctl bootout system/ar.resolver.bot` (y .server, .tunel, .vigilar) y
+  `launchctl bootout gui/501/ar.resolver.*` para los del usuario.
 - Mac y server tienen copias de stock.db: la de produccion manda. Divergencia posible si se escribe en las dos.
+- El tunel ngrok de la Mac (`action-early-pants.ngrok-free.dev`) quedo como camino alterno:
+  el Worker ya no lo usa.
 
 ## Bot de consultas (separado del de ventas) - ANDANDO
 - bot/consultas.js: poller propio (getUpdates + offset en datos/consultas-offset.json + lista blanca TELEGRAM_ALLOW) que reutiliza manejarStock() de bot/stock.js. No toca stock, ventas ni outbox.
