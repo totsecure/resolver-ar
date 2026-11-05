@@ -143,6 +143,8 @@
         location.href = destino(yo.usuario.rol);
         return;
       }
+      // 401 sin leer: si no se cancela el cuerpo, la conexión queda colgada.
+      await r.body?.cancel().catch(() => {});
     } catch (_) {}
     ver('vistaLogin');
   }

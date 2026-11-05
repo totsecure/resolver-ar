@@ -486,7 +486,7 @@
     if (ESTADO === 'DISPONIBLE' && (n > 0 || venc > 0 || porVencer > 0)) {
       b.style.display = 'block';
       var partes = [];
-      if (n > 0) partes.push('Hay publicadas <b>SIN PRECIO</b>: no salen en Market ni en el bot (el chip muestra cuántas).');
+      if (n > 0) partes.push('Hay publicadas <b>SIN PRECIO</b>: no salen en Market ni en el bot, pero sí en la vidriera pública /tienda (el chip muestra cuántas).');
       if (venc > 0) partes.push('<b class="txt-bad">' + venc + '</b> ' + (venc === 1 ? 'vencida' : 'vencidas') + '.');
       if (porVencer > 0) partes.push('<b class="txt-warn">' + porVencer + '</b> por vencer en 30 días.');
       b.innerHTML = partes.join(' ') + (n > 0 ? ' <button class="sec" id="spPrecioBin">Preciar por BIN</button> <button class="sec" id="spVer">' + (SIN_PRECIO ? 'Ver todas' : 'Ver sin precio') + '</button>' : '');

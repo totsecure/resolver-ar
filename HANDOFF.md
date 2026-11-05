@@ -1383,3 +1383,41 @@ Arreglos de portabilidad que aparecieron en el camino:
 
 Deuda que sigue: la venta de prueba `V-20261105-008` / `cc_id 60`, rotar claves, y decidir si se
 borran los plists de la Mac (hoy deshabilitados).
+
+## 40. Mac blindada, tienda usable en celular y el body del 401 (2026-11-05)
+
+Pedido: "que nadie tenga acceso a mi mac", mejorar lo visual y revisar que todo este cableado
+perfecto. Todo verificado contra produccion (VPS + Worker), no en laboratorio.
+
+**La Mac no tiene puerta de entrada.** Auditoria como root:
+
+- FileVault: encendido. Firewall de aplicaciones: bloqueando entrantes, con modo sigilo.
+- `pf`: habilitado. Sin `sshd`, `smbd` ni ARDAgent corriendo, y sin `~/.ssh/authorized_keys`.
+- Nada escuchando en `0.0.0.0`: el unico LISTEN es el GUI de DSH en `127.0.0.1:49313`.
+- Una sola cuenta de usuario (`bunker`), sin auto-login; los 6 plists `ar.resolver.*` siguen
+  deshabilitados (`launchctl print-disabled system` los lista). Los servicios de Sharing no
+  tienen overrides y por defecto estan apagados.
+- `datos/admin-2fa.txt`, `datos/bot.env`, `datos/server.env` y la clave de PrivateLayer en 600;
+  `datos/` no esta trackeado en git.
+
+**Tienda publica en celular.** La tabla ponia el banco en 5-6 renglones verticales y dejaba la
+pagina en ~5300 px. Ahora, con `@media(max-width:640px)`, cada fila es un grid de 2 filas con el
+BIN a la izquierda, el banco recortado a 2 lineas (`-webkit-line-clamp`) y el saldo abajo; el
+`thead` se oculta. Medido en produccion a 390 px: documento 2487 px, fila maxima 82 px, desborde 0.
+
+**Chips de bancos** en la vidriera (patron de cualquier storefront open source): los 8 bancos con
+mas stock, un click filtra y el chip vuelve a apagarse. El nombre se acorta para el chip
+(`BANCO `, `S.A.`, parentesis redundante) pero la tabla sigue mostrando el nombre completo.
+
+**Bug de cableado real:** `panel/login.js` no leia el body del 401 de `/api/auth/yo` y la conexion
+quedaba colgada: con `waitUntil:'networkidle'` la pagina nunca llegaba a `load` (por eso el timeout
+que venia arrastrandose). Se cancela el body con `r.body?.cancel()`; verificado: 0 requests
+pendientes. `panel/tienda.html` paso de 600 a 644.
+
+Tests: **60 passed** (58 + el apilado del celular y los chips). Invariantes 23 OK / 0 FAIL en la
+Mac y en el VPS. El banner del panel ahora aclara que las SIN PRECIO si salen en `/tienda`
+(no salen en Market ni en el bot).
+
+Referencias miradas y descartadas a proposito: los templates Next.js de storefront (Dezinet,
+Adminium) porque el proyecto es vanilla sin build; `binlist.io` / `paylike/binlookup` como
+enriquecimiento de BIN quedan para cuando aparezca un BIN sin banco local.
