@@ -211,6 +211,24 @@ async function cmdEntrega(chat, args, quien, esVenta) {
   if (a) await enviar(chat, esc(a));
 }
 
+async function cmdDame(chat, args, quien) {
+  /* /dame [bin|ultimos4] [n] - entrega los datos SIN marcar la CC VENDIDA.
+   * Sólo para ver/adelantar; la venta sigue siendo /pedir, /vender o /entrega. */
+  const a0 = String((args || [])[0] || '').trim();
+  const a1 = String((args || [])[1] || '').trim();
+  const p = { cantidad: /^\d{1,3}$/.test(a1) ? a1 : '1', usuario: quien, chat_id: String(chat), desde: '1' };
+  if (/^\d{5,8}$/.test(a0)) p.bin = a0;
+  else if (/^\d{13,}$/.test(a0)) p.refs = a0;
+  else if (/^\d{1,4}$/.test(a0)) p.ref = a0;
+  const j = await pedir('/stock/dame', p);
+  if (j.error) { await enviar(chat, 'Error: ' + esc(j.error)); return; }
+  if (!j.n) { await enviar(chat, 'No hay CC disponibles' + (a0 ? ' para ' + esc(a0) : '') + '.'); return; }
+  log('dame chat=' + chat + ' n=' + j.n);
+  await enviarDoc(chat, 'datos_' + j.numeros[0] + '.txt', j.texto + '\n', 'Datos de ' + j.n + ' CC (siguen disponibles)');
+  const masc = j.numeros.map((n) => '····' + String(n).slice(-4)).join(', ');
+  await enviar(chat, 'Datos de <b>' + esc(masc) + '</b>. Siguen <b>DISPONIBLES</b>: para venderlas usá /pedir ' + esc(String(j.numeros[0]).slice(-4)) + '.');
+}
+
 async function cmdReentrega(chat, args) {
   if (!args[0]) { await enviar(chat, 'Uso: /reentrega V-20261022-001 [bloques|compacto]'); return; }
   const formato = args.find((a) => /^(bloques|compacto|listado)$/.test(a)) || 'bloques';
@@ -581,7 +599,7 @@ async function conNosis(fn) {
   try { return await fn(); } finally { nosisBotOcupado = false; }
 }
 
-export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
+export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'dame', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
 
 /* === atajos === */
 export const ALIAS = {
@@ -660,6 +678,7 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'vender') await cmdVenderConBoton(chatId, args, quien);
     else if (c === 'venta') await cmdEntrega(chatId, args, quien, true);
     else if (c === 'entrega') await cmdEntrega(chatId, args, quien, false);
+    else if (c === 'dame') await cmdDame(chatId, args, quien);
     else if (c === 'reentrega') await cmdReentrega(chatId, args);
     else if (c === 'devolver') await cmdDevolver(chatId, args, quien);
     else if (c === 'baja') await cmdBaja(chatId, args, quien);

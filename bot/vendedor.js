@@ -15,7 +15,7 @@ function log(msg) {
 
 const CMD = new Set(['stock', 'bin', 'precio', 'pedir', 'revisar', 'mis', 'saldo', 'pagar', 'datos', 'ok', 'falla', 'chk', 'recargar', 'recuperar', 'ayuda', 'start', 'help', 'comandos', 'desvincular']);
 /* Los resuelve manejarStock (bot/stock.js) tal cual, sin pasar por vb. */
-const PARIDAD = new Set(['vender', 'saldeadas', 'dead', 'anular', 'ventas', 'cancel', 'cancelar']);
+const PARIDAD = new Set(['dame', 'vender', 'saldeadas', 'dead', 'anular', 'ventas', 'cancel', 'cancelar']);
 
 export function esVendedorChat(chatId) {
   try { return vb.esVendedor(chatId); } catch (_) { return false; }

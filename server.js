@@ -786,6 +786,16 @@ app.listen(PUERTO, HOST, () => console.log('http://' + HOST + ':' + PUERTO + '/t
     process.exit(1);
   });
 
+/* Precalienta los titulares que faltan para que /dame responda al instante
+ * (ARGOS tarda 1-2s por DNI nuevo; después queda en caché). */
+(async function precalentarTitulares() {
+  try {
+    const n = await sPrewarmFaltantes(5);
+    if (n) console.log('prewarm titulares: +' + n);
+  } catch (e) { console.error('prewarm titulares: ' + String(e?.message || e)); }
+  setTimeout(precalentarTitulares, 15000);
+})();
+
 /* --------------------------- STOCK de CC (privado) --------------------------- */
 import {
   base as sBase, cargar as sCargar, listarBin as sListarBin, listado as sListado, resumen as sResumen,
@@ -795,7 +805,7 @@ import {
   expirarReservas as sExpirar, stats as sStats, alertas as sAlertas, precios as sPrecios,
   setPrecio as sSetPrecio, porCodigo as sPorCodigo, exportar as sExportar,
   purgar as sPurgar, backup as sBackup, saldeadas as sSaldeadas, bloqueDe as sBloqueDe, revisar as sRevisar, porId as sPorId, ultimaVenta as sUltimaVenta,
-  ventas as sVentas,
+  ventas as sVentas, dame as sDame, prewarmFaltantes as sPrewarmFaltantes,
 } from './lib/stock.js';
 import { saldeadasLista, saldeadaPorNumero } from './lib/pedido.js';
 import { lookup as binLookup } from './lib/bininfo.js';
@@ -1565,6 +1575,12 @@ app.get('/stock/vender', soloLectura, envolver((req) => sVender({ ...quien(req),
 app.get('/stock/entrega', soloLectura, envolver(async (req) => {
   const r = await sEntrega({ ...quien(req), bin: qs(req, 'bin'), cantidad: num(qs(req, 'cantidad', 1), 1), modo: qs(req, 'modo'), refs: refsDe(qs(req, 'refs')), comprador: qs(req, 'comprador'), formato: qs(req, 'formato'), desde: num(qs(req, 'desde', 1), 1), saltar: num(qs(req, 'saltar', 0), 0) });
   return { codigo: r.codigo, n: r.ccs.length, texto: r.texto, refs: r.ccs.map((c) => c.ref) };
+}));
+app.get('/stock/dame', soloLectura, envolver(async (req) => {
+  /* Entrega en vista: mismos datos que /stock/entrega pero la CC sigue DISPONIBLE.
+   * `ref` = últimos 4 dígitos o el PAN completo. */
+  const r = await sDame({ ...quien(req), bin: qs(req, 'bin'), consulta: qs(req, 'ref'), cantidad: num(qs(req, 'cantidad', 1), 1), modo: qs(req, 'modo'), refs: refsDe(qs(req, 'refs')), formato: qs(req, 'formato'), desde: num(qs(req, 'desde', 1), 1) });
+  return { n: r.ccs.length, texto: r.texto, numeros: r.ccs.map((c) => c.numero) };
 }));
 app.get('/stock/reentrega', soloLectura, envolver(async (req) => {
   const r = await sReentrega(qs(req, 'codigo', ''), { formato: qs(req, 'formato'), desde: num(qs(req, 'desde', 1), 1) });
