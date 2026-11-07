@@ -126,7 +126,16 @@ export async function atender(msg) {
   }
 
   log(`chat=${chat} /${cmd} ${args.join(' ')}`);
-  await manejarStock(chat, cmd, args);
+  const t0 = Date.now();
+  try {
+    await manejarStock(chat, cmd, args);
+    log(`ok chat=${chat} /${cmd} ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  } catch (e) {
+    /* Sin esto, un fallo al responder quedaba invisible: el log mostraba el
+     * comando recibido y nada mas, y parecia que el bot ignoraba al usuario. */
+    log(`FALLO chat=${chat} /${cmd} ${((Date.now() - t0) / 1000).toFixed(1)}s: ${e?.message || e}`);
+    await enviar(chat, 'Error en /' + cmd + ': ' + String(e?.message || e));
+  }
 }
 
 async function iniciar() {
