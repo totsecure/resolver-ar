@@ -529,7 +529,16 @@ async function cmdScoring(chat, args) {
   const dni = String(args[0] || '').replace(/\D/g, '');
   if (dni.length < 7) { await enviar(chat, 'Uso: /scoring 30756789'); return; }
   await enviar(chat, 'Consultando scoring + situacion fiscal de ' + dni + '...');
-  const t = await pedirTexto('/fiscal/' + dni + '?forzar=1');
+  const t = await pedirTexto('/scoring/' + dni + '?forzar=1');
+  await enviarPre(chat, t);
+}
+
+/* Identidad completa + familia + scoring + fiscal. */
+async function cmdTodo(chat, args) {
+  const dni = String(args[0] || '').replace(/\D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /todo 30756789'); return; }
+  await enviar(chat, 'Consultando todo de ' + dni + '...');
+  const t = await pedirTexto('/todo/' + dni + '?forzar=1');
   await enviarPre(chat, t);
 }
 
@@ -608,7 +617,7 @@ async function conNosis(fn) {
   try { return await fn(); } finally { nosisBotOcupado = false; }
 }
 
-export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'dame', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'scoring', 'fiscal', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
+export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'dame', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'scoring', 'todo', 'fiscal', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
 
 /* === atajos === */
 export const ALIAS = {
@@ -617,7 +626,8 @@ export const ALIAS = {
   al: 'alertas', st: 'stats', et: 'etiqueta', sa: 'saldo', bi: 'bininfo',
   re: 'reentrega', ca: 'cargar', f: 'full', ex: 'exportar',
   rnd: 'random', inf: 'info', nos: 'nosis', fam: 'familia',
-  fisc: 'scoring', fiscal: 'scoring', score: 'scoring', bcra: 'scoring', situacion: 'scoring',
+  fisc: 'todo', fiscal: 'todo', completo: 'todo',
+  score: 'scoring', bcra: 'scoring', situacion: 'scoring',
   dom: 'domicilios', fal: 'fallecido', ag: 'argos', pw: 'prewarm',
   loc: 'local', ren: 'renaper', ch: 'cache', lim: 'limites',
   sal: 'saldeadas', sd: 'saldeadas',
@@ -709,6 +719,7 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'random') await cmdRandom(chatId, args);
     else if (c === 'info') await cmdInfo(chatId, args);
     else if (c === 'scoring') await cmdScoring(chatId, args);
+    else if (c === 'todo') await cmdTodo(chatId, args);
     else if (c === 'nosis') await conNosis(() => cmdNosis(chatId, args));
     else if (c === 'familia') await cmdFamilia(chatId, args);
     else if (c === 'ar') await cmdAr(chatId, args);

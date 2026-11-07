@@ -670,71 +670,103 @@ app.get('/informe/:dni', soloLectura, async (q, s) => {
   }
 });
 
-/* GET /fiscal/:dni -> scoring crediticio (BCRA, via CUIL de ARGOS) + situacion
-   impositiva (padron, solo si el DNI figura). Resumen ejecutivo: 2 lineas de
-   encabezado y listo. Bot /scoring. */
+/* GET /scoring/:dni -> pelado: scoring BCRA + situacion impositiva.
+   GET /todo/:dni    -> lo mismo + identidad completa + familia.
+   El scoring sale de BCRA usando el CUIL que devuelve ARGOS (sirve aunque el
+   DNI no figure en el padron). Lo impositivo sale del padron, solo si figura. */
 const SIT_BCRA = { 1: '1 - normal', 2: '2 - riesgo bajo', 3: '3 - con problemas', 4: '4 - alto riesgo', 5: '5 - irrecuperable', 6: '6 - irrecup. disp. tecnica' };
 const SI_NO = (v) => (String(v || '').trim().toUpperCase() === 'S' ? 'SI' : String(v || '').trim().toUpperCase() === 'N' ? 'NO' : (v || 'NO INFORMADO'));
+const normN = (x) => String(x || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
 
-app.get('/fiscal/:dni', soloLectura, async (q, s) => {
+async function armarScoring(dni, completo) {
+  const F = (k, v) => k.padEnd(13) + (v == null || v === '' ? 'NO INFORMADO' : v);
+  const a = await persona.argosDe(dni, { forzar: true });
+  const cuit = String(a.cuit || '').replace(/\D/g, '');
+  const L = [];
+
+  if (!a || !a.nombreCompleto) {
+    L.push('DNI ' + dni + ' - ARGOS SIN DATOS (dni inexistente o falla temporal)');
+  } else if (completo) {
+    L.push('=== IDENTIDAD (ARGOS) ===');
+    L.push(F('NOMBRE', a.nombreCompleto));
+    L.push(F('DNI', a.dni || dni));
+    L.push(F('CUIL', cuit ? cuit.replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3') : null));
+    L.push(F('SEXO', a.sexo));
+    L.push(F('NACIMIENTO', a.fechaNac));
+    L.push(F('DOMICILIO', a.direccion));
+    L.push(F('CIUDAD', [a.ciudad, a.provincia].filter(Boolean).join(', ')));
+    L.push(F('CP', a.cpostal));
+    L.push(F('TELEFONO', a.telefono));
+    L.push(F('MAIL', a.mail));
+    L.push(F('NRO TRAMITE', a.nroTramite));
+    L.push(F('FALLECIDO', a.fallecido ? 'SI' : 'NO'));
+    if (Array.isArray(a.familia) && a.familia.length) {
+      L.push('', '=== FAMILIA (' + a.familia.length + ') ===');
+      a.familia.forEach((f) => L.push('  ' + String(f.parentesco || '?').padEnd(14) + String(f.nombre || '?') + ' DNI ' + (f.dni || '?') + (f.edad != null ? ' (' + f.edad + ')' : '')));
+    }
+  } else {
+    L.push(a.nombreCompleto);
+    L.push('DNI ' + (a.dni || dni) + (cuit ? '  CUIL ' + cuit.replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3') : '') + (a.fallecido ? '  *** FALLECIDO ***' : ''));
+  }
+
+  L.push('', '=== SCORING CREDITICIO (BCRA) ===');
+  if (!a || !a.nombreCompleto) {
+    L.push(F('BCRA', 'no consultado'));
+  } else if (!cuit) {
+    L.push(F('BCRA', 'no consultado (ARGOS no devolvio CUIL)'));
+  } else {
+    const b = await consultarBcra(cuit);
+    if (b.estado === 'SIN_DATOS') L.push(F('SITUACION', 'sin deudas registradas (' + b.detalle + ')'));
+    else if (b.estado !== 'DISPONIBLE') L.push(F('SITUACION', 'NO DISPONIBLE (' + b.detalle + ')'));
+    else {
+      const sit = SIT_BCRA[String(b.situacion).charAt(0)] || b.situacion;
+      L.push(F('SITUACION', sit));
+      L.push(F('DEUDA', b.deudaTotal ? ('$' + b.deudaTotal.toLocaleString('es-AR') + ' en ' + b.entidades + ' entidad(es)') : 'sin financiaciones'));
+      if (b.detalle) L.push(F('ENTIDADES', b.detalle));
+      L.push(F('PERIODO', b.periodo));
+      if (b.denominacion) {
+        L.push(F('TITULAR', b.denominacion + (normN(b.denominacion) === normN(a.nombreCompleto) ? ' (coincide)' : ' *** NO COINCIDE CON ARGOS ***')));
+      }
+    }
+  }
+
+  L.push('', '=== SITUACION IMPOSITIVA (ARCA) ===');
+  const r = resolver(db, dni);
+  if (!r.encontrado) {
+    L.push(F('ARCA', 'no figura en el padron (~' + COBERTURA_POBLACIONAL + '%): sin datos impositivos'));
+  } else {
+    const c = (k) => (r.campos[k] ? r.campos[k].valor : null);
+    const g = String(c('ganancias') || '').trim().toUpperCase();
+    const iva = String(c('iva') || '').trim().toUpperCase();
+    const mono = String(c('monotributo') || '').trim();
+    L.push(F('GANANCIAS', g === 'AC' ? 'inscripto (activo)' : g === 'NI' ? 'no inscripto' : g || 'NO INFORMADO'));
+    L.push(F('IVA', iva === 'NI' ? 'no inscripto' : iva === 'AC' ? 'inscripto (activo)' : iva || 'NO INFORMADO'));
+    L.push(F('MONOTRIBUTO', mono ? ('categoria ' + mono) : 'no'));
+    L.push(F('EMPLEADOR', SI_NO(c('empleador'))));
+    L.push(F('SOC.DE HECHO', SI_NO(c('integrante_soc'))));
+    L.push(F('SUCESION', SI_NO(c('sucesion'))));
+    L.push(F('ACTIVIDAD', c('actividad') || 'NO INFORMADO'));
+    if (r.ambiguo) L.push(F('AVISO', '*** DNI AMBIGUO: ' + r.titulares.length + ' titulares en el padron ***'));
+  }
+
+  return L.join('\n');
+}
+
+app.get('/scoring/:dni', soloLectura, async (q, s) => {
   try {
     const dni = String(q.params.dni || '').replace(/\D/g, '');
     if (dni.length < 7) return s.type('text/plain').send('DNI invalido: ' + q.params.dni + '\n');
+    s.type('text/plain').send(await armarScoring(dni, false));
+  } catch (e) {
+    s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
+  }
+});
 
-    const a = await persona.argosDe(dni, { forzar: q.query.forzar === '1' });
-    const cuit = String(a.cuit || '').replace(/\D/g, '');
-    const F = (k, v) => k.padEnd(13) + (v == null || v === '' ? 'NO INFORMADO' : v);
-    const L = [];
-
-    if (!a || !a.nombreCompleto) {
-      L.push('DNI ' + dni + ' - ARGOS SIN DATOS (dni inexistente o falla temporal)');
-    } else {
-      L.push(a.nombreCompleto);
-      L.push('DNI ' + (a.dni || dni) + (cuit ? '  CUIL ' + cuit.replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3') : '') + (a.fallecido ? '  *** FALLECIDO ***' : ''));
-    }
-
-    L.push('', '=== SCORING CREDITICIO (BCRA) ===');
-    if (!a || !a.nombreCompleto) {
-      L.push(F('BCRA', 'no consultado'));
-    } else if (!cuit) {
-      L.push(F('BCRA', 'no consultado (ARGOS no devolvio CUIL)'));
-    } else {
-      const b = await consultarBcra(cuit);
-      if (b.estado === 'SIN_DATOS') L.push(F('SITUACION', 'sin deudas registradas (' + b.detalle + ')'));
-      else if (b.estado !== 'DISPONIBLE') L.push(F('SITUACION', 'NO DISPONIBLE (' + b.detalle + ')'));
-      else {
-        const sit = SIT_BCRA[String(b.situacion).charAt(0)] || b.situacion;
-        L.push(F('SITUACION', sit));
-        L.push(F('DEUDA', b.deudaTotal ? ('$' + b.deudaTotal.toLocaleString('es-AR') + ' en ' + b.entidades + ' entidad(es)') : 'sin financiaciones'));
-        if (b.detalle) L.push(F('ENTIDADES', b.detalle));
-        L.push(F('PERIODO', b.periodo));
-        if (b.denominacion) {
-          const norm = (x) => String(x || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
-          L.push(F('TITULAR', b.denominacion + (norm(b.denominacion) === norm(a.nombreCompleto) ? ' (coincide)' : ' *** NO COINCIDE CON ARGOS ***')));
-        }
-      }
-    }
-
-    L.push('', '=== SITUACION IMPOSITIVA (ARCA) ===');
-    const r = resolver(db, dni);
-    if (!r.encontrado) {
-      L.push(F('ARCA', 'no figura en el padron (~' + COBERTURA_POBLACIONAL + '%): sin datos impositivos'));
-    } else {
-      const c = (k) => (r.campos[k] ? r.campos[k].valor : null);
-      const g = String(c('ganancias') || '').trim().toUpperCase();
-      const iva = String(c('iva') || '').trim().toUpperCase();
-      const mono = String(c('monotributo') || '').trim();
-      L.push(F('GANANCIAS', g === 'AC' ? 'inscripto (activo)' : g === 'NI' ? 'no inscripto' : g || 'NO INFORMADO'));
-      L.push(F('IVA', iva === 'NI' ? 'no inscripto' : iva === 'AC' ? 'inscripto (activo)' : iva || 'NO INFORMADO'));
-      L.push(F('MONOTRIBUTO', mono ? ('categoria ' + mono) : 'no'));
-      L.push(F('EMPLEADOR', SI_NO(c('empleador'))));
-      L.push(F('SOC.DE HECHO', SI_NO(c('integrante_soc'))));
-      L.push(F('SUCESION', SI_NO(c('sucesion'))));
-      L.push(F('ACTIVIDAD', c('actividad') || 'NO INFORMADO'));
-      if (r.ambiguo) L.push(F('AVISO', '*** DNI AMBIGUO: ' + r.titulares.length + ' titulares en el padron ***'));
-    }
-
-    s.type('text/plain').send(L.join('\n'));
+app.get('/todo/:dni', soloLectura, async (q, s) => {
+  try {
+    const dni = String(q.params.dni || '').replace(/\D/g, '');
+    if (dni.length < 7) return s.type('text/plain').send('DNI invalido: ' + q.params.dni + '\n');
+    s.type('text/plain').send(await armarScoring(dni, true));
   } catch (e) {
     s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
   }
