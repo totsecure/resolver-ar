@@ -15,8 +15,9 @@
 # VIGILAR_REINICIAR=0 desactiva la cura; VIGILAR_SIN_SYSTEMD=1 la saltea (util
 # para probar en la Mac, donde no hay esas units).
 #
-# Alerta por Telegram (scripts/alertar.sh) en la transicion OK->FALLA y avisa
-# cuando se recupera. Mientras sigue caido recuerda cada VIGILAR_COOLDOWN seg.
+# Alerta por Telegram (scripts/alertar.sh) solo cuando algo FALLA: la
+# recuperacion queda en el log, no en el chat. Mientras sigue caido recuerda
+# cada VIGILAR_COOLDOWN seg.
 # Estado por chequeo en datos/vigilar-<nombre>.estado. Log: datos/vigilar.log.
 set -uo pipefail
 
@@ -84,8 +85,7 @@ revisar() {
 
   if [ "$ok" = "1" ]; then
     if [ "$previo" = "down" ]; then
-      alertar "RECUPERADO: $nombre — $detalle"
-      log "$nombre UP (recuperado) $detalle"
+      log "$nombre UP (recuperado sin alerta) $detalle"
     else
       log "$nombre UP $detalle"
     fi
