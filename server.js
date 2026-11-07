@@ -702,10 +702,11 @@ async function armarScoring(dni, completo) {
    * No adivinamos el sexo: la fuente de verdad es el BCRA. */
   let cuitProbado = false;
   let bcraProbado = null;
+  const cuitsProbados = [];
   if (/^\d{7,8}$/.test(String(dni))) {
     const cands = [];
     if (cuit) cands.push(cuit);
-    for (const p of ['20', '27', '23', '24']) {
+    for (const p of ['20', '27', '23', '24', '33']) {
       const d8 = String(dni).padStart(8, '0');
       const v = dvCuil(p + d8);
       if (v === 10) continue;
@@ -714,6 +715,7 @@ async function armarScoring(dni, completo) {
     }
     for (const p of cands) {
       const r = await consultarBcra(p);
+      cuitsProbados.push(p);
       if (r && r.estado === 'DISPONIBLE') {
         cuitProbado = p !== String(a.cuit || '').replace(/\D/g, '');
         cuit = p;
@@ -765,7 +767,9 @@ async function armarScoring(dni, completo) {
    * no va verde, va gris (SIN CHEQUEAR), para no afirmar algo que no se sabe. */
   const ver = (b && b.estado === 'DISPONIBLE') ? veredicto(b.situacion)
     : (b && b.estado === 'SIN_DATOS') ? '\u{2B1C} SIN CHEQUEAR (no figura en el BCRA)'
-    : (b && b.estado !== 'DISPONIBLE') ? '\u{2B1C} SIN CHEQUEAR (BCRA no respondio)' : null;
+    : (!a || !a.nombreCompleto) ? null
+    : (b && b.estado !== 'DISPONIBLE') ? '\u{2B1C} SIN CHEQUEAR (BCRA no respondio)'
+    : '\u{2B1C} SIN CHEQUEAR (no figura en el BCRA)';
 
   /* El veredicto va aparte (marcador VEREDICTO:) para que el bot lo pueda poner
    * en negrita y con barras de color FUERA del <pre>: adentro no admite HTML. */
@@ -774,7 +778,9 @@ async function armarScoring(dni, completo) {
   if (!a || !a.nombreCompleto) {
     L.push(F('BCRA', 'no consultado'));
   } else if (!cuit) {
-    L.push(F('BCRA', 'no consultado (ARGOS no devolvio CUIL)'));
+    /* Ni ARGOS ni ninguna de las variantes de CUIL que probamos existen en el
+     * BCRA. No es que "no se consulto": se probaron y no figura. */
+    L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el BCRA no reconoce ninguna variante de CUIL de este DNI (probamos ' + (cuitsProbados.length || 0) + '). No figurar suele ser buena se\u00f1al (sin historial), pero no es lo mismo que estar sin deudas.'));
   } else {
     if (b.estado === 'SIN_DATOS') L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el CUIL no figura en la Central de Deudores (' + b.detalle + '). No figurar suele ser buena se\u00f1al (sin historial), pero no es lo mismo que estar sin deudas: puede ser un CUIL mal armado.'));
     else if (b.estado !== 'DISPONIBLE') L.push(F('SITUACION', '\u{2B1C} NO DISPONIBLE (' + b.detalle + ')'));
