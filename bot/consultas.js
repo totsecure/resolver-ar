@@ -20,7 +20,7 @@ const COMANDOS = new Set([
 
 const AYUDA = [
   '<b>Consultas</b> (padron)',
-  '/fiscal &lt;dni&gt; - identidad + BCRA + situacion fiscal',
+  '/scoring &lt;dni&gt; - scoring BCRA + situacion fiscal',
   '/info &lt;dni&gt; - datos del padron',
   '/cuit &lt;dni|cuit&gt; - CUIL',
   '/renaper &lt;dni&gt; - datos del renaper',
