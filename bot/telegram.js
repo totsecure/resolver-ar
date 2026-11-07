@@ -180,6 +180,10 @@ function log(msg) {
   if (process.stdout.isTTY) console.log(linea);
 }
 
+/* Red de seguridad: una promesa suelta mataba el bot sin dejar rastro. */
+process.on('unhandledRejection', (e) => log('ERROR promesa suelta: ' + (e?.message || e)));
+process.on('uncaughtException', (e) => log('ERROR no capturado: ' + (e?.message || e)));
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function escapeHtml(s) {
@@ -920,11 +924,8 @@ setInterval(async () => {
       for (const u of updates) {
         offset = Number(u.update_id) + 1;
         guardarOffset(offset);
-        try {
-          await procesarUpdate(u, db);
-        } catch (e) {
-          log(`ERROR update=${u.update_id}: ${e?.message || e}`);
-        }
+        /* Sin await: un comando lento no bloquea los siguientes. */
+        procesarUpdate(u, db).catch((e) => log(`ERROR update=${u.update_id}: ${e?.message || e}`));
       }
     } catch (e) {
       const msg = String(e?.message || e);

@@ -597,12 +597,24 @@ async function cmdNosis(chat, args) {
   } catch (e) { await enviar(chat, 'Error en /nosis: ' + esc(e.message || e)); }
 }
 
-async function pedirTexto(ruta) {
-  const q = new URLSearchParams({ token: process.env.RESOLVER_TOKEN || '' });
-  const sep = ruta.includes('?') ? '&' : '?';
-  const r = await fetch(baseUrl() + ruta + sep + q);
-  return await r.text();
+/* Igual que pedirFirme pero devolviendo texto: sin esto un fetch colgado
+ * dejaba mudo al bot para siempre, porque el loop de updates es secuencial. */
+async function pedirTextoFirme(ruta, intentos = 2) {
+  let ultimo = null;
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      return await conTimeout(async (signal) => {
+        const q = new URLSearchParams({ token: process.env.RESOLVER_TOKEN || '' });
+        const sep = ruta.includes('?') ? '&' : '?';
+        const r = await fetch(baseUrl() + ruta + sep + q, { signal });
+        if (!r.ok) throw new Error('server ' + r.status);
+        return await r.text();
+      }, 12000);
+    } catch (e) { ultimo = e; if (i < intentos) await new Promise((r) => setTimeout(r, 1000)); }
+  }
+  throw ultimo || new Error('el server no respondio, proba de nuevo');
 }
+export async function pedirTexto(ruta) { return pedirTextoFirme(ruta); }
 /* === fin informes === */
 
 async function cmdBinInfo(chat, args) {
@@ -694,7 +706,14 @@ async function precioDe(bin) {
 
 /* Anti-duplicado y corte de tiempo por comando: un comando nunca deja el bot colgado ni responde dos veces. */
 const ULTIMO = new Map();
-const TOPE_MS = Number(process.env.BOT_TOPE_MS || 25000);
+/* Comandos corriendo AHORA. El tope de tiempo no cancela el trabajo: si un
+ * comando se pasa del tope sigue vivo. Sin este guard, cada reintento del
+ * usuario apilaba otro zombie mandando mensajes al mismo chat. */
+const ENCURSO = new Set();
+/* Tope del comando: DEBE quedar por encima del timeout interno de los fetch
+ * (12s x2 intentos = 24s), si no el race vence primero y deja corriendo en
+ * segundo plano un zombie que sigue mandando mensajes al chat. */
+const TOPE_MS = Number(process.env.BOT_TOPE_MS || 45000);
 export async function manejarStock(chatId, cmd, args = [], payload = '') {
   const _raw = String(cmd || '').toLowerCase();
   const c = ALIAS[_raw] || _raw;
@@ -705,6 +724,9 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
   if (antes && ahora - antes < 3000) return true;
   ULTIMO.set(firma, ahora);
   if (ULTIMO.size > 400) ULTIMO.clear();
+  /* Si ese mismo comando ya esta corriendo (p.ej. el anterior se paso del
+   * tope y quedo vivo), no lo apilamos: evita la catarata de mensajes. */
+  if (ENCURSO.has(firma)) return true;
 
   try {
     const correr = async () => {
@@ -758,7 +780,14 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'cache') await cmdCache(chatId, args);
     else if (c === 'limites') await cmdLimites(chatId);
     };
-    await Promise.race([correr(), new Promise((_, mal) => setTimeout(() => mal(new Error("tardó demasiado, reintentá")), TOPE_MS))]);
+    /* El timer se limpia al terminar: si no, queda vivo y dispara al pedo.
+     * Y si correr() pierde el race, sigue vivo en segundo plano mandando
+     * mensajes; el set ENCURSO evita que el mismo comando se re-dispare. */
+    let timer;
+    const tope = new Promise((_, mal) => { timer = setTimeout(() => mal(new Error('tardó demasiado, reintentá')), TOPE_MS); });
+    ENCURSO.add(firma);
+    try { await Promise.race([correr(), tope]); }
+    finally { clearTimeout(timer); ENCURSO.delete(firma); }
   } catch (e) {
     log('ERROR chat=' + chatId + ' cmd=' + c + ': ' + (e?.message || e));
     await enviar(chatId, 'Error en /' + c + ': ' + esc(e?.message || e)).catch(() => {});
@@ -781,7 +810,7 @@ async function pedirTelegram(url, opciones, intentos = 3) {
   throw ultimo || new Error('telegram sin respuesta');
 }
 
-async function apiFirme(metodo, params, intentos = 3) {
+async function apiFirme(metodo, params, intentos = 1) {
   let ultimo = null;
   for (let i = 1; i <= intentos; i  ) {
     try { return await api(metodo, params); }
@@ -809,11 +838,11 @@ async function pedirFirme(ruta, params = {}, cuerpo = null) {
     const r = await fetch(baseUrl() + ruta + '?' + q, opciones);
     const texto = await r.text();
     try { return JSON.parse(texto); } catch (_) { return { error: texto.slice(0, 300) }; }
-  }, 25000);
+  }, 12000);
 }
 pedir = pedirFirme;
 
-async function apiFirme2(metodo, params, intentos = 3) {
+async function apiFirme2(metodo, params, intentos = 2) {
   let ultimo = null;
   for (let i = 1; i <= intentos; i  ) {
     try {
@@ -822,8 +851,8 @@ async function apiFirme2(metodo, params, intentos = 3) {
         const j = await r.json().catch(() => null);
         if (!r.ok || !j || !j.ok) throw new Error('telegram ' + metodo + ' ' + (j?.description || r.status));
         return j.result;
-      }, 20000);
-    } catch (e) { ultimo = e; if (i < intentos) await new Promise((r) => setTimeout(r, 2000)); }
+      }, 10000);
+    } catch (e) { ultimo = e; if (i < intentos) await new Promise((r) => setTimeout(r, 1500)); }
   }
   throw ultimo;
 }
@@ -832,7 +861,7 @@ api = apiFirme2;
 async function pedirTelegram2(url, opciones, intentos = 3) {
   let ultimo = null;
   for (let i = 1; i <= intentos; i  ) {
-    try { return await conTimeout((signal) => fetch(url, { ...opciones, signal }), 60000); }
+    try { return await conTimeout((signal) => fetch(url, { ...opciones, signal }), 25000); }
     catch (e) { ultimo = e; if (i < intentos) await new Promise((r) => setTimeout(r, 2000)); }
   }
   throw ultimo;
@@ -840,8 +869,16 @@ async function pedirTelegram2(url, opciones, intentos = 3) {
 pedirTelegram = pedirTelegram2;
 
 let outboxOn=false;
+let outboxCorriendo=false;
 const outboxIntentos=new Map();
 async function revisarOutbox(){
+  /* Sin este guard el interval de 3s apilaba revisiones: si el server tarda
+   * mas que el intervalo, se acumulaban y cada una reintentaba por su lado. */
+  if(outboxCorriendo)return;
+  outboxCorriendo=true;
+  try{ await revisarOutboxUna(); } finally { outboxCorriendo=false; }
+}
+async function revisarOutboxUna(){
   let j;
   try{ j=await pedir('/outbox/pendientes',{n:5}); }catch(_){ return; }
   const lista=(j&&j.pendientes)||[];
@@ -864,10 +901,10 @@ async function revisarOutbox(){
 export function iniciarOutbox(ms){
   if(outboxOn)return;
   outboxOn=true;
-  setInterval(()=>{ revisarOutbox().catch(()=>{}); }, ms||3000);
+  setInterval(()=>{ revisarOutbox().catch(()=>{}); }, ms||10000);
   log('outbox poller activo');
 }
-if(process.env.BOT_NO_OUTBOX!=='1') setTimeout(()=>iniciarOutbox(3000),5000);
+if(process.env.BOT_NO_OUTBOX!=='1') setTimeout(()=>iniciarOutbox(10000),5000);
 
 /* === botones de venta === */
 const pendientes = new Map();

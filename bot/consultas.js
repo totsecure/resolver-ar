@@ -158,10 +158,17 @@ async function iniciar() {
     for (const up of j.result || []) {
       offset = up.update_id + 1;
       guardarOffset(offset);
-      try { await atender(up.message || {}); } catch (e) { log('ERROR atender: ' + (e?.message || e)); }
+      /* Sin await: un comando lento (scoring tarda segundos) no bloquea los
+       * siguientes, y un cuelgue ya no deja mudo a todo el bot. */
+      atender(up.message || {}).catch((e) => log('ERROR atender: ' + (e?.message || e)));
     }
   }
 }
+
+/* Red de seguridad: una promesa suelta o un throw fuera de contexto mataban el
+ * bot sin dejar rastro en el log. Logueamos para que se vea, y seguimos vivos. */
+process.on('unhandledRejection', (e) => log('ERROR promesa suelta: ' + (e?.message || e)));
+process.on('uncaughtException', (e) => log('ERROR no capturado: ' + (e?.message || e)));
 
 const esMain = process.argv[1]
   && import.meta.url === (await import('node:url')).pathToFileURL(path.resolve(process.argv[1])).href;

@@ -901,6 +901,15 @@ setInterval(() => {
   } catch (e) { console.error('reporte diario: ' + String(e?.message || e)); }
 }, JOB_REPORTE_MS);
 
+/* Red de seguridad: una promesa suelta mataba el server sin dejar rastro. */
+const logFallo = (que, e) => {
+  const linea = `${new Date().toISOString()} ERROR ${que}: ${e?.stack || e?.message || e}\n`;
+  try { fs.appendFileSync(RUTA_LOG, linea); } catch (_) {}
+  console.error(linea.trim());
+};
+process.on('unhandledRejection', (e) => logFallo('promesa suelta', e));
+process.on('uncaughtException', (e) => logFallo('no capturado', e));
+
 app.listen(PUERTO, HOST, () => console.log('http://' + HOST + ':' + PUERTO + '/texto/3348'))
   .on('error', e => {
     if (e.code === 'EADDRINUSE') console.error('puerto ' + PUERTO + ' ocupado. Corre: lsof -nP -iTCP:' + PUERTO + ' -sTCP:LISTEN');
