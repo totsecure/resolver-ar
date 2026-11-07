@@ -675,6 +675,16 @@ app.get('/informe/:dni', soloLectura, async (q, s) => {
    El scoring sale de BCRA usando el CUIL que devuelve ARGOS (sirve aunque el
    DNI no figure en el padron). Lo impositivo sale del padron, solo si figura. */
 const SIT_BCRA = { 1: '1 - normal', 2: '2 - riesgo bajo', 3: '3 - con problemas', 4: '4 - alto riesgo', 5: '5 - irrecuperable', 6: '6 - irrecup. disp. tecnica' };
+/* Semaforo crediticio: verde se opera, amarillo se duda, rojo no se usa.
+   1-2 verde (paga), 3-4 amarillo (atrasos serios), 5-6 rojo (perdido). */
+const SIT_EMOJI = { 1: '\u{1F7E9}', 2: '\u{1F7E9}', 3: '\u{1F7E8}', 4: '\u{1F7E8}', 5: '\u{1F7E5}', 6: '\u{1F7E5}' };
+const semaforo = (situacion) => SIT_EMOJI[String(situacion).charAt(0)] || '\u{2B1C}';
+/* Veredicto de una linea para leer de un golpe: EN REGLA se opera, OJO se duda. */
+const SIT_VEREDICTO = { 1: 'EN REGLA', 2: 'EN REGLA', 3: 'OJO', 4: 'OJO', 5: 'NO USABLE', 6: 'NO USABLE' };
+const veredicto = (situacion) => {
+  const d = String(situacion).charAt(0);
+  return SIT_VEREDICTO[d] ? semaforo(d) + ' ' + SIT_VEREDICTO[d] : null;
+};
 const SI_NO = (v) => (String(v || '').trim().toUpperCase() === 'S' ? 'SI' : String(v || '').trim().toUpperCase() === 'N' ? 'NO' : (v || 'NO INFORMADO'));
 const normN = (x) => String(x || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -709,18 +719,23 @@ async function armarScoring(dni, completo) {
     L.push('DNI ' + (a.dni || dni) + (cuit ? '  CUIL ' + cuit.replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3') : '') + (a.fallecido ? '  *** FALLECIDO ***' : ''));
   }
 
+  // Consultamos BCRA antes de imprimir para poder dar el veredicto arriba.
+  const b = (a && a.nombreCompleto && cuit) ? await consultarBcra(cuit) : null;
+  const ver = (b && b.estado === 'DISPONIBLE') ? veredicto(b.situacion)
+    : (b && b.estado === 'SIN_DATOS') ? '\u{1F7E9} EN REGLA (sin deudas)' : null;
+
+  if (ver) L.push('', ver);
   L.push('', '=== SCORING CREDITICIO (BCRA) ===');
   if (!a || !a.nombreCompleto) {
     L.push(F('BCRA', 'no consultado'));
   } else if (!cuit) {
     L.push(F('BCRA', 'no consultado (ARGOS no devolvio CUIL)'));
   } else {
-    const b = await consultarBcra(cuit);
-    if (b.estado === 'SIN_DATOS') L.push(F('SITUACION', 'sin deudas registradas (' + b.detalle + ')'));
-    else if (b.estado !== 'DISPONIBLE') L.push(F('SITUACION', 'NO DISPONIBLE (' + b.detalle + ')'));
+    if (b.estado === 'SIN_DATOS') L.push(F('SITUACION', '\u{1F7E9} sin deudas registradas (' + b.detalle + ')'));
+    else if (b.estado !== 'DISPONIBLE') L.push(F('SITUACION', '\u{2B1C} NO DISPONIBLE (' + b.detalle + ')'));
     else {
       const sit = SIT_BCRA[String(b.situacion).charAt(0)] || b.situacion;
-      L.push(F('SITUACION', sit));
+      L.push(F('SITUACION', semaforo(b.situacion) + ' ' + sit));
       L.push(F('DEUDA', b.deudaTotal ? ('$' + b.deudaTotal.toLocaleString('es-AR') + ' en ' + b.entidades + ' entidad(es)') : 'sin financiaciones'));
       if (b.detalle) L.push(F('ENTIDADES', b.detalle));
       L.push(F('PERIODO', b.periodo));
