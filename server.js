@@ -14,6 +14,7 @@ import * as gordo from './lib/gordo.js';
 import * as persona from './lib/persona.js';
 import { renderizar } from './lib/informe.js';
 import { consultarBcra } from './lib/fuentes.js';
+import { cuilDeDni } from './lib/validar.js';
 import { fichaDetalle } from './lib/ficha.js';
 import { calcular as calcularCobertura } from './lib/cobertura.js';
 import { armarBloque, generarLote, parsearCards, seleccionarTitulares, SEPARADOR } from './lib/lote.js';
@@ -689,10 +690,29 @@ const SI_NO = (v) => (String(v || '').trim().toUpperCase() === 'S' ? 'SI' : Stri
 const normN = (x) => String(x || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 async function armarScoring(dni, completo) {
+  /* El padron es opcional y se abre on-demand: sin esto, la consulta impositiva
+   * de mas abajo usa db=null y revienta (y encima anda solo si otra ruta lo
+   * abrio antes, o sea falla de forma intermitente). */
+  abrirPadron();
   const F = (k, v) => k.padEnd(13) + (v == null || v === '' ? 'NO INFORMADO' : v);
   const a = await persona.argosDe(dni, { forzar: true });
-  const cuit = String(a.cuit || '').replace(/\D/g, '');
+  let cuit = String(a.cuit || '').replace(/\D/g, '');
   const L = [];
+  /* El BCRA toma CUIL, no DNI. Cuando ARGOS no aporta el CUIL (pasa en los
+   * registros que solo estan en el padron historico) probamos los dos CUIL
+   * derivados del DNI y nos quedamos con el que el BCRA reconoce: es dato
+   * real, no una adivinanza del sexo. Si ninguno responde, seguimos sin CUIL. */
+  let cuitProbado = false;
+  let bcraProbado = null;
+  if (!cuit && /^\d{7,8}$/.test(String(dni))) {
+    for (const sexo of ['M', 'F']) {
+      const c = cuilDeDni(sexo, dni);
+      if (!c) continue;
+      const p = c.replace(/\D/g, '');
+      const r = await consultarBcra(p);
+      if (r && r.estado !== 'SIN_DATOS') { cuit = p; cuitProbado = true; bcraProbado = r; break; }
+    }
+  }
 
   if (!a || !a.nombreCompleto) {
     L.push('DNI ' + dni + ' - ARGOS SIN DATOS (dni inexistente o falla temporal)');
@@ -700,7 +720,7 @@ async function armarScoring(dni, completo) {
     L.push('=== IDENTIDAD (ARGOS) ===');
     L.push(F('NOMBRE', a.nombreCompleto));
     L.push(F('DNI', a.dni || dni));
-    L.push(F('CUIL', cuit ? cuit.replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3') : null));
+    L.push(F('CUIL', cuit ? cuit.replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3') + (cuitProbado ? ' (derivado del DNI, confirmado por BCRA)' : '') : null));
     L.push(F('SEXO', a.sexo));
     L.push(F('NACIMIENTO', a.fechaNac));
     L.push(F('DOMICILIO', a.direccion));
@@ -718,7 +738,7 @@ async function armarScoring(dni, completo) {
     const firma = (x) => normN(x).split(' ').sort().join(' ');
     if (a.nombreRenaper && firma(a.nombreRenaper) !== firma(a.nombreCompleto)) dif.push('RENAPER dice "' + a.nombreRenaper + '"');
     if (a.fechaNacRenaper && a.fechaNacRenaper !== a.fechaNac) dif.push('RENAPER dice nacimiento ' + a.fechaNacRenaper);
-    if (!a.cuilRenaper && cuit) dif.push('CUIL de base, RENAPER no lo aporto');
+    if (!a.cuilRenaper && cuit) dif.push(cuitProbado ? 'CUIL derivado del DNI, RENAPER no lo aporto' : 'CUIL de base, RENAPER no lo aporto');
     if (dif.length) L.push('', F('*** AVISO', 'datos NO confirmados por RENAPER: ' + dif.join(' | ')));
     if (Array.isArray(a.familia) && a.familia.length) {
       L.push('', '=== FAMILIA (' + a.familia.length + ') ===');
@@ -730,12 +750,12 @@ async function armarScoring(dni, completo) {
   }
 
   // Consultamos BCRA antes de imprimir para poder dar el veredicto arriba.
-  const b = (a && a.nombreCompleto && cuit) ? await consultarBcra(cuit) : null;
+  const b = bcraProbado || ((a && a.nombreCompleto && cuit) ? await consultarBcra(cuit) : null);
   /* SIN_DATOS es un 404 del BCRA: el CUIL no aparece en la Central de Deudores.
    * NO es lo mismo que "no tiene deudas": puede ser un CUIL mal armado. Por eso
    * no va verde, va gris (SIN CHEQUEAR), para no afirmar algo que no se sabe. */
   const ver = (b && b.estado === 'DISPONIBLE') ? veredicto(b.situacion)
-    : (b && b.estado === 'SIN_DATOS') ? '\u{2B1C} SIN CHEQUEAR (BCRA no tiene el CUIL)'
+    : (b && b.estado === 'SIN_DATOS') ? '\u{2B1C} SIN CHEQUEAR (no figura en el BCRA)'
     : (b && b.estado !== 'DISPONIBLE') ? '\u{2B1C} SIN CHEQUEAR (BCRA no respondio)' : null;
 
   /* El veredicto va aparte (marcador VEREDICTO:) para que el bot lo pueda poner
@@ -747,7 +767,7 @@ async function armarScoring(dni, completo) {
   } else if (!cuit) {
     L.push(F('BCRA', 'no consultado (ARGOS no devolvio CUIL)'));
   } else {
-    if (b.estado === 'SIN_DATOS') L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el BCRA no tiene este CUIL (' + b.detalle + ')'));
+    if (b.estado === 'SIN_DATOS') L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el CUIL no figura en la Central de Deudores (' + b.detalle + '). No figurar suele ser buena se\u00f1al (sin historial), pero no es lo mismo que estar sin deudas: puede ser un CUIL mal armado.'));
     else if (b.estado !== 'DISPONIBLE') L.push(F('SITUACION', '\u{2B1C} NO DISPONIBLE (' + b.detalle + ')'));
     else {
       const sit = SIT_BCRA[String(b.situacion).charAt(0)] || b.situacion;
