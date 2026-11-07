@@ -14,7 +14,7 @@ import * as gordo from './lib/gordo.js';
 import * as persona from './lib/persona.js';
 import { renderizar } from './lib/informe.js';
 import { consultarBcra } from './lib/fuentes.js';
-import { cuilDeDni } from './lib/validar.js';
+import { dv as dvCuil } from './lib/validar.js';
 import { fichaDetalle } from './lib/ficha.js';
 import { calcular as calcularCobertura } from './lib/cobertura.js';
 import { armarBloque, generarLote, parsearCards, seleccionarTitulares, SEPARADOR } from './lib/lote.js';
@@ -690,27 +690,36 @@ const SI_NO = (v) => (String(v || '').trim().toUpperCase() === 'S' ? 'SI' : Stri
 const normN = (x) => String(x || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 async function armarScoring(dni, completo) {
-  /* El padron es opcional y se abre on-demand: sin esto, la consulta impositiva
-   * de mas abajo usa db=null y revienta (y encima anda solo si otra ruta lo
-   * abrio antes, o sea falla de forma intermitente). */
-  abrirPadron();
   const F = (k, v) => k.padEnd(13) + (v == null || v === '' ? 'NO INFORMADO' : v);
   const a = await persona.argosDe(dni, { forzar: true });
   let cuit = String(a.cuit || '').replace(/\D/g, '');
   const L = [];
-  /* El BCRA toma CUIL, no DNI. Cuando ARGOS no aporta el CUIL (pasa en los
-   * registros que solo estan en el padron historico) probamos los dos CUIL
-   * derivados del DNI y nos quedamos con el que el BCRA reconoce: es dato
-   * real, no una adivinanza del sexo. Si ninguno responde, seguimos sin CUIL. */
+  /* El BCRA toma CUIL, no DNI. El CUIL que trae ARGOS no siempre es el que el
+   * BCRA reconoce (ej. DNI 30498210: ARGOS dice 27..., pero tambien hay casos
+   * donde el prefijo correcto es otro). Asi que probamos los prefijos validos
+   * y nos quedamos con el unico que el BCRA acepta. Primero el de ARGOS, que es
+   * el candidato mas probable; si ese no figura, el resto.
+   * No adivinamos el sexo: la fuente de verdad es el BCRA. */
   let cuitProbado = false;
   let bcraProbado = null;
-  if (!cuit && /^\d{7,8}$/.test(String(dni))) {
-    for (const sexo of ['M', 'F']) {
-      const c = cuilDeDni(sexo, dni);
-      if (!c) continue;
-      const p = c.replace(/\D/g, '');
+  if (/^\d{7,8}$/.test(String(dni))) {
+    const cands = [];
+    if (cuit) cands.push(cuit);
+    for (const p of ['20', '27', '23', '24']) {
+      const d8 = String(dni).padStart(8, '0');
+      const v = dvCuil(p + d8);
+      if (v === 10) continue;
+      const c = p + d8 + v;
+      if (!cands.includes(c)) cands.push(c);
+    }
+    for (const p of cands) {
       const r = await consultarBcra(p);
-      if (r && r.estado !== 'SIN_DATOS') { cuit = p; cuitProbado = true; bcraProbado = r; break; }
+      if (r && r.estado === 'DISPONIBLE') {
+        cuitProbado = p !== String(a.cuit || '').replace(/\D/g, '');
+        cuit = p;
+        bcraProbado = r;
+        break;
+      }
     }
   }
 
@@ -779,28 +788,6 @@ async function armarScoring(dni, completo) {
         L.push(F('TITULAR', b.denominacion + (normN(b.denominacion) === normN(a.nombreCompleto) ? ' (coincide)' : ' *** NO COINCIDE CON ARGOS ***')));
       }
     }
-  }
-
-  L.push('', '=== SITUACION IMPOSITIVA (PADRON AFIP) ===');
-  const r = resolver(db, dni);
-  if (!r.encontrado) {
-    /* ARGOS trae identidad pero NO datos impositivos: los impositivos salen
-     * unicamente del padron AFIP local, que cubre ~16% de las personas. */
-    L.push(F('PADRON', 'este DNI no esta en el padron AFIP (~' + COBERTURA_POBLACIONAL + '% de cobertura): sin datos impositivos'));
-    L.push(F('NOTA', 'ARGOS no aporta datos impositivos, solo el padron'));
-  } else {
-    const c = (k) => (r.campos[k] ? r.campos[k].valor : null);
-    const g = String(c('ganancias') || '').trim().toUpperCase();
-    const iva = String(c('iva') || '').trim().toUpperCase();
-    const mono = String(c('monotributo') || '').trim();
-    L.push(F('GANANCIAS', g === 'AC' ? 'inscripto (activo)' : g === 'NI' ? 'no inscripto' : g || 'NO INFORMADO'));
-    L.push(F('IVA', iva === 'NI' ? 'no inscripto' : iva === 'AC' ? 'inscripto (activo)' : iva || 'NO INFORMADO'));
-    L.push(F('MONOTRIBUTO', mono ? ('categoria ' + mono) : 'no'));
-    L.push(F('EMPLEADOR', SI_NO(c('empleador'))));
-    L.push(F('SOC.DE HECHO', SI_NO(c('integrante_soc'))));
-    L.push(F('SUCESION', SI_NO(c('sucesion'))));
-    L.push(F('ACTIVIDAD', c('actividad') || 'NO INFORMADO'));
-    if (r.ambiguo) L.push(F('AVISO', '*** DNI AMBIGUO: ' + r.titulares.length + ' titulares en el padron ***'));
   }
 
   return L.join('\n');
