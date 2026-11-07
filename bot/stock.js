@@ -592,7 +592,7 @@ async function cmdBinInfo(chat, args) {
 /* Limites de ARGOS (doc seccion 2): 28/min para el resto y 2/min para nosis,
  * con UNA sola nosis a la vez. El tope real es 30/min por IP y ARGOS responde 429.
  */
-const ARGOS_CMDS = new Set(['random','info','ar','familia','domicilios','cuit','fallecido','argos','prewarm','local','renaper','cache','limites']);
+const ARGOS_CMDS = new Set(['random','info','ar','familia','domicilios','cuit','fallecido','argos','estado','prewarm','local','renaper','cache','limites']);
 const marcaBot = new Map();
 let nosisBotOcupado = false;
 
@@ -617,7 +617,7 @@ async function conNosis(fn) {
   try { return await fn(); } finally { nosisBotOcupado = false; }
 }
 
-export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'dame', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'scoring', 'completo', 'todo', 'fiscal', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
+export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'dame', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'scoring', 'completo', 'todo', 'fiscal', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'estado', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
 
 /* === atajos === */
 export const ALIAS = {
@@ -628,7 +628,7 @@ export const ALIAS = {
   rnd: 'random', inf: 'info', nos: 'nosis', fam: 'familia',
   fisc: 'completo', fiscal: 'completo', todo: 'completo', todocompleto: 'completo',
   score: 'scoring', bcra: 'scoring', situacion: 'scoring',
-  dom: 'domicilios', fal: 'fallecido', ag: 'argos', pw: 'prewarm',
+  dom: 'domicilios', fal: 'fallecido', ag: 'estado', argos: 'estado', pw: 'prewarm',
   loc: 'local', ren: 'renaper', ch: 'cache', lim: 'limites',
   sal: 'saldeadas', sd: 'saldeadas',
   q: 'pedir', pd: 'pedir', rv: 'revisar', dead: 'revisar', queja: 'revisar',
@@ -727,7 +727,7 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'cuit') await cmdCuit(chatId, args);
     else if (c === 'randomargos') await cmdRandomArgos(chatId, args);
     else if (c === 'fallecido') await cmdFallecido(chatId, args);
-    else if (c === 'argos') await cmdArgos(chatId);
+    else if (c === 'estado') await cmdArgos(chatId);
     else if (c === 'prewarm') await cmdPrewarm(chatId, args);
     else if (c === 'local') await cmdLocal(chatId, args);
     else if (c === 'renaper') await cmdRenaper(chatId, args);

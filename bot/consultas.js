@@ -15,7 +15,7 @@ const RUTA_LOG = path.join(RAIZ, 'datos', 'consultas.log');
 /* Las mismas que despacha manejarStock, menos las de inventario. */
 const COMANDOS = new Set([
   'randomargos', 'random', 'info', 'cuit', 'ar', 'familia', 'domicilios',
-  'fallecido', 'nosis', 'local', 'renaper', 'argos', 'prewarm',
+  'fallecido', 'nosis', 'local', 'renaper', 'argos', 'estado', 'prewarm',
   'scoring', 'todo', 'fisc', 'fiscal', 'completo', 'score', 'bcra', 'situacion',
 ]);
 
@@ -34,7 +34,7 @@ const AYUDA = [
   '/local &lt;dni&gt; - datos locales',
   '/randomargos [n] - n personas al azar',
   '/random [n] - n personas al azar del padron',
-  '/argos - estado del cache',
+  '/estado - estado del cache',
 ].join('\n');
 
 function log(msg) {
@@ -61,6 +61,22 @@ function permitido(chat) {
   return lista.length === 0 || lista.includes(Number(chat));
 }
 
+/* Si TELEGRAM_GRUPO esta seteado, el bot solo vive en ese grupo: todo lo que
+ * llegue de otro lado (privado incluido) se ignora en silencio. Adentro del
+ * grupo puede consultar cualquiera, sin estar en TELEGRAM_ALLOW. */
+const grupoPermitido = () =>
+  String(process.env.TELEGRAM_GRUPO || '').split(',').map((s) => s.trim()).filter(Boolean).map(Number);
+
+function filtrarOrigen(msg) {
+  const chat = Number(msg.chat?.id);
+  const grupos = grupoPermitido();
+  if (!grupos.length) return null;              // sin TELEGRAM_GRUPO: modo viejo
+  const esGrupo = chat < 0;
+  /* Privado: pasa solo si el que escribe es de confianza (vos / autorizados). */
+  if (!esGrupo) return (permitido(chat) || permitido(msg.from?.id)) ? null : 'ignorar';
+  return grupos.includes(chat) ? null : 'ignorar';  // grupo distinto: ignorar
+}
+
 const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
 function leerOffset() {
@@ -73,6 +89,10 @@ function guardarOffset(n) {
 export async function atender(msg) {
   const chat = msg.chat?.id;
   if (!chat) return;
+
+  /* Modo grupo: fuera del grupo, silencio total (no manda "No autorizado"). */
+  const ignorar = filtrarOrigen(msg);
+  const enGrupo = Number(chat) < 0;
   const texto = typeof msg.text === 'string' ? msg.text.trim() : '';
   if (!texto.startsWith('/')) return;
 
@@ -81,7 +101,13 @@ export async function atender(msg) {
   const cmd = m[1].toLowerCase();
   const args = m[2].trim() ? m[2].trim().split(/\s+/) : [];
 
-  if (!permitido(chat) && !permitido(msg.from?.id)) {
+  if (ignorar === 'ignorar') {
+    log(`ignorado chat=${chat} from=${msg.from?.id ?? '?'} /${cmd}`);
+    return;
+  }
+
+  /* En el grupo consulta cualquiera; en privado, solo los autorizados. */
+  if (!enGrupo && !permitido(chat) && !permitido(msg.from?.id)) {
     /* En grupo el chat.id es negativo y no coincide con el del que escribe:
      * mostrar los dos para poder autorizar sin adivinar. */
     log(`rechazado chat=${chat} from=${msg.from?.id ?? '?'}`);
@@ -106,7 +132,7 @@ export async function atender(msg) {
 async function iniciar() {
   if (!process.env.TELEGRAM_TOKEN) throw new Error('falta TELEGRAM_TOKEN');
   let offset = leerOffset();
-  log(`arrancado pid=${process.pid} offset=${offset} permitidos=${dueños().join(',') || 'todos'}`);
+  log(`arrancado pid=${process.pid} offset=${offset} permitidos=${dueños().join(',') || 'todos'} grupo=${grupoPermitido().join(',') || 'cualquiera'}`);
 
   /* Latido: el loop no loguea nada mientras nadie escribe, asi que un proceso
    * vivo pero trabado (deadlock) no dejaba rastro. Una linea cada 30s le da al
