@@ -49,8 +49,31 @@ async function enviarDoc(chat, nombre, contenido, caption = '') {
   if (!r.ok || !j || !j.ok) throw new Error('sendDocument ' + (j?.description || r.status));
 }
 
+/* El veredicto (EN REGLA / OJO / NO USABLE) viene marcado como 'VEREDICTO: ...'
+ * y lo sacamos afuera del <pre>, en negrita y con una barra de color arriba y
+ * abajo. Adentro del <pre> no se puede poner HTML, y el color real en Telegram
+ * se consigue con los emojis de color: el texto no tiene color propio. */
+function pintarVeredicto(lineas) {
+  const resto = [];
+  let ver = null;
+  for (const l of lineas) {
+    const m = /^VEREDICTO:\s*(.+)$/.exec(l.trim());
+    if (m && !ver) { ver = m[1].trim(); continue; }
+    resto.push(l);
+  }
+  if (!ver) return { resto };
+  const emo = (ver.match(/[\u{1F7E9}\u{1F7E8}\u{1F7E5}\u{2B1C}]/u) || [''])[0] || '⬜';
+  const barra = emo.repeat(9);
+  const titulo = ver.replace(new RegExp('^' + emo + '\\s*', 'u'), '');
+  const cab = '<b>' + esc(barra) + '\n' + esc(emo + ' ' + titulo) + '\n' + esc(barra) + '</b>';
+  const pie = '<b>' + esc(emo + ' ' + titulo) + '</b>';
+  while (resto.length && !resto[0].trim()) resto.shift();
+  return { cab, pie, resto };
+}
+
 async function enviarPre(chat, texto) {
-  const lineas = String(texto === null || texto === undefined ? '' : texto).split('\n');
+  let { cab, pie, resto: lineas } = pintarVeredicto(String(texto === null || texto === undefined ? '' : texto).split('\n'));
+  if (cab) await enviar(chat, cab);
   let parte = '';
   for (const l of lineas) {
     const cand = parte ? parte + '\n' + l : l;
@@ -58,6 +81,7 @@ async function enviarPre(chat, texto) {
     else parte = cand;
   }
   if (parte.trim()) await enviar(chat, '<pre>' + esc(parte) + '</pre>');
+  if (pie) await enviar(chat, pie);
 }
 
 function fechaArchivo() {

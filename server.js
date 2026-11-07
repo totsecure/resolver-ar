@@ -724,7 +724,9 @@ async function armarScoring(dni, completo) {
   const ver = (b && b.estado === 'DISPONIBLE') ? veredicto(b.situacion)
     : (b && b.estado === 'SIN_DATOS') ? '\u{1F7E9} EN REGLA (sin deudas)' : null;
 
-  if (ver) L.push('', ver);
+  /* El veredicto va aparte (marcador VEREDICTO:) para que el bot lo pueda poner
+   * en negrita y con barras de color FUERA del <pre>: adentro no admite HTML. */
+  if (ver) L.push('VEREDICTO: ' + ver);
   L.push('', '=== SCORING CREDITICIO (BCRA) ===');
   if (!a || !a.nombreCompleto) {
     L.push(F('BCRA', 'no consultado'));
