@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
-import { resolver } from './lib/resolver.js';
+import { resolver, COBERTURA_POBLACIONAL } from './lib/resolver.js';
 import * as argos from './lib/argos.js';
 import * as gordo from './lib/gordo.js';
 import * as persona from './lib/persona.js';
@@ -665,6 +665,80 @@ app.get('/informe/:dni', soloLectura, async (q, s) => {
     const offline = q.query.offline === '1';
     const f = (r.encontrado && !offline) ? await consultarBcra(r.cuit) : null;
     s.type('text/plain').send(renderizar(r, f));
+  } catch (e) {
+    s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
+  }
+});
+
+/* GET /fiscal/:dni -> identidad por ARGOS + scoring BCRA (con el CUIL real que
+   devuelve ARGOS, que sirve aunque el DNI no este en el padron AFIP) + situacion
+   impositiva del padron SOLO si el DNI figura ahi. Bot /fiscal. */
+app.get('/fiscal/:dni', soloLectura, async (q, s) => {
+  try {
+    const dni = String(q.params.dni || '').replace(/\D/g, '');
+    if (dni.length < 7) return s.type('text/plain').send('DNI invalido: ' + q.params.dni + '\n');
+
+    const a = await persona.argosDe(dni, { forzar: q.query.forzar === '1' });
+    const cuit = String(a.cuit || '').replace(/\D/g, '');
+
+    const L = [];
+    if (!a || !a.nombreCompleto) {
+      L.push('DNI ' + dni + ' - ARGOS SIN DATOS');
+      L.push('');
+      L.push('ARGOS no encontro a esta persona. Puede ser DNI inexistente o falla temporal.');
+    } else {
+      const F = (k, v) => k.padEnd(14) + (v == null || v === '' ? 'NO INFORMADO' : v);
+      L.push('IDENTIDAD (ARGOS' + (a.fuente ? ' ' + a.fuente.replace(/^ARGOS_/, '') : '') + ')');
+      L.push(F('NOMBRE', a.nombreCompleto));
+      L.push(F('DNI', a.dni || dni));
+      L.push(F('CUIL', cuit ? cuit.replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3') : null));
+      L.push(F('SEXO', a.sexo));
+      L.push(F('NACIMIENTO', a.fechaNac));
+      L.push(F('DOMICILIO', a.direccion));
+      L.push(F('CIUDAD', [a.ciudad, a.provincia].filter(Boolean).join(', ')));
+      L.push(F('CP', a.cpostal));
+      L.push(F('TELEFONO', a.telefono));
+      L.push(F('MAIL', a.mail));
+      L.push(F('FALLECIDO', a.fallecido ? 'SI' : 'NO'));
+      if (Array.isArray(a.familia) && a.familia.length) {
+        L.push(F('FAMILIA', a.familia.length + ' vinculos registrados'));
+      }
+
+      L.push('', 'SCORING CREDITICIO (BCRA)');
+      if (!cuit) {
+        L.push(F('BCRA', 'no consultado (ARGOS no devolvio CUIL)'));
+      } else {
+        const b = await consultarBcra(cuit);
+        if (b.estado === 'SIN_DATOS') L.push(F('BCRA', 'sin registros (' + b.detalle + ')'));
+        else if (b.estado !== 'DISPONIBLE') L.push(F('BCRA', 'NO DISPONIBLE (' + b.detalle + ')'));
+        else {
+          L.push(F('PERIODO', b.periodo));
+          L.push(F('SITUACION', b.situacion));
+          L.push(F('DEUDA', b.deudaTotal ? ('$' + b.deudaTotal.toLocaleString('es-AR') + ' en ' + b.entidades + ' entidad(es)') : 'sin financiaciones'));
+          if (b.detalle) L.push(F('DETALLE', b.detalle));
+          const norm = (x) => String(x || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
+          if (b.denominacion) {
+            L.push(F('TITULAR BCRA', b.denominacion));
+            const coincide = norm(b.denominacion) === norm(a.nombreCompleto);
+            L.push(F('CRUCE NOMBRE', coincide ? 'coincide con ARGOS' : 'NO COINCIDE con ARGOS'));
+          }
+        }
+      }
+    }
+
+    /* Impositivo: SOLO si el DNI esta en el padron AFIP. No es requisito. */
+    const r = resolver(db, dni);
+    L.push('', 'SITUACION IMPOSITIVA (padron AFIP/ARCA)');
+    if (!r.encontrado) {
+      L.push('  no figura en el padron (cubre ~' + COBERTURA_POBLACIONAL + '%): sin datos impositivos');
+    } else {
+      const c = (k) => (r.campos[k] ? r.campos[k].valor : null);
+      ['sucesion','ganancias','iva','monotributo','integrante_soc','empleador','actividad'].forEach((k) => L.push('  ' + k.padEnd(14) + (c(k) == null || c(k) === '' ? 'NO INFORMADO' : c(k))));
+      if (r.ambiguo) L.push('  *** DNI AMBIGUO: ' + r.titulares.length + ' titulares en el padron ***');
+    }
+
+    L.push('', 'FUENTES: identidad=ARGOS · scoring=BCRA Central de Deudores · impositivo=padron AFIP (parcial)');
+    s.type('text/plain').send(L.join('\n'));
   } catch (e) {
     s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
   }

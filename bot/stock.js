@@ -524,6 +524,15 @@ async function cmdInfo(chat, args) {
   await enviarPre(chat, t);
 }
 
+/* Identidad ARGOS + scoring BCRA (con el CUIL real) + impositivo del padron si esta. */
+async function cmdFiscal(chat, args) {
+  const dni = String(args[0] || '').replace(/\D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /fiscal 30756789'); return; }
+  await enviar(chat, 'Consultando situacion fiscal de ' + dni + '...');
+  const t = await pedirTexto('/fiscal/' + dni + '?forzar=1');
+  await enviarPre(chat, t);
+}
+
 async function cmdFamilia(chat, args) {
   const dni = String(args[0] || '').replace(/\D/g, '');
   if (dni.length < 7) { await enviar(chat, 'Uso: /familia 30756789'); return; }
@@ -599,7 +608,7 @@ async function conNosis(fn) {
   try { return await fn(); } finally { nosisBotOcupado = false; }
 }
 
-export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'dame', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
+export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'dame', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'fiscal', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
 
 /* === atajos === */
 export const ALIAS = {
@@ -698,6 +707,7 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'bininfo') await cmdBinInfo(chatId, args);
     else if (c === 'random') await cmdRandom(chatId, args);
     else if (c === 'info') await cmdInfo(chatId, args);
+    else if (c === 'fiscal') await cmdFiscal(chatId, args);
     else if (c === 'nosis') await conNosis(() => cmdNosis(chatId, args));
     else if (c === 'familia') await cmdFamilia(chatId, args);
     else if (c === 'ar') await cmdAr(chatId, args);

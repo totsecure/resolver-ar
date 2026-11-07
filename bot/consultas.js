@@ -20,6 +20,7 @@ const COMANDOS = new Set([
 
 const AYUDA = [
   '<b>Consultas</b> (padron)',
+  '/fiscal &lt;dni&gt; - identidad + BCRA + situacion fiscal',
   '/info &lt;dni&gt; - datos del padron',
   '/cuit &lt;dni|cuit&gt; - CUIL',
   '/renaper &lt;dni&gt; - datos del renaper',
@@ -78,9 +79,11 @@ export async function atender(msg) {
   const cmd = m[1].toLowerCase();
   const args = m[2].trim() ? m[2].trim().split(/\s+/) : [];
 
-  if (!permitido(chat)) {
-    log(`rechazado chat=${chat}`);
-    await enviar(chat, 'No autorizado. Tu chat id: <code>' + chat + '</code>');
+  if (!permitido(chat) && !permitido(msg.from?.id)) {
+    /* En grupo el chat.id es negativo y no coincide con el del que escribe:
+     * mostrar los dos para poder autorizar sin adivinar. */
+    log(`rechazado chat=${chat} from=${msg.from?.id ?? '?'}`);
+    await enviar(chat, 'No autorizado. chat id: <code>' + chat + '</code> / user id: <code>' + (msg.from?.id ?? '?') + '</code>');
     return;
   }
 
