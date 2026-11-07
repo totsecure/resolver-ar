@@ -745,10 +745,13 @@ async function armarScoring(dni, completo) {
     }
   }
 
-  L.push('', '=== SITUACION IMPOSITIVA (ARCA) ===');
+  L.push('', '=== SITUACION IMPOSITIVA (PADRON AFIP) ===');
   const r = resolver(db, dni);
   if (!r.encontrado) {
-    L.push(F('ARCA', 'no figura en el padron (~' + COBERTURA_POBLACIONAL + '%): sin datos impositivos'));
+    /* ARGOS trae identidad pero NO datos impositivos: los impositivos salen
+     * unicamente del padron AFIP local, que cubre ~16% de las personas. */
+    L.push(F('PADRON', 'este DNI no esta en el padron AFIP (~' + COBERTURA_POBLACIONAL + '% de cobertura): sin datos impositivos'));
+    L.push(F('NOTA', 'ARGOS no aporta datos impositivos, solo el padron'));
   } else {
     const c = (k) => (r.campos[k] ? r.campos[k].valor : null);
     const g = String(c('ganancias') || '').trim().toUpperCase();
