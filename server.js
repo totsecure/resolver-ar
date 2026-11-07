@@ -671,7 +671,7 @@ app.get('/informe/:dni', soloLectura, async (q, s) => {
 });
 
 /* GET /scoring/:dni -> pelado: scoring BCRA + situacion impositiva.
-   GET /todo/:dni    -> lo mismo + identidad completa + familia.
+   GET /completo/:dni -> lo mismo + identidad completa + familia.
    El scoring sale de BCRA usando el CUIL que devuelve ARGOS (sirve aunque el
    DNI no figure en el padron). Lo impositivo sale del padron, solo si figura. */
 const SIT_BCRA = { 1: '1 - normal', 2: '2 - riesgo bajo', 3: '3 - con problemas', 4: '4 - alto riesgo', 5: '5 - irrecuperable', 6: '6 - irrecup. disp. tecnica' };
@@ -762,7 +762,7 @@ app.get('/scoring/:dni', soloLectura, async (q, s) => {
   }
 });
 
-app.get('/todo/:dni', soloLectura, async (q, s) => {
+app.get('/completo/:dni', soloLectura, async (q, s) => {
   try {
     const dni = String(q.params.dni || '').replace(/\D/g, '');
     if (dni.length < 7) return s.type('text/plain').send('DNI invalido: ' + q.params.dni + '\n');
