@@ -102,6 +102,11 @@ async function iniciar() {
   if (!process.env.TELEGRAM_TOKEN) throw new Error('falta TELEGRAM_TOKEN');
   let offset = leerOffset();
   log(`arrancado pid=${process.pid} offset=${offset} permitidos=${dueños().join(',') || 'todos'}`);
+
+  /* Latido: el loop no loguea nada mientras nadie escribe, asi que un proceso
+   * vivo pero trabado (deadlock) no dejaba rastro. Una linea cada 30s le da al
+   * vigilar.sh externo una senal de frescura del log para detectar el cuelgue. */
+  setInterval(() => log('latido'), 30000);
   for (;;) {
     const j = await api('getUpdates', { offset, timeout: 50, allowed_updates: ['message'] });
     if (!j || !j.ok) {

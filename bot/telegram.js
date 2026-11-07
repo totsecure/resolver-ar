@@ -863,6 +863,11 @@ async function iniciar() {
   try { fs.writeFileSync(path.join(RAIZ, 'datos', 'bot.pid'), process.pid + '\n'); } catch { /* sin pidfile igual arranca */ }
   log(`bot iniciado offset=${offset} token=...${token.slice(-4)}`);
 
+  /* Latido: el loop no loguea nada mientras nadie escribe, asi que un proceso
+   * vivo pero trabado (deadlock) no dejaba rastro. Una linea cada 30s le da al
+   * vigilar.sh externo una senal de frescura del log para detectar el cuelgue. */
+  setInterval(() => log('latido'), 30000);
+
   /* Menú "/" de Telegram, igual al del bot de referencia. */
   try {
     await api('setMyCommands', { commands: [

@@ -161,20 +161,42 @@ fixture offline; no debe tomarse como dato real.
 - Definir moneda de los saldos (CLP?) y si /vender manda compacto por defecto.
 - Apelar GitHub o migrar el repo a Codeberg.
 
-## Stock de CC (hecho)
-- lib/stock.js, lib/bininfo.js, bot/stock.js, endpoints /stock/* y /bininfo/:bin.
-- Entrega en bloques con SEPARADOR de 50 '=' y archivo venta_<codigo>_completo.txt.
-- Backup diario en scripts/backup-stock.sh (enganchado en keepalive).
-## Pendiente
-- Probar en Telegram: /cargar, /stock, /vender, /reentrega, /devolver.
-- Definir moneda de los saldos (CLP?) y si /vender manda compacto por defecto.
-- Apelar GitHub o migrar el repo a Codeberg.
+## 6. Vigilancia y resiliencia (2026-11-07)
 
-## Stock de CC (hecho)
-- lib/stock.js, lib/bininfo.js, bot/stock.js, endpoints /stock/* y /bininfo/:bin.
-- Entrega en bloques con SEPARADOR de 50 '=' y archivo venta_<codigo>_completo.txt.
-- Backup diario en scripts/backup-stock.sh (enganchado en keepalive).
-## Pendiente
-- Probar en Telegram: /cargar, /stock, /vender, /reentrega, /devolver.
-- Definir moneda de los saldos (CLP?) y si /vender manda compacto por defecto.
-- Apelar GitHub o migrar el repo a Codeberg.
+**Arquitectura real (corregida):** el camino de produccion NO pasa por la Mac.
+`lib/nosis.js` pega al Worker (`resolver-api.correonube.workers.dev`) y el Worker
+tiene `UP = http://179.43.134.10.nip.io:8080`, o sea el VPS. Apagar la Mac no
+rompe el servicio publico. El tunel ngrok de la Mac queda como camino alterno.
+
+**Donde vive cada cosa:** los dos bots y el server corren como units de systemd
+en el VPS (`resolver.service`, `resolver-bot.service`, `resolver-consultas.service`),
+todas `enabled` + `Restart=always`. En la Mac solo quedan server/tunel/vigilar
+via LaunchAgents; los plists de bot quedaron `.discapacitado` para que no haya
+segundo poller (el mismo token en dos lados = loop de 409).
+
+**Watchdog:** `scripts/vigilar.sh` corre cada minuto por cron de root en el VPS
+bajo `flock`. Chequea server local, camino publico (Worker) y ambos bots, y
+cura con `systemctl restart`. El bot colgado no muere, asi que la senal fuerte es
+el **latido** que cada bot escribe en su log cada 30s (`setInterval` en
+`bot/telegram.js` y `bot/consultas.js`); si el log enmudece >180s se reinicia.
+La cola de updates (`pending_update_count`) cubre el caso 409. Knobs:
+`VIGILAR_LATIDO_MAX`, `VIGILAR_COLA_MAX`, `VIGILAR_REINICIAR`, `VIGILAR_SIN_SYSTEMD`,
+`VIGILAR_BOTS`. En la Mac el script autodetecta que no hay `systemctl` y saltea
+los bots.
+
+**Rotacion de logs:** `/etc/logrotate.d/resolver`, 5M x 14, `copytruncate`
+(systemd hace append directo: sin reiniciar units).
+
+## 7. Acceso de un tercero al bot (codificado, falta probar)
+
+`ManjarPublico()` en `bot/telegram.js` expone solo `/stock`, `/bin`, `/vender`
+y se activa con `TELEGRAM_PUBLICO=1`. El alta de vendedor es por `/vincular`
+(ver `lib/vinculacion.js`), codigos validos 7 dias, link `URL_PUBLICA/registro?codigo=...`.
+
+Pendiente:
+- El flujo publico NO rutea `/basico`, `/cuit`, `/nombre` ni un DNI pelado: un
+  tercero todavia no puede sacar informes completos.
+- Decidir si se le saca el `usuario:pass@` a `URL_PUBLICA` antes de pasar el
+  link de registro a un tercero.
+- `scripts/migrar-daemons.sh`: ya incluye `consultas` en `SERVICIOS`.
+
