@@ -50,9 +50,9 @@ async function enviarDoc(chat, nombre, contenido, caption = '') {
 }
 
 /* El veredicto (EN REGLA / OJO / NO USABLE) viene marcado como 'VEREDICTO: ...'
- * y lo sacamos afuera del <pre>, en negrita y con una barra de color arriba y
- * abajo. Adentro del <pre> no se puede poner HTML, y el color real en Telegram
- * se consigue con los emojis de color: el texto no tiene color propio. */
+ * y lo pasamos al tope del informe, con una barra de color. Adentro del <pre>
+ * no se puede poner HTML, y el color real en Telegram se consigue con los
+ * emojis de color: el texto no tiene color propio. */
 function pintarVeredicto(lineas) {
   const resto = [];
   let ver = null;
@@ -66,22 +66,28 @@ function pintarVeredicto(lineas) {
   const barra = emo.repeat(9);
   const titulo = ver.replace(new RegExp('^' + emo + '\\s*', 'u'), '');
   const cab = '<b>' + esc(barra) + '\n' + esc(emo + ' ' + titulo) + '\n' + esc(barra) + '</b>';
-  const pie = '<b>' + esc(emo + ' ' + titulo) + '</b>';
   while (resto.length && !resto[0].trim()) resto.shift();
-  return { cab, pie, resto };
+  return { cab, resto };
 }
 
+/* El veredicto va arriba y a lo ancho, adentro del MISMO <pre>: antes salia en
+ * mensajes aparte y en un grupo se veia como spam. Adentro del <pre> no hay
+ * HTML, asi que la barra se arma con el emoji repetido (el color en Telegram
+ * lo da el emoji; el texto no tiene color propio). */
 async function enviarPre(chat, texto) {
-  let { cab, pie, resto: lineas } = pintarVeredicto(String(texto === null || texto === undefined ? '' : texto).split('\n'));
-  if (cab) await enviar(chat, cab);
+  const { cab, resto: lineas } = pintarVeredicto(String(texto === null || texto === undefined ? '' : texto).split('\n'));
+  /* cab viene como '<b>barra\ntitulo\nbarra</b>': la paso a texto pelado. */
+  const primeras = cab
+    ? cab.replace(/^<b>|<\/b>$/g, '').split('\n').filter((l) => l.trim()).map((l) => esc(l))
+    : [];
+  const cuerpo = primeras.length ? [...primeras, '', ...lineas] : lineas;
   let parte = '';
-  for (const l of lineas) {
+  for (const l of cuerpo) {
     const cand = parte ? parte + '\n' + l : l;
     if (cand.length > 3500 && parte) { await enviar(chat, '<pre>' + esc(parte) + '</pre>'); parte = l; }
     else parte = cand;
   }
   if (parte.trim()) await enviar(chat, '<pre>' + esc(parte) + '</pre>');
-  if (pie) await enviar(chat, pie);
 }
 
 function fechaArchivo() {
@@ -552,7 +558,8 @@ async function cmdInfo(chat, args) {
 async function cmdScoring(chat, args) {
   const dni = String(args[0] || '').replace(/\D/g, '');
   if (dni.length < 7) { await enviar(chat, 'Uso: /scoring 30756789'); return; }
-  await enviar(chat, 'Consultando scoring + situacion fiscal de ' + dni + '...');
+  /* Sin "Consultando...": tarda ~2s y el aviso previo hacia parecer que el bot
+   * mandaba de mas. Si falla, el catch de manejarStock avisa igual. */
   const t = await pedirTexto('/scoring/' + dni + '?forzar=1');
   await enviarPre(chat, t);
 }
@@ -561,7 +568,6 @@ async function cmdScoring(chat, args) {
 async function cmdCompleto(chat, args) {
   const dni = String(args[0] || '').replace(/\D/g, '');
   if (dni.length < 7) { await enviar(chat, 'Uso: /completo 30756789'); return; }
-  await enviar(chat, 'Consultando completo de ' + dni + '...');
   const t = await pedirTexto('/completo/' + dni + '?forzar=1');
   await enviarPre(chat, t);
 }

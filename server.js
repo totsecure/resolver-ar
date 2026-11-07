@@ -710,6 +710,16 @@ async function armarScoring(dni, completo) {
     L.push(F('MAIL', a.mail));
     L.push(F('NRO TRAMITE', a.nroTramite));
     L.push(F('FALLECIDO', a.fallecido ? 'SI' : 'NO'));
+    /* Control de veracidad: si la base local y RENAPER no cuentan lo mismo,
+     * hay que decirlo en vez de mostrar un dato y esconder el otro. */
+    const dif = [];
+    /* Se comparan las palabras ordenadas: "MARTINEZ Margarita" y "Margarita
+     * MARTINEZ" son la misma persona, no queremos avisar por el orden. */
+    const firma = (x) => normN(x).split(' ').sort().join(' ');
+    if (a.nombreRenaper && firma(a.nombreRenaper) !== firma(a.nombreCompleto)) dif.push('RENAPER dice "' + a.nombreRenaper + '"');
+    if (a.fechaNacRenaper && a.fechaNacRenaper !== a.fechaNac) dif.push('RENAPER dice nacimiento ' + a.fechaNacRenaper);
+    if (!a.cuilRenaper && cuit) dif.push('CUIL de base, RENAPER no lo aporto');
+    if (dif.length) L.push('', F('*** AVISO', 'datos NO confirmados por RENAPER: ' + dif.join(' | ')));
     if (Array.isArray(a.familia) && a.familia.length) {
       L.push('', '=== FAMILIA (' + a.familia.length + ') ===');
       a.familia.forEach((f) => L.push('  ' + String(f.parentesco || '?').padEnd(14) + String(f.nombre || '?') + ' DNI ' + (f.dni || '?') + (f.edad != null ? ' (' + f.edad + ')' : '')));
@@ -721,8 +731,12 @@ async function armarScoring(dni, completo) {
 
   // Consultamos BCRA antes de imprimir para poder dar el veredicto arriba.
   const b = (a && a.nombreCompleto && cuit) ? await consultarBcra(cuit) : null;
+  /* SIN_DATOS es un 404 del BCRA: el CUIL no aparece en la Central de Deudores.
+   * NO es lo mismo que "no tiene deudas": puede ser un CUIL mal armado. Por eso
+   * no va verde, va gris (SIN CHEQUEAR), para no afirmar algo que no se sabe. */
   const ver = (b && b.estado === 'DISPONIBLE') ? veredicto(b.situacion)
-    : (b && b.estado === 'SIN_DATOS') ? '\u{1F7E9} EN REGLA (sin deudas)' : null;
+    : (b && b.estado === 'SIN_DATOS') ? '\u{2B1C} SIN CHEQUEAR (BCRA no tiene el CUIL)'
+    : (b && b.estado !== 'DISPONIBLE') ? '\u{2B1C} SIN CHEQUEAR (BCRA no respondio)' : null;
 
   /* El veredicto va aparte (marcador VEREDICTO:) para que el bot lo pueda poner
    * en negrita y con barras de color FUERA del <pre>: adentro no admite HTML. */
@@ -733,7 +747,7 @@ async function armarScoring(dni, completo) {
   } else if (!cuit) {
     L.push(F('BCRA', 'no consultado (ARGOS no devolvio CUIL)'));
   } else {
-    if (b.estado === 'SIN_DATOS') L.push(F('SITUACION', '\u{1F7E9} sin deudas registradas (' + b.detalle + ')'));
+    if (b.estado === 'SIN_DATOS') L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el BCRA no tiene este CUIL (' + b.detalle + ')'));
     else if (b.estado !== 'DISPONIBLE') L.push(F('SITUACION', '\u{2B1C} NO DISPONIBLE (' + b.detalle + ')'));
     else {
       const sit = SIT_BCRA[String(b.situacion).charAt(0)] || b.situacion;
