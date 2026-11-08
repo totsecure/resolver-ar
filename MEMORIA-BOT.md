@@ -20,7 +20,10 @@ del trabajo hecho sobre `/scoring`, el respaldo NOSIS y los límites anti-spam.
 - verde `1-2` y "sin deudas" → `EN REGLA`
 - amarillo `3-4` → `OJO`
 - rojo `5-6` → `NO USABLE`. **Situación 5 es rojo porque no se puede operar.**
-- gris `⬜` SIN_DATOS / BCRA no respondió
+- **404 del BCRA = verde `EN REGLA (sin historial en el BCRA)`.** Decisión del
+  dueño: no figurar es informacion del BCRA, no una ausencia. Un gris parecia
+  un fallo del bot.
+- gris `⬜` SOLO cuando el BCRA no respondio y no hay NOSIS cacheado
 - El color real en Telegram son los emojis: `<pre>` no tiene color propio.
 
 ## Trampas que costaron tiempo
@@ -41,6 +44,9 @@ del trabajo hecho sobre `/scoring`, el respaldo NOSIS y los límites anti-spam.
 - **El BCRA estuvo en mantenimiento** (`503 El servicio se encuentra en
   mantenimiento`) y por eso todo salía gris: el respaldo NOSIS solo cubría 404.
   Ahora cubre cualquier estado no `DISPONIBLE`.
+- **El `429` no se reintentaba**: el filtro era `>= 500`. Es justo el error que
+  mas merece reintento. Ahora `REINTENTABLE` cubre 429 y 5xx, 3 intentos, y el
+  429 espera 1.5s. Antes una rafaga de comandos se comia el rate-limit.
 - **Etiquetar siempre `(NOSIS)`**: `Sin deudas encontradas` de NOSIS NO es una
   afirmación oficial del BCRA.
 
