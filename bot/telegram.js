@@ -180,6 +180,28 @@ function log(msg) {
   if (process.stdout.isTTY) console.log(linea);
 }
 
+/* Limites anti-spam (mismo criterio que consultas.js): cooldown por chat y tope
+ * de comandos en vuelo. Una rafaga manda UN aviso, no uno por mensaje.
+ * Devuelve texto=aviso, ''=frenado sin aviso, null=pasa. */
+const COOLDOWN_MS = Number(process.env.LIMITE_COOLDOWN_MS || 4000);
+const EN_VUELO_MAX = Number(process.env.LIMITE_EN_VUELO || 4);
+let enVuelo = 0;
+const ultimoDe = new Map();
+
+function frenar(chatId) {
+  const ahora = Date.now();
+  const ult = ultimoDe.get(chatId) || 0;
+  const falta = COOLDOWN_MS - (ahora - ult);
+  if (falta > 0) {
+    const avisar = ahora - ult > 1200;
+    ultimoDe.set(chatId, ahora);
+    return avisar ? 'Espera un toque (' + (falta / 1000).toFixed(1) + 's)' : '';
+  }
+  ultimoDe.set(chatId, ahora);
+  if (enVuelo >= EN_VUELO_MAX) return 'Estoy ocupado, proba en unos segundos';
+  return null;
+}
+
 /* Red de seguridad: una promesa suelta mataba el bot sin dejar rastro. */
 process.on('unhandledRejection', (e) => log('ERROR promesa suelta: ' + (e?.message || e)));
 process.on('uncaughtException', (e) => log('ERROR no capturado: ' + (e?.message || e)));
@@ -723,6 +745,16 @@ export async function procesarUpdate(update, db) {
   }
 
   if (p.tipo === 'comando') {
+    /* Limites anti-spam: mismo criterio que el bot de consultas. Un vendedor
+     * apurado mandando /stock 10 veces saturaba el server. */
+    const aviso = frenar(chatId);
+    if (aviso !== null) {
+      log(`frenado chat=${chatId} /${p.cmd}${aviso ? '' : ' (sin aviso)'}`);
+      if (aviso) await enviar(chatId, aviso);
+      return;
+    }
+    enVuelo++;
+    try {
     if (await manejarVendedor(chatId, p.cmd, p.args, payloadComando(msg.text), ctxBot)) return;
     if (await manejarStock(chatId, p.cmd, p.args, payloadComando(msg.text))) return;
     if (p.cmd === 'start' || p.cmd === 'help') {
@@ -821,6 +853,7 @@ export async function procesarUpdate(update, db) {
     log(`chat=${chatId} comando desconocido=${p.cmd}`);
     await enviar(chatId, HELP);
     return;
+    } finally { enVuelo--; }
   }
 
   if (p.tipo === 'lote') {
