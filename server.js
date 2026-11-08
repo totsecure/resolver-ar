@@ -10,6 +10,8 @@ import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import { resolver, COBERTURA_POBLACIONAL } from './lib/resolver.js';
 import * as argos from './lib/argos.js';
+import * as nosis from './lib/nosis.js';
+import * as informe from './lib/argos-informe.js';
 import * as gordo from './lib/gordo.js';
 import * as persona from './lib/persona.js';
 import { renderizar } from './lib/informe.js';
@@ -686,6 +688,15 @@ const veredicto = (situacion) => {
   const d = String(situacion).charAt(0);
   return SIT_VEREDICTO[d] ? semaforo(d) + ' ' + SIT_VEREDICTO[d] : null;
 };
+/* NOSIS trae la situacion como numero ("5") o como texto ("Sin deudas
+   encontradas"). Se normaliza a un grado 1-6 para el semaforo y el veredicto. */
+const esperadoDeNosis = (v) => {
+  const t = String(v || '').trim();
+  if (/^[1-6]\b/.test(t)) return Number(t.charAt(0));
+  if (/sin deudas|no registramos deudas|normal/i.test(t)) return 1;
+  return null;
+};
+const semaforoTxt = (v) => { const n = esperadoDeNosis(v); return n == null ? '\u{2B1C}' : semaforo(n); };
 const SI_NO = (v) => (String(v || '').trim().toUpperCase() === 'S' ? 'SI' : String(v || '').trim().toUpperCase() === 'N' ? 'NO' : (v || 'NO INFORMADO'));
 const normN = (x) => String(x || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -705,7 +716,16 @@ async function armarScoring(dni, completo) {
   const cuitsProbados = [];
   if (/^\d{7,8}$/.test(String(dni))) {
     const cands = [];
+    /* NOSIS es la fuente publica mas confiable de CUIL: su buscador devuelve
+     * el CUIL real por DNI y cubre gente que ARGOS no tiene. Va PRIMERO, antes
+     * que ARGOS y que cualquier prefijo derivado, porque es un dato observado
+     * y no una conjetura. No necesita login. */
+    let eNosis = null;
+    try { eNosis = await nosis.datosDeDni(dni, { red: true, timeoutMs: 8000 }); } catch (_) { eNosis = null; }
+    if (eNosis && eNosis.cuit) cands.push(String(eNosis.cuit).replace(/\D/g, ''));
     if (cuit) cands.push(cuit);
+    /* Prefijos validos de CUIL. 20/23/24/27 son persona fisica, 33/34 son
+     * documentos viejos, 30/50/55 son sociedades (por si el DNI es de una). */
     for (const p of ['20', '27', '23', '24', '33']) {
       const d8 = String(dni).padStart(8, '0');
       const v = dvCuil(p + d8);
@@ -723,6 +743,9 @@ async function armarScoring(dni, completo) {
         break;
       }
     }
+    /* Se encola el informe NOSIS aunque el BCRA ya lo tenga: sirve para el
+     * bloque laboral/impositivo y para el respaldo. No bloquea (tarda ~45s). */
+    informe.precalentar(dni);
   }
 
   if (!a || !a.nombreCompleto) {
@@ -763,9 +786,11 @@ async function armarScoring(dni, completo) {
   // Consultamos BCRA antes de imprimir para poder dar el veredicto arriba.
   const b = bcraProbado || ((a && a.nombreCompleto && cuit) ? await consultarBcra(cuit) : null);
   /* SIN_DATOS es un 404 del BCRA: el CUIL no aparece en la Central de Deudores.
-   * NO es lo mismo que "no tiene deudas": puede ser un CUIL mal armado. Por eso
+   * NO es lo mismo que "no tiene deudas". Por eso
    * no va verde, va gris (SIN CHEQUEAR), para no afirmar algo que no se sabe. */
+  const infV = (b && b.estado === 'SIN_DATOS') ? informe.informeDeDni(dni) : null;
   const ver = (b && b.estado === 'DISPONIBLE') ? veredicto(b.situacion)
+    : (infV && esperadoDeNosis(infV.situacionBcra) != null) ? veredicto(esperadoDeNosis(infV.situacionBcra))
     : (b && b.estado === 'SIN_DATOS') ? '\u{2B1C} SIN CHEQUEAR (no figura en el BCRA)'
     : (!a || !a.nombreCompleto) ? null
     : (b && b.estado !== 'DISPONIBLE') ? '\u{2B1C} SIN CHEQUEAR (BCRA no respondio)'
@@ -782,7 +807,25 @@ async function armarScoring(dni, completo) {
      * BCRA. No es que "no se consulto": se probaron y no figura. */
     L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el BCRA no reconoce ninguna variante de CUIL de este DNI (probamos ' + (cuitsProbados.length || 0) + '). No figurar suele ser buena se\u00f1al (sin historial), pero no es lo mismo que estar sin deudas.'));
   } else {
-    if (b.estado === 'SIN_DATOS') L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el CUIL no figura en la Central de Deudores (' + b.detalle + '). No figurar suele ser buena se\u00f1al (sin historial), pero no es lo mismo que estar sin deudas: puede ser un CUIL mal armado.'));
+    if (b.estado === 'SIN_DATOS') {
+      /* El BCRA no lo tiene. ARGOS sirve el informe NOSIS, que cubre a esa gente
+       * con el dato REAL de NOSIS (no una conjetura). Tarda ~45s, asi que solo
+       * esta cacheado: si no esta, se encola y se avisa. */
+      let inf = informe.informeDeDni(dni);
+      if (!inf) { informe.precalentar(dni); inf = informe.informeDeDni(dni); }
+      if (inf && inf.situacionBcra) {
+        L.push(F('SITUACION', semaforoTxt(inf.situacionBcra) + ' ' + inf.situacionBcra + '  (NOSIS)'));
+        if (inf.endeudamiento) L.push(F('ENDEUDA.', inf.endeudamiento + '  (NOSIS)'));
+        if (inf.laboral) L.push(F('LABORAL', inf.laboral + '  (NOSIS)'));
+        if (inf.bureau) L.push(F('BUREAU', inf.bureau + '  (NOSIS)'));
+        if (inf.cheques) L.push(F('CHEQUES', inf.cheques + '  (NOSIS)'));
+        if (inf.nse) L.push(F('NSE', inf.nse + '  (NOSIS)'));
+        if (inf.score != null) L.push(F('SCORE NOSIS', String(inf.score) + '  (NOSIS, 1-999)'));
+      } else {
+        L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el CUIL no figura en la Central de Deudores (' + b.detalle + '). Se probaron ' + cuitsProbados.length + ' variantes de CUIL y ninguna figura. No figurar suele ser buena se\u00f1al, pero no es lo mismo que estar sin deudas.'));
+        L.push(F('NOSIS', 'informe en preparacion (~45s), volve a consultar en un rato'));
+      }
+    }
     else if (b.estado !== 'DISPONIBLE') L.push(F('SITUACION', '\u{2B1C} NO DISPONIBLE (' + b.detalle + ')'));
     else {
       const sit = SIT_BCRA[String(b.situacion).charAt(0)] || b.situacion;

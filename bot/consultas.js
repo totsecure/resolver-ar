@@ -86,6 +86,40 @@ function guardarOffset(n) {
   try { fs.writeFileSync(RUTA_OFFSET, JSON.stringify({ offset: n })); } catch (_) {}
 }
 
+/* --- Limites anti-spam -------------------------------------------------
+ * El bot vive en un grupo: sin esto, alguien escribiendo rapido lo satura
+ * (el scoring tarda 2-15s y el informe ~1 min). Dos capas:
+ *   1) cooldown por usuario: un mensaje cada COOLDOWN_MS.
+ *   2) tope de comandos en vuelo: si el server esta ocupado, no se encolan 50.
+ * El aviso de cooldown se manda una sola vez por racha para no spamear. */
+const COOLDOWN_MS = Number(process.env.LIMITE_COOLDOWN_MS || 4000);
+const EN_VUELO_MAX = Number(process.env.LIMITE_EN_VUELO || 4);
+
+let enVuelo = 0;
+const ultimoDe = new Map(); // user id -> timestamp
+
+/* Devuelve:
+ *   texto  -> frenado, hay que mandar ese aviso
+ *   ''     -> frenado, sin aviso (ya se aviso en esta rafaga)
+ *   null   -> pasa
+ */
+function frenar(msg) {
+  const uid = msg.from?.id || msg.chat?.id;
+  const ahora = Date.now();
+  const ult = ultimoDe.get(uid) || 0;
+  const falta = COOLDOWN_MS - (ahora - ult);
+  if (falta > 0) {
+    /* Una rafaga de 10 mensajes manda UN aviso, no 10: solo avisa si venia
+     * de estar quieto (el mensaje anterior fue hace mas de 1.2s). */
+    const avisar = ahora - ult > 1200;
+    ultimoDe.set(uid, ahora);
+    return avisar ? 'Espera un toque (' + (falta / 1000).toFixed(1) + 's)' : '';
+  }
+  ultimoDe.set(uid, ahora);
+  if (enVuelo >= EN_VUELO_MAX) return 'Estoy ocupado, proba en unos segundos';
+  return null;
+}
+
 export async function atender(msg) {
   const chat = msg.chat?.id;
   if (!chat) return;
@@ -125,8 +159,17 @@ export async function atender(msg) {
     return;
   }
 
+  /* Los comandos que no hacen trabajo pesado no se limitan: /ayuda siempre anda. */
+  const aviso = frenar(msg);
+  if (aviso !== null) {
+    log(`frenado chat=${chat} from=${msg.from?.id ?? '?'} /${cmd}${aviso ? '' : ' (sin aviso)'}`);
+    if (aviso) await enviar(chat, aviso);
+    return;
+  }
+
   log(`chat=${chat} /${cmd} ${args.join(' ')}`);
   const t0 = Date.now();
+  enVuelo++;
   try {
     await manejarStock(chat, cmd, args);
     log(`ok chat=${chat} /${cmd} ${((Date.now() - t0) / 1000).toFixed(1)}s`);
@@ -135,6 +178,8 @@ export async function atender(msg) {
      * comando recibido y nada mas, y parecia que el bot ignoraba al usuario. */
     log(`FALLO chat=${chat} /${cmd} ${((Date.now() - t0) / 1000).toFixed(1)}s: ${e?.message || e}`);
     await enviar(chat, 'Error en /' + cmd + ': ' + String(e?.message || e));
+  } finally {
+    enVuelo--;
   }
 }
 
