@@ -794,7 +794,10 @@ async function armarScoring(dni, completo) {
   const infT = (!b || b.estado !== 'DISPONIBLE') ? informe.informeDeDni(dni) : null;
   const ver = (b && b.estado === 'DISPONIBLE') ? veredicto(b.situacion)
     : (infT && esperadoDeNosis(infT.situacionBcra) != null) ? veredicto(esperadoDeNosis(infT.situacionBcra))
-    : (b && b.estado === 'SIN_DATOS') ? '\u{2B1C} SIN CHEQUEAR (no figura en el BCRA)'
+    /* El BCRA respondio 404 "No se encontro datos": la persona no tiene
+     * historial de deudas. Eso ES un dato del BCRA, no una ausencia, asi que
+     * se le da veredicto verde explicito en vez de un gris mudo. */
+    : (b && b.estado === 'SIN_DATOS') ? '\u{1F7E9} EN REGLA (sin historial en el BCRA)'
     : (!a || !a.nombreCompleto) ? null
     : '\u{2B1C} SIN CHEQUEAR (BCRA no respondio)';
 
@@ -807,7 +810,7 @@ async function armarScoring(dni, completo) {
   } else if (!cuit) {
     /* Ni ARGOS ni ninguna de las variantes de CUIL que probamos existen en el
      * BCRA. No es que "no se consulto": se probaron y no figura. */
-    L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el BCRA no reconoce ninguna variante de CUIL de este DNI (probamos ' + (cuitsProbados.length || 0) + '). No figurar suele ser buena se\u00f1al (sin historial), pero no es lo mismo que estar sin deudas.'));
+    L.push(F('SITUACION', '\u{1F7E9} SIN HISTORIAL - ninguna de las ' + (cuitsProbados.length || 0) + ' variantes de CUIL de este DNI figura en el BCRA. Sin registro de deuda bancaria.'));
   } else {
     if (b.estado !== 'DISPONIBLE') {
       /* El BCRA no lo tiene (404) o esta caido (503 de mantenimiento). ARGOS
@@ -829,7 +832,7 @@ async function armarScoring(dni, completo) {
         if (inf.nse) L.push(F('NSE', inf.nse + '  (NOSIS)'));
         if (inf.score != null) L.push(F('SCORE NOSIS', String(inf.score) + '  (NOSIS, 1-999)'));
       } else if (b.estado === 'SIN_DATOS') {
-        L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el CUIL no figura en la Central de Deudores (' + b.detalle + '). Se probaron ' + cuitsProbados.length + ' variantes de CUIL y ninguna figura. No figurar suele ser buena se\u00f1al, pero no es lo mismo que estar sin deudas.'));
+        L.push(F('SITUACION', '\u{1F7E9} SIN HISTORIAL - la persona no figura en la Central de Deudores del BCRA (se probaron ' + cuitsProbados.length + ' variantes de CUIL). Nunca tomo deuda bancaria, o no la tomo desde hace mucho.'));
         L.push(F('NOSIS', 'informe en preparacion (~45s), volve a consultar en un rato'));
       } else {
         L.push(F('SITUACION', '\u{2B1C} NO DISPONIBLE (' + b.detalle + ')'));
