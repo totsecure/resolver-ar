@@ -785,16 +785,15 @@ async function armarScoring(dni, completo) {
 
   // Consultamos BCRA antes de imprimir para poder dar el veredicto arriba.
   const b = bcraProbado || ((a && a.nombreCompleto && cuit) ? await consultarBcra(cuit) : null);
-  /* SIN_DATOS es un 404 del BCRA: el CUIL no aparece en la Central de Deudores.
-   * NO es lo mismo que "no tiene deudas". Por eso
-   * no va verde, va gris (SIN CHEQUEAR), para no afirmar algo que no se sabe. */
-  const infV = (b && b.estado === 'SIN_DATOS') ? informe.informeDeDni(dni) : null;
+  /* El veredicto NOSIS sirve como respaldo SIEMPRE que el BCRA no haya podido
+   * responder (no figura, 503 de mantenimiento, timeout): el informe trae la
+   * situacion BCRA real, asi que es mejor que un gris ciego. */
+  const infT = (!b || b.estado !== 'DISPONIBLE') ? informe.informeDeDni(dni) : null;
   const ver = (b && b.estado === 'DISPONIBLE') ? veredicto(b.situacion)
-    : (infV && esperadoDeNosis(infV.situacionBcra) != null) ? veredicto(esperadoDeNosis(infV.situacionBcra))
+    : (infT && esperadoDeNosis(infT.situacionBcra) != null) ? veredicto(esperadoDeNosis(infT.situacionBcra))
     : (b && b.estado === 'SIN_DATOS') ? '\u{2B1C} SIN CHEQUEAR (no figura en el BCRA)'
     : (!a || !a.nombreCompleto) ? null
-    : (b && b.estado !== 'DISPONIBLE') ? '\u{2B1C} SIN CHEQUEAR (BCRA no respondio)'
-    : '\u{2B1C} SIN CHEQUEAR (no figura en el BCRA)';
+    : '\u{2B1C} SIN CHEQUEAR (BCRA no respondio)';
 
   /* El veredicto va aparte (marcador VEREDICTO:) para que el bot lo pueda poner
    * en negrita y con barras de color FUERA del <pre>: adentro no admite HTML. */
@@ -807,10 +806,11 @@ async function armarScoring(dni, completo) {
      * BCRA. No es que "no se consulto": se probaron y no figura. */
     L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el BCRA no reconoce ninguna variante de CUIL de este DNI (probamos ' + (cuitsProbados.length || 0) + '). No figurar suele ser buena se\u00f1al (sin historial), pero no es lo mismo que estar sin deudas.'));
   } else {
-    if (b.estado === 'SIN_DATOS') {
-      /* El BCRA no lo tiene. ARGOS sirve el informe NOSIS, que cubre a esa gente
-       * con el dato REAL de NOSIS (no una conjetura). Tarda ~45s, asi que solo
-       * esta cacheado: si no esta, se encola y se avisa. */
+    if (b.estado !== 'DISPONIBLE') {
+      /* El BCRA no lo tiene (404) o esta caido (503 de mantenimiento). ARGOS
+       * sirve el informe NOSIS, que cubre esos casos con el dato REAL de NOSIS
+       * (no una conjetura). Tarda ~45s, asi que solo esta cacheado: si no esta,
+       * se encola, se advierte y se cae al mensaje gris de siempre. */
       let inf = informe.informeDeDni(dni);
       if (!inf) { informe.precalentar(dni); inf = informe.informeDeDni(dni); }
       if (inf && inf.situacionBcra) {
@@ -821,12 +821,14 @@ async function armarScoring(dni, completo) {
         if (inf.cheques) L.push(F('CHEQUES', inf.cheques + '  (NOSIS)'));
         if (inf.nse) L.push(F('NSE', inf.nse + '  (NOSIS)'));
         if (inf.score != null) L.push(F('SCORE NOSIS', String(inf.score) + '  (NOSIS, 1-999)'));
-      } else {
+      } else if (b.estado === 'SIN_DATOS') {
         L.push(F('SITUACION', '\u{2B1C} SIN CHEQUEAR - el CUIL no figura en la Central de Deudores (' + b.detalle + '). Se probaron ' + cuitsProbados.length + ' variantes de CUIL y ninguna figura. No figurar suele ser buena se\u00f1al, pero no es lo mismo que estar sin deudas.'));
+        L.push(F('NOSIS', 'informe en preparacion (~45s), volve a consultar en un rato'));
+      } else {
+        L.push(F('SITUACION', '\u{2B1C} NO DISPONIBLE (' + b.detalle + ')'));
         L.push(F('NOSIS', 'informe en preparacion (~45s), volve a consultar en un rato'));
       }
     }
-    else if (b.estado !== 'DISPONIBLE') L.push(F('SITUACION', '\u{2B1C} NO DISPONIBLE (' + b.detalle + ')'));
     else {
       const sit = SIT_BCRA[String(b.situacion).charAt(0)] || b.situacion;
       L.push(F('SITUACION', semaforo(b.situacion) + ' ' + sit));
