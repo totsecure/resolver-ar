@@ -814,7 +814,11 @@ async function armarScoring(dni, completo) {
       let inf = informe.informeDeDni(dni);
       if (!inf) { informe.precalentar(dni); inf = informe.informeDeDni(dni); }
       if (inf && inf.situacionBcra) {
-        L.push(F('SITUACION', semaforoTxt(inf.situacionBcra) + ' ' + inf.situacionBcra + '  (NOSIS)'));
+        /* El informe trae la situacion igual que el BCRA ("5", "Sin deudas..."),
+         * asi que se le pone la misma descripcion que a la respuesta oficial. */
+        const nSit = esperadoDeNosis(inf.situacionBcra);
+        const txtSit = nSit != null ? (SIT_BCRA[nSit] || inf.situacionBcra) : inf.situacionBcra;
+        L.push(F('SITUACION', semaforoTxt(inf.situacionBcra) + ' ' + txtSit + '  (NOSIS)'));
         if (inf.endeudamiento) L.push(F('ENDEUDA.', inf.endeudamiento + '  (NOSIS)'));
         if (inf.laboral) L.push(F('LABORAL', inf.laboral + '  (NOSIS)'));
         if (inf.bureau) L.push(F('BUREAU', inf.bureau + '  (NOSIS)'));
