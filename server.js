@@ -715,6 +715,7 @@ async function armarScoring(dni, completo) {
    * el candidato mas probable; si ese no figura, el resto.
    * No adivinamos el sexo: la fuente de verdad es el BCRA. */
   let cuitProbado = false;
+  let cuilFuente = null;
   let bcraProbado = null;
   const cuitsProbados = [];
   if (/^\d{7,8}$/.test(String(dni))) {
@@ -727,8 +728,10 @@ async function armarScoring(dni, completo) {
     try { eNosis = await nosis.datosDeDni(dni, { red: true, timeoutMs: 8000 }); } catch (_) { eNosis = null; }
     if (eNosis && eNosis.cuit) cands.push(String(eNosis.cuit).replace(/\D/g, ''));
     if (cuit) cands.push(cuit);
-    /* Prefijos validos de CUIL. 20/23/24/27 son persona fisica, 33/34 son
-     * documentos viejos, 30/50/55 son sociedades (por si el DNI es de una). */
+    /* Prefijos validos de CUIL. 20/27 son los mas comunes (20 masculino, 27
+     * femenino); 23/24 son extranjeros naturalizados; 33/34 son documentos
+     * viejos. El orden importa SOLO para desempatar cuando el BCRA da 404 en
+     * todos: ahi el primero de la lista es el que se muestra. */
     for (const p of ['20', '27', '23', '24', '33']) {
       const d8 = String(dni).padStart(8, '0');
       const v = dvCuil(p + d8);
@@ -740,11 +743,30 @@ async function armarScoring(dni, completo) {
       const r = await consultarBcra(p);
       cuitsProbados.push(p);
       if (r && r.estado === 'DISPONIBLE') {
-        cuitProbado = p !== String(a.cuit || '').replace(/\D/g, '');
+        cuitProbado = true; cuilFuente = 'BCRA';
         cuit = p;
         bcraProbado = r;
         break;
       }
+    }
+    /* RENAPER da el CUIL EXACTO (dato observado, no derivado). Se consulta
+     * DESPUES del BCRA para no gastar una llamada cuando ya lo confirmamos, y
+     * sirve para el caso en que el BCRA no lo reconoce: ahi distingue "el CUIL
+     * es este y no tiene deuda" de "no se cual es su CUIL". */
+    if (!bcraProbado && cands.length) {
+      try {
+        const rCuil = await argos.cuilDeRenaper(dni);
+        if (rCuil) {
+          cuit = rCuil; cuitProbado = true; cuilFuente = 'RENAPER';
+          /* Si RENAPER da un CUIL que todavia no habiamos probado, se prueba:
+           * puede ser justo el que el BCRA reconoce y destrabar el scoring. */
+          if (!cuitsProbados.includes(rCuil)) {
+            const rb = await consultarBcra(rCuil);
+            cuitsProbados.push(rCuil);
+            if (rb && rb.estado === 'DISPONIBLE') { bcraProbado = rb; cuilFuente = 'BCRA'; }
+          }
+        }
+      } catch (_) {}
     }
     /* Se encola el informe NOSIS aunque el BCRA ya lo tenga: sirve para el
      * bloque laboral/impositivo y para el respaldo. No bloquea (tarda ~45s). */
@@ -757,7 +779,14 @@ async function armarScoring(dni, completo) {
     L.push('=== IDENTIDAD (ARGOS) ===');
     L.push(F('NOMBRE', a.nombreCompleto));
     L.push(F('DNI', a.dni || dni));
-    L.push(F('CUIL', cuit ? cuit.replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3') + (cuitProbado ? ' (derivado del DNI, confirmado por BCRA)' : '') : null));
+    /* El CUIL solo se afirma cuando una fuente lo confirma (BCRA o RENAPER).
+     * Si no, se marca como PRESUNTO: con 5 prefijos matematicamente validos y
+     * el BCRA mudo en los 5, mostrarlo pelado hacia creer que era un dato. */
+    const cuilTxt = cuit ? cuit.replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3') : null;
+    const etiquetaCuil = cuilFuente === 'BCRA' ? ' (confirmado por BCRA)'
+      : cuilFuente === 'RENAPER' ? ' (confirmado por RENAPER)'
+      : ' (PRESUNTO, sin confirmar)';
+    L.push(F('CUIL', cuilTxt ? cuilTxt + etiquetaCuil : null));
     L.push(F('SEXO', a.sexo));
     L.push(F('NACIMIENTO', a.fechaNac));
     L.push(F('DOMICILIO', a.direccion));
@@ -838,8 +867,8 @@ async function armarScoring(dni, completo) {
          * se veia en el veredicto de arriba. */
         if (b.estado === 'SIN_DATOS') L.push(F('BCRA', 'no figura en la Central de Deudores (sin historial)'));
       } else if (b.estado === 'SIN_DATOS') {
-        L.push(F('SITUACION', '\u{1F7E9} SIN HISTORIAL - la persona no figura en la Central de Deudores del BCRA (se probaron ' + cuitsProbados.length + ' variantes de CUIL). Nunca tomo deuda bancaria, o no la tomo desde hace mucho.'));
-        L.push(F('NOSIS', 'informe en preparacion (~45s), volve a consultar en un rato'));
+        L.push(F('SITUACION', '\u{1F7E9} SIN HISTORIAL - la persona no figura en la Central de Deudores del BCRA (se probaron ' + cuitsProbados.length + ' variantes de CUIL). Nunca tomo deuda bancaria, o no la tomo desde hace mucho.'
+          + (cuilFuente ? '' : '  OJO: no pudimos confirmar su CUIL con ninguna fuente, se probaron variantes derivadas del DNI.')));        L.push(F('NOSIS', 'informe en preparacion (~45s), volve a consultar en un rato'));
       } else {
         L.push(F('SITUACION', '\u{2B1C} NO DISPONIBLE (' + b.detalle + ')'));
         L.push(F('NOSIS', 'informe en preparacion (~45s), volve a consultar en un rato'));

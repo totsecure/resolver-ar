@@ -49,6 +49,29 @@ del trabajo hecho sobre `/scoring`, el respaldo NOSIS y los límites anti-spam.
   429 espera 1.5s. Antes una rafaga de comandos se comia el rate-limit.
 - **Etiquetar siempre `(NOSIS)`**: `Sin deudas encontradas` de NOSIS NO es una
   afirmación oficial del BCRA.
+- **ARGOS sirve RENAPER de forma INTERMITENTE.** Medido con `41250188`: 9 de
+  11 llamadas seguidas a `/api/v1/renaper/<dni>` dan **404** y las otras 2 dan
+  **200 con el cuil**, sin patrón; al rato se invierte. O sea que **el 404 de
+  RENAPER no significa "no está"**: significa "esta vez no lo sirvió". Con un
+  solo intento, el informe marcaba el CUIL como PRESUNTO y hasta daba por
+  inexistente a gente que sí tiene datos (`37354048`, `41649704`, `42850893` y
+  `40407094` fallaban casi siempre y hoy resuelven todos). Fix: `cuilDeRenaper`
+  reintenta 4 veces con espera creciente (~12s) **y cachea el cuil en la tabla
+  `argos`** bajo la clave `r:<dni>` (no la pelada, que es del gordo). Una vez
+  que aparece, sale de caché en milisegundos y deja de depender de la suerte.
+  Las rachas de 404 duran varios segundos: reintentar muy junto cae entero
+  adentro de la misma racha y no sirve.
+- **La tabla `argos` tiene PK solo en `dni`.** Guardar un registro de RENAPER
+  con el dni pelado **PISA el del gordo** y ensucia el cache de `datosDeDni`,
+  que filtra por `fuente`. Por eso el cuil de RENAPER se cachea con el prefijo
+  `r:` y se lee por endpoint directo, sin pasar por `datos()`.
+- **El CUIL derivado por prefijo hay que marcarlo como PRESUNTO hasta que una
+  fuente lo confirme.** Con 5 prefijos matemáticamente válidos y el BCRA mudo
+  en los 5, mostrarlo pelado hacía creer que era un dato. Ahora la línea dice
+  `(confirmado por BCRA)`, `(confirmado por RENAPER)` o `(PRESUNTO, sin
+  confirmar)`. Dato duro: en los 19 DNIs del grupo, **cada CUIL que RENAPER
+  confirmó coincidió exacto con la derivación** — la matemática nunca estuvo
+  mal, lo que faltaba era con qué probarla.
 
 ## Límites anti-spam
 
