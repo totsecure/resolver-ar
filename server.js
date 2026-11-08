@@ -45,10 +45,13 @@ import {
 
 const ejecutar = promisify(execFile);
 const RAIZ = import.meta.dirname;
+/* En el VPS /opt/resolver no es un repo git: sin esto cada llamada a /health
+ * escupia "fatal: not a git repository" a stderr y llenaba server.log. */
+const GIT_OPTS = { cwd: RAIZ, stdio: ['ignore', 'pipe', 'ignore'] };
 let COMMIT = '';
-try { COMMIT = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: RAIZ }).toString().trim(); } catch (_) {}
+try { COMMIT = execFileSync('git', ['rev-parse', '--short', 'HEAD'], GIT_OPTS).toString().trim(); } catch (_) {}
 function sucio() {
-  try { return execFileSync('git', ['status', '--porcelain'], { cwd: RAIZ }).toString().trim() !== ''; }
+  try { return execFileSync('git', ['status', '--porcelain'], GIT_OPTS).toString().trim() !== ''; }
   catch (_) { return null; }
 }
 
