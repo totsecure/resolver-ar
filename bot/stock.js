@@ -572,6 +572,33 @@ async function cmdCompleto(chat, args) {
   await enviarPre(chat, t);
 }
 
+/* El informe NOSIS crudo, en PDF. Si no esta cacheado (~45s la primera vez)
+ * se encola y se avisa, en vez de dejar al usuario esperando a ciegas. */
+async function cmdPdf(chat, args) {
+  const dni = String(args[0] || '').replace(/\D/g, '');
+  if (dni.length < 7) { await enviar(chat, 'Uso: /pdf 30756789'); return; }
+  const r = await pedirTelegram(baseUrl() + '/informe-pdf/' + dni + '?token=' + encodeURIComponent(process.env.RESOLVER_TOKEN || ''));
+  const ct = r.headers.get('content-type') || '';
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (!ct.includes('pdf')) {
+    let j = {};
+    try { j = JSON.parse(buf.toString()); } catch (_) {}
+    if (j.estado === 'preparando') {
+      await enviar(chat, 'El informe se esta preparando (~45s). Proba de nuevo en un rato.');
+      return;
+    }
+    throw new Error('informe-pdf ' + r.status + ' ' + buf.toString().slice(0, 120));
+  }
+  const nombre = decodeURIComponent(r.headers.get('x-nombre') || dni);
+  const form = new FormData();
+  form.append('chat_id', String(chat));
+  form.append('caption', nombre + ' - DNI ' + dni);
+  form.append('document', new Blob([buf], { type: 'application/pdf' }), 'informe ' + dni + '.pdf');
+  const rr = await pedirTelegram('https://api.telegram.org/bot' + process.env.TELEGRAM_TOKEN + '/sendDocument', { method: 'POST', body: form });
+  const jj = await rr.json().catch(() => null);
+  if (!rr.ok || !jj || !jj.ok) throw new Error('sendDocument ' + (jj?.description || rr.status));
+}
+
 async function cmdFamilia(chat, args) {
   const dni = String(args[0] || '').replace(/\D/g, '');
   if (dni.length < 7) { await enviar(chat, 'Uso: /familia 30756789'); return; }
@@ -659,7 +686,7 @@ async function conNosis(fn) {
   try { return await fn(); } finally { nosisBotOcupado = false; }
 }
 
-export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'dame', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'scoring', 'completo', 'todo', 'fiscal', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'estado', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
+export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'dame', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'scoring', 'completo', 'pdf', 'todo', 'fiscal', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'estado', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
 
 /* === atajos === */
 export const ALIAS = {
@@ -772,6 +799,7 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'info') await cmdInfo(chatId, args);
     else if (c === 'scoring') await cmdScoring(chatId, args);
     else if (c === 'completo') await cmdCompleto(chatId, args);
+    else if (c === 'pdf') await cmdPdf(chatId, args);
     else if (c === 'nosis') await conNosis(() => cmdNosis(chatId, args));
     else if (c === 'familia') await cmdFamilia(chatId, args);
     else if (c === 'ar') await cmdAr(chatId, args);

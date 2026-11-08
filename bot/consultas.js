@@ -16,13 +16,14 @@ const RUTA_LOG = path.join(RAIZ, 'datos', 'consultas.log');
 const COMANDOS = new Set([
   'randomargos', 'random', 'info', 'cuit', 'ar', 'familia', 'domicilios',
   'fallecido', 'nosis', 'local', 'renaper', 'argos', 'estado', 'prewarm',
-  'scoring', 'todo', 'fisc', 'fiscal', 'completo', 'score', 'bcra', 'situacion',
+  'scoring', 'todo', 'fisc', 'fiscal', 'completo', 'score', 'bcra', 'situacion', 'pdf',
 ]);
 
 const AYUDA = [
   '<b>Consultas</b> (padron)',
   '/scoring &lt;dni&gt; - scoring BCRA + situacion fiscal (corto)',
   '/completo &lt;dni&gt; - identidad + familia + scoring + fiscal',
+  '/pdf &lt;dni&gt; - informe NOSIS completo (archivo)',
   '/info &lt;dni&gt; - datos del padron',
   '/cuit &lt;dni|cuit&gt; - CUIL',
   '/renaper &lt;dni&gt; - datos del renaper',

@@ -844,6 +844,24 @@ async function armarScoring(dni, completo) {
   return L.join('\n');
 }
 
+/* GET /informe-pdf/:dni -> el PDF crudo del informe NOSIS, si esta cacheado.
+   Devuelve JSON {estado:'listo'|'preparando', nombre} para que el bot sepa
+   decir algo util en vez de un 404 mudo. */
+app.get('/informe-pdf/:dni', soloLectura, async (q, s) => {
+  const dni = String(q.params.dni || '').replace(/\D/g, '');
+  if (dni.length < 7) return s.status(400).json({ error: 'DNI invalido' });
+  const pdf = informe.pdfDeDni(dni);
+  if (!pdf) {
+    informe.precalentar(dni);
+    const inf = informe.informeDeDni(dni);
+    return s.json({ estado: 'preparando', nombre: inf ? inf.nombre : null });
+  }
+  const inf = informe.informeDeDni(dni);
+  s.type('application/pdf');
+  s.set('X-Nombre', encodeURIComponent(inf ? inf.nombre : dni));
+  s.send(pdf);
+});
+
 app.get('/scoring/:dni', soloLectura, async (q, s) => {
   try {
     const dni = String(q.params.dni || '').replace(/\D/g, '');
