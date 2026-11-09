@@ -88,15 +88,16 @@ function guardarOffset(n) {
 }
 
 /* --- Limites anti-spam -------------------------------------------------
- * El bot vive en un grupo: sin esto, alguien escribiendo rapido lo satura
- * (el scoring tarda 2-15s y el informe ~1 min). Dos capas:
+ * El bot vive en un grupo: sin esto, alguien escribiendo rapido lo satura.
+ * Dos capas:
  *   1) cooldown por usuario: un mensaje cada COOLDOWN_MS.
  *   2) tope de comandos en vuelo: si el server esta ocupado, no se encolan 50.
- * El aviso de cooldown se manda una sola vez por racha para no spamear. */
-/* 2.5s: el scoring ahora responde en ~200ms (antes 25s), asi que 4s era
- * demasiado y frenaba a alguien tipeando dos DNIs seguidos. El tope de en
- * vuelo sigue cubriendo la rafaga real. */
-const COOLDOWN_MS = Number(process.env.LIMITE_COOLDOWN_MS || 2500);
+ *
+ * El cooldown es CORTO a proposito: el scoring ahora responde en ~200ms, asi
+ * que no hace falta esperar segundos entre dos DNIs. Ademas el aviso es la
+ * unica senal de que el bot existe y esta vivo, y un "Espera un toque" por
+ * cada mensaje llena el grupo de ruido. Con 1.2s el uso normal no lo toca. */
+const COOLDOWN_MS = Number(process.env.LIMITE_COOLDOWN_MS || 1200);
 const EN_VUELO_MAX = Number(process.env.LIMITE_EN_VUELO || 4);
 
 let enVuelo = 0;
@@ -115,11 +116,12 @@ function frenar(msg) {
   if (falta > 0) {
     /* Una rafaga de 10 mensajes manda UN aviso, no 10: solo avisa si venia
      * de estar quieto (el mensaje anterior fue hace mas de 1.2s). */
-    const avisar = ahora - ult > 1200;
-    /* OJO: NO se re-escribe ultimoDe aca. Si se re-escribiera, alguien que
-     * tipea un DNI cada 3.5s (menos que el cooldown de 4s) correria la marca
-     * hacia adelante en cada mensaje y quedaria frenado PARA SIEMPRE. */
-    return avisar ? 'Espera un toque (' + (falta / 1000).toFixed(1) + 's)' : '';
+    /* Avisa solo si el que escribe viene de estar quieto: en una rafaga
+     * seguida ya vio el aviso y repetirlo es ruido. NO se re-escribe
+     * ultimoDe aca: si se re-escribiera, quien tipea mas rapido que el
+     * cooldown correria la marca en cada mensaje y quedaria frenado SIEMPRE. */
+    const avisar = ahora - ult > 1000;
+    return avisar ? 'Espera ' + (falta / 1000).toFixed(1) + 's' : '';
   }
   ultimoDe.set(uid, ahora);
   if (enVuelo >= EN_VUELO_MAX) return 'Estoy ocupado, proba en unos segundos';
