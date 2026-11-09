@@ -15,7 +15,7 @@ import * as informe from './lib/argos-informe.js';
 import * as gordo from './lib/gordo.js';
 import * as persona from './lib/persona.js';
 import { renderizar } from './lib/informe.js';
-import { consultarBcra } from './lib/fuentes.js';
+import { consultarBcra, bcraCaido } from './lib/fuentes.js';
 import { dv as dvCuil } from './lib/validar.js';
 import { fichaDetalle } from './lib/ficha.js';
 import { calcular as calcularCobertura } from './lib/cobertura.js';
@@ -705,7 +705,10 @@ const normN = (x) => String(x || '').toUpperCase().normalize('NFD').replace(/[\u
 
 async function armarScoring(dni, completo) {
   const F = (k, v) => k.padEnd(13) + (v == null || v === '' ? 'NO INFORMADO' : v);
-  const a = await persona.argosDe(dni, { forzar: true });
+  /* SIN forzar: con forzar se ignora el cache y se ESPERA el refresco contra
+   * ARGOS, que tarda ~25s. El cache tiene TTL de 30 dias y cuando esta viejo
+   * datosDeDni devuelve lo viejo al toque y refresca en background. */
+  const a = await persona.argosDe(dni, {});
   let cuit = String(a.cuit || '').replace(/\D/g, '');
   const L = [];
   /* El BCRA toma CUIL, no DNI. El CUIL que trae ARGOS no siempre es el que el
@@ -748,6 +751,9 @@ async function armarScoring(dni, completo) {
         bcraProbado = r;
         break;
       }
+      /* Con el BCRA caido, probar los 5 prefijos es tirar 5 veces el mismo
+       * error: ninguno va a dar DISPONIBLE. RENAPER da el CUIL exacto igual. */
+      if (bcraCaido()) break;
     }
     /* RENAPER da el CUIL EXACTO (dato observado, no derivado). Se consulta
      * DESPUES del BCRA para no gastar una llamada cuando ya lo confirmamos, y

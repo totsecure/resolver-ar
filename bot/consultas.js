@@ -93,7 +93,10 @@ function guardarOffset(n) {
  *   1) cooldown por usuario: un mensaje cada COOLDOWN_MS.
  *   2) tope de comandos en vuelo: si el server esta ocupado, no se encolan 50.
  * El aviso de cooldown se manda una sola vez por racha para no spamear. */
-const COOLDOWN_MS = Number(process.env.LIMITE_COOLDOWN_MS || 4000);
+/* 2.5s: el scoring ahora responde en ~200ms (antes 25s), asi que 4s era
+ * demasiado y frenaba a alguien tipeando dos DNIs seguidos. El tope de en
+ * vuelo sigue cubriendo la rafaga real. */
+const COOLDOWN_MS = Number(process.env.LIMITE_COOLDOWN_MS || 2500);
 const EN_VUELO_MAX = Number(process.env.LIMITE_EN_VUELO || 4);
 
 let enVuelo = 0;
@@ -113,7 +116,9 @@ function frenar(msg) {
     /* Una rafaga de 10 mensajes manda UN aviso, no 10: solo avisa si venia
      * de estar quieto (el mensaje anterior fue hace mas de 1.2s). */
     const avisar = ahora - ult > 1200;
-    ultimoDe.set(uid, ahora);
+    /* OJO: NO se re-escribe ultimoDe aca. Si se re-escribiera, alguien que
+     * tipea un DNI cada 3.5s (menos que el cooldown de 4s) correria la marca
+     * hacia adelante en cada mensaje y quedaria frenado PARA SIEMPRE. */
     return avisar ? 'Espera un toque (' + (falta / 1000).toFixed(1) + 's)' : '';
   }
   ultimoDe.set(uid, ahora);
