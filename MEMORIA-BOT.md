@@ -64,6 +64,15 @@ del trabajo hecho sobre `/scoring`, el respaldo NOSIS y los límites anti-spam.
   429 espera 1.5s. Antes una rafaga de comandos se comia el rate-limit.
 - **Etiquetar siempre `(NOSIS)`**: `Sin deudas encontradas` de NOSIS NO es una
   afirmación oficial del BCRA.
+- **El anti-spam tenia DOS problemas, no uno.** El segundo: el cooldown de 2.5s
+  frenaba el uso real. Medido del log del grupo: la gente escribe un DNI cada
+  ~2.2s, o sea que pasaba por el cooldown CADA mensaje y recibia un aviso por
+  cada uno (captura real: 17 "Espera un toque" apilados en un minuto). El
+  cooldown ahora es 1.2s y el aviso sale solo si el que escribe venia de estar
+  quieto (>1s). Resultado medido con el patron real: antes 10 pasan / 10
+  avisos, ahora 20 pasan / 0 avisos. En rafaga pegada (400ms) tampoco avisa.
+  Regla: el aviso de cooldown es la unica senal de vida del bot, asi que a
+  menos que el usuario este spameando de verdad, mejor no decir nada.
 - **El anti-spam tenia un riel que no soltaba.** `frenar()` re-escribia
   `ultimoDe` TAMBIEN en el camino frenado, asi que la marca se corria hacia
   adelante en cada mensaje: quien tipeaba un DNI cada 3.5s (menos que el
