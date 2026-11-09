@@ -28,11 +28,26 @@ del trabajo hecho sobre `/scoring`, el respaldo NOSIS y los límites anti-spam.
 
 ## Trampas que costaron tiempo
 
-- **`ARGOS_BASE` apuntaba a `127.0.0.1:5100`**, un túnel ya eliminado. Todo
+- **`forzar: true` en `armarScoring` era un ancla de 25s.** `datosDeDni` con
+  `forzar` IGNORA el cache y **espera** el refresco contra ARGOS. Cada
+  `/scoring` pagaba 25s aunque el dato estuviera cacheado hacia 30 dias. La
+  medicion que lo aisla: `/persona` 14ms vs `/scoring` 24532ms. Sacar el
+  `forzar` dejo `/scoring` en 10ms con cache y el refresco pasa a background.
+  Regla: si el cache es fresco, no forzar; el TTL ya decide.
+- **El servicio "gordo" (`GORDO_BASE`, puerto 5000) esta MUERTO** y cuelga 25s
+  por intento, x2 = 50s. Como es el PRIMER paso de `refrescar`, cada DNI nuevo
+  pagaba ese timeout entero. Circuit breaker de 10 min en `lib/gordo.js`:
+  33s -> 2-3s. Los DNIs nuevos ya no se pagan los 50s.
+- **ARGOS_BASE apuntaba a `127.0.0.1:5100`**, un túnel ya eliminado. Todo
   ARGOS daba `fetch failed`. Debe ser la IP.
 - **`console.error` no llega a `datos/server.log`**: `resolver.service` tiene
   `StandardError=inherit` (va a journal) y `StandardOutput=append:server.log`.
   Para depurar usar `console.log`.
+- **El BCRA tira `503 en mantenimiento` por horas.** Con el loop probando los 5
+  CUILs candidatos y cada uno reintentando 3 veces, eran ~15 llamadas con
+  backoff por consulta. Ahora hay circuit breaker (10 min) y el loop corta al
+  primer intento. Ojo: el `503` NO es un error del pedido, es el servicio
+  entero; reintentar tiene sentido UNA vez, no en cada DNI.
 - **ARGOS hace 429 con concurrencia**: el informe NOSIS necesita una cola
   secuencial (`enFila`). Nunca ponerlo en el camino sincrónico de `/scoring`.
 - **Un DNI que NOSIS no resuelve (504 a los 180s) congelaba la cola entera.**
@@ -49,6 +64,13 @@ del trabajo hecho sobre `/scoring`, el respaldo NOSIS y los límites anti-spam.
   429 espera 1.5s. Antes una rafaga de comandos se comia el rate-limit.
 - **Etiquetar siempre `(NOSIS)`**: `Sin deudas encontradas` de NOSIS NO es una
   afirmación oficial del BCRA.
+- **El anti-spam tenia un riel que no soltaba.** `frenar()` re-escribia
+  `ultimoDe` TAMBIEN en el camino frenado, asi que la marca se corria hacia
+  adelante en cada mensaje: quien tipeaba un DNI cada 3.5s (menos que el
+  cooldown de 4s) quedaba frenado PARA SIEMPRE y veia "Espera un toque" o nada.
+  Ahora solo se marca cuando el mensaje PASA. Reproducible con un simulador de
+  6 lineas (esta en el historial): intervalos de 3.5s daban FRENADO en las 5
+  iteraciones.
 - **ARGOS sirve RENAPER de forma INTERMITENTE.** Medido con `41250188`: 9 de
   11 llamadas seguidas a `/api/v1/renaper/<dni>` dan **404** y las otras 2 dan
   **200 con el cuil**, sin patrón; al rato se invierte. O sea que **el 404 de
