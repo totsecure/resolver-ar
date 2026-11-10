@@ -143,3 +143,33 @@ ssh pl2 'tail -2 /opt/resolver/datos/consultas.log'   # latido cada 30s
 ```
 
 Un solo proceso por servicio: dos bots con el mismo token = loop de 409.
+
+## 2026-11-10 — Por que /scoring de un DNI nuevo tardaba 10-20s (4 costos apilados)
+
+Sintoma reportado por Dark: "se rompio el scoring". No estaba roto, estaba lento.
+Todos los culpables eran de fondo y ninguno era el scoring en si:
+
+1. **NOSIS en el camino sincrono**: `nosis.datosDeDni(dni,{red:true,timeoutMs:8000})`
+   sobre un `consultar()` que reintenta 2 veces = 16-20s solo para sacar el CUIL.
+   Fix: tope `SCORING_NOSIS_TOPE_MS` (4s). RENAPER da el CUIL exacto en ~2s.
+2. **BCRA reintentando un 503 de mantenimiento**: 3 intentos con backoff = ~4s por
+   DNI para el mismo error. Fix: corta en el primer intento y marca castigo.
+3. **Castigo del BCRA de 10 minutos**: cada 10 min un DNI nuevo volvia a pagar.
+   Fix: 6hs (`BCRA_CASTIGO_MIN`).
+4. **Race en la lectura del informe**: `informeDeDni()` es sync y lee disco, pero
+   se lo llamaba justo despues de `precalentar()`, que dispara y NO espera. La
+   lectura caia antes del guardado => SIEMPRE gris. Fix: `informeFresco()` con
+   tope, contado desde el arranque de `armarScoring` (no desde la rama).
+
+Ademas:
+- El informe se encola en la PRIMERA linea de `armarScoring` (antes: al final,
+  o sea arrancaba despues de ~3.5s de trabajo previo).
+- **El gordo se apaga con `GORDO_APAGADO=1`**: hacia pagar 11-13s por DNI nuevo
+  (puerto filtrado, no rechazado) y su castigo vivia en memoria del proceso, asi
+  que un restart lo borraba. Sus campos los trae RENAPER. Los ~3100 registros
+  cacheados siguen sirviendo porque el cache se lee ANTES de refrescar.
+
+**Numeros**: DNI nuevo 12s -> 6s (1er hit), 12ms el 2do. Cacheado 10-13ms.
+**Trampa de la cola**: `lib/argos-informe.js` `enFila()` es una cola GLOBAL
+secuencial (un informe a la vez) y `refrescar` esta protegido por `ENVUELTOS`.
+El informe NOSIS tarda 45-90s, asi que un tope alto NO lo consigue igual.
