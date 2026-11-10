@@ -699,12 +699,29 @@ const esperadoDeNosis = (v) => {
   if (/sin deudas|no registramos deudas|normal/i.test(t)) return 1;
   return null;
 };
+/* Cuanto espera /scoring al informe NOSIS antes de rendirse. El informe tarda
+ * ~45s, asi que un tope alto NO lo consigue igual: solo hace esperar mas al
+ * usuario para comerse el mismo gris. 6s es el punto donde ya se cobro todo lo
+ * que se podia cobrar: ARGOS (~2s) y NOSIS-CUIL (~1-4s) ya corrieron, y el
+ * informe que este en cola desde antes (por /informe o por otra consulta) ya
+ * tuvo tiempo de llegar. */
+const TOPE_INFORME_MS = Number(process.env.SCORING_TOPE_INFORME_MS || 6000);
+/* Tope para NOSIS dentro de /scoring (ver armarScoring). */
+const NOSIS_TOPE_MS = Number(process.env.SCORING_NOSIS_TOPE_MS || 4000);
 const semaforoTxt = (v) => { const n = esperadoDeNosis(v); return n == null ? '\u{2B1C}' : semaforo(n); };
 const SI_NO = (v) => (String(v || '').trim().toUpperCase() === 'S' ? 'SI' : String(v || '').trim().toUpperCase() === 'N' ? 'NO' : (v || 'NO INFORMADO'));
 const normN = (x) => String(x || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
 
 async function armarScoring(dni, completo) {
   const F = (k, v) => k.padEnd(13) + (v == null || v === '' ? 'NO INFORMADO' : v);
+  /* El informe NOSIS se ENCOLA ACA, lo primero de todo, para que corra en
+   * paralelo mientras resolvemos ARGOS/NOSIS/BCRA. Antes se encolaba al final:
+   * el informe arrancaba recien despues de ~3.5s de trabajo previo y encima el
+   * ultimo tramo lo esperaba el usuario, asi que el tope SIEMPRE se agotaba y
+   * se caia al gris teniendo el informe casi listo. Encolado temprano, cuando
+   * llegamos a la rama del veredicto ya lleva varios segundos de ventaja. */
+  const arranque = Date.now();
+  informe.precalentar(dni);
   /* SIN forzar: con forzar se ignora el cache y se ESPERA el refresco contra
    * ARGOS, que tarda ~25s. El cache tiene TTL de 30 dias y cuando esta viejo
    * datosDeDni devuelve lo viejo al toque y refresca en background. */
@@ -723,12 +740,20 @@ async function armarScoring(dni, completo) {
   const cuitsProbados = [];
   if (/^\d{7,8}$/.test(String(dni))) {
     const cands = [];
-    /* NOSIS es la fuente publica mas confiable de CUIL: su buscador devuelve
-     * el CUIL real por DNI y cubre gente que ARGOS no tiene. Va PRIMERO, antes
-     * que ARGOS y que cualquier prefijo derivado, porque es un dato observado
-     * y no una conjetura. No necesita login. */
+    /* NOSIS devuelve el CUIL real (dato observado, no conjetura), pero esta
+     * LENTO: consultar() reintenta 2 veces y con timeoutMs 8000 son 16-20s
+     * SOLO en este paso, medido. Por eso ahora se lo consulta con un tope
+     * corto (NOSIS_TOPE_MS) y, si no contesta, se sigue sin el: el CUIL propio
+     * de ARGOS (RENAPER, ~2s) y los prefijos derivados cubren el caso, y el
+     * BCRA es el que termina desempatando igual. */
     let eNosis = null;
-    try { eNosis = await nosis.datosDeDni(dni, { red: true, timeoutMs: 8000 }); } catch (_) { eNosis = null; }
+    try {
+      const tope = new Promise((r) => setTimeout(() => r(null), NOSIS_TOPE_MS));
+      eNosis = await Promise.race([
+        nosis.datosDeDni(dni, { red: true, timeoutMs: NOSIS_TOPE_MS }).catch(() => null),
+        tope,
+      ]);
+    } catch (_) { eNosis = null; }
     if (eNosis && eNosis.cuit) cands.push(String(eNosis.cuit).replace(/\D/g, ''));
     if (cuit) cands.push(cuit);
     /* Prefijos validos de CUIL. 20/27 son los mas comunes (20 masculino, 27
@@ -854,8 +879,27 @@ async function armarScoring(dni, completo) {
        * sirve el informe NOSIS, que cubre esos casos con el dato REAL de NOSIS
        * (no una conjetura). Tarda ~45s, asi que solo esta cacheado: si no esta,
        * se encola, se advierte y se cae al mensaje gris de siempre. */
+      /* informeDeDni() es SYNC y solo lee disco: si el informe todavia no
+       * existe devuelve null al toque. El bug era precalentar() (que dispara y
+       * NO espera) y acto seguido volver a leer el disco: la lectura ocurria
+       * antes de que el informe estuviera escrito, asi que SIEMPRE caia al
+       * gris. informeFresco() SI espera, y refrescar() esta protegido por
+       * ENVUELTOS (una sola corrida por DNI), asi que esperar no duplica nada. */
       let inf = informe.informeDeDni(dni);
-      if (!inf) { informe.precalentar(dni); inf = informe.informeDeDni(dni); }
+      if (!inf) {
+        /* Esperar el informe ENTERO es inviable: NOSIS tarda ~48s y el
+         * reintento puede estirarlo a 380s. Pero el caso comun (informe ya en
+         * cola o NOSIS rapido) resuelve en pocos segundos. Asi que se espera
+         * con tope y, si no llega, se sigue con el gris: el pedido ya quedo
+         * encolado y la proxima consulta lo encuentra listo. */
+        /* El tope se cuenta desde que arranco armarScoring, no desde aca: si
+         * lo contasemos desde aca se SUMARIA a los segundos ya gastados en
+         * ARGOS/NOSIS/BCRA. Y no se espera el informe entero (tarda 56-90s)
+         * porque el usuario esta mirando la pantalla. */
+        const restante = Math.max(0, TOPE_INFORME_MS - (Date.now() - arranque));
+        const tope = new Promise((r) => setTimeout(() => r(null), restante));
+        inf = await Promise.race([informe.informeFresco(dni).catch(() => null), tope]);
+      }
       if (inf && inf.situacionBcra) {
         /* El informe trae la situacion igual que el BCRA ("5", "Sin deudas..."),
          * asi que se le pone la misma descripcion que a la respuesta oficial. */
