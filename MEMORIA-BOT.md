@@ -64,6 +64,15 @@ del trabajo hecho sobre `/scoring`, el respaldo NOSIS y los límites anti-spam.
   429 espera 1.5s. Antes una rafaga de comandos se comia el rate-limit.
 - **Etiquetar siempre `(NOSIS)`**: `Sin deudas encontradas` de NOSIS NO es una
   afirmación oficial del BCRA.
+- **El gordo muerto tambien cobraba cada 10 minutos.** El castigo de 10 min
+  expiraba y volvia a pagar el timeout entero: medido en el grupo, 3 consultas
+  reales clavaron 25.2s cada una. El puerto 5000 NO rechaza la conexion, la
+  filtra: un connect cuelga 20s (medido con curl --max-time 20 y con
+  --connect-timeout 3, que corta en 3s). O sea que bajar el timeout del codigo
+  es la unica defensa, no alcanza con "fallar rapido" del sistema. Castigo
+  ahora 6 HORAS (GORDO_CASTIGO_MIN) y timeout 5s (GORDO_TIMEOUT_MS). Primer DNI
+  nuevo: 60s -> 16.6s; los siguientes 1.8s. Si el gordo revive, el castigo se
+  saltea con GORDO_CASTIGO_MIN=0.
 - **El anti-spam tenia DOS problemas, no uno.** El segundo: el cooldown de 2.5s
   frenaba el uso real. Medido del log del grupo: la gente escribe un DNI cada
   ~2.2s, o sea que pasaba por el cooldown CADA mensaje y recibia un aviso por
