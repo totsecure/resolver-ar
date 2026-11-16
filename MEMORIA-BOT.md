@@ -173,3 +173,35 @@ Ademas:
 **Trampa de la cola**: `lib/argos-informe.js` `enFila()` es una cola GLOBAL
 secuencial (un informe a la vez) y `refrescar` esta protegido por `ENVUELTOS`.
 El informe NOSIS tarda 45-90s, asi que un tope alto NO lo consigue igual.
+
+## 2026-11-16 — El BCRA no se consultaba cuando ARGOS estaba caido
+
+**ARGOS nos bloqueo por abuso**: `{"error":"Timeout progresivo activo (Nivel 8).
+Reintente en 2h 48m.","ok":false}` — para TODOS los DNIs, y NOSIS tambien (mismo
+servidor). El sindicato de fuentes se cayo entero.
+
+El bug real no fue la caida sino el fallback: la consulta al BCRA estaba atada a
+`a.nombreCompleto && cuit`, y sin ARGOS no habia nombre NI cuil, asi que **el
+BCRA nunca se consultaba** y todo caia a `SIN CHEQUEAR (BCRA no respondio)`
+mientras el BCRA estaba 200 en 1s. Prueba: el CUIL derivado `20-45529029-6`
+existia en el BCRA y devolvia `FERNANDEZ RODRIGO EXEQUIEL` con situacion 5. El
+bot respondia `NO USABLE` recien a los 44s, con el dato a un curl.
+
+**Reglas duras**:
+- El BCRA se consulta **por CUIL y sin exigir nombre**: contesta por CUIL y
+  ademas DEVUELVE `results.denominacion`, o sea que cubre el caso ARGOS vacio.
+  Se consulta ANTES de imprimir identidad para poder mostrar esa denominacion.
+- Un 404 del BCRA (`SIN_DATOS`) **tambien es una respuesta**, no una ausencia:
+  se guarda. Descartarlo hacia mentir el texto (`BCRA no consultado` cuando se
+  consulto 5 veces) y caia a gris en vez de `EN REGLA (sin historial)`.
+- `argosDe()` se espera con tope (`SCORING_TOPE_ARGOS_MS`, 4s).
+- `argos.js` **propaga** el mensaje del server en vez de decir "respuesta
+  invalida", y saltea `local` cuando RENAPER ya aviso del bloqueo (mismo
+  servidor, mismo castigo). Esperas de reintento 429: `[5000,15000]` -> `[1000,2000]`;
+  el `pedir` con 3 intentos + timeouts de 30s costaba 43s.
+
+**Numeros**: DNI nuevo 44s -> 5-7s, veredicto de gris falso a real. Cacheados ~10ms.
+
+**Trampa**: `Timeout progresivo` (Nivel 8) es un castigo POR ABUSO, no una caida.
+Cada reintento de mas lo alimenta. Vale la pena revisar la frecuencia de sondeo
+contra ARGOS si vuelve a pasar.
