@@ -705,6 +705,11 @@ const esperadoDeNosis = (v) => {
  * que se podia cobrar: ARGOS (~2s) y NOSIS-CUIL (~1-4s) ya corrieron, y el
  * informe que este en cola desde antes (por /informe o por otra consulta) ya
  * tuvo tiempo de llegar. */
+/* Cuanto se espera a ARGOS antes de seguir sin el. Con ARGOS sano responde en
+ * 1-3s; en rate limit sostenido se clava en ~8s y ahi el BCRA ya alcanza para
+ * el CUIL (se deriva del DNI) y para el veredicto. Si ARGOS no llega, el
+ * refresh queda corriendo igual y la proxima consulta lo encuentra cacheado. */
+const TOPE_ARGOS_MS = Number(process.env.SCORING_TOPE_ARGOS_MS || 4000);
 const TOPE_INFORME_MS = Number(process.env.SCORING_TOPE_INFORME_MS || 6000);
 /* Tope para NOSIS dentro de /scoring (ver armarScoring). */
 const NOSIS_TOPE_MS = Number(process.env.SCORING_NOSIS_TOPE_MS || 4000);
@@ -725,7 +730,14 @@ async function armarScoring(dni, completo) {
   /* SIN forzar: con forzar se ignora el cache y se ESPERA el refresco contra
    * ARGOS, que tarda ~25s. El cache tiene TTL de 30 dias y cuando esta viejo
    * datosDeDni devuelve lo viejo al toque y refresca en background. */
-  const a = await persona.argosDe(dni, {});
+  /* ARGOS puede tardar 25s cuando nos tiene en "Timeout progresivo", y con el
+   * BCRA vivo no hay motivo para que el usuario espere eso: el CUIL se deriva
+   * del DNI y el BCRA contesta por CUIL en ~1s. Se lo espera con tope y, si no
+   * llega, se sigue sin el (el refresh queda corriendo y la proxima consulta
+   * ya lo encuentra cacheado). TOPE_ARGOS_MS es holgado para el caso normal
+   * (RENAPER responde en 1-3s) y corto para el caso bloqueado. */
+  const topeArgos = new Promise((ok) => setTimeout(() => ok(null), TOPE_ARGOS_MS));
+  const a = (await Promise.race([persona.argosDe(dni, {}).catch(() => null), topeArgos])) || {};
   let cuit = String(a.cuit || '').replace(/\D/g, '');
   const L = [];
   /* El BCRA toma CUIL, no DNI. El CUIL que trae ARGOS no siempre es el que el
@@ -776,6 +788,13 @@ async function armarScoring(dni, completo) {
         bcraProbado = r;
         break;
       }
+      /* Un 404 del BCRA ("No se encontró datos") TAMBIEN es una respuesta del
+       * BCRA, no una ausencia: significa que ese CUIL no tiene historial. Antes
+       * se lo descartaba y, si los 5 prefijos daban 404, `b` quedaba null y el
+       * scoring decia "BCRA no consultado" (mentira: se consulto 5 veces) y se
+       * caia a SIN CHEQUEAR en vez del verde "sin historial" que corresponde.
+       * Se guarda el primero; los 5 son el mismo caso. */
+      if (r && r.estado === 'SIN_DATOS' && !bcraProbado) { bcraProbado = r; }
       /* Con el BCRA caido, probar los 5 prefijos es tirar 5 veces el mismo
        * error: ninguno va a dar DISPONIBLE. RENAPER da el CUIL exacto igual. */
       if (bcraCaido()) break;
@@ -804,8 +823,22 @@ async function armarScoring(dni, completo) {
     informe.precalentar(dni);
   }
 
+  /* Consultamos BCRA ANTES de imprimir la identidad para poder dar el veredicto
+   * arriba y, si ARGOS esta mudo, poner la denominacion que devuelve el BCRA.
+   * OJO con la condicion: antes exigia `a.nombreCompleto`, o sea que si ARGOS
+   * no respondia (esta en "Timeout progresivo activo", nos bloquea por abuso)
+   * el BCRA NO se consultaba y todo el scoring se caia a SIN CHEQUEAR aunque
+   * el BCRA estuviera perfectamente vivo. Con el CUIL alcanza y sobra: el BCRA
+   * contesta por CUIL, no por nombre, y ademas DEVUELVE el nombre
+   * (results.denominacion), asi que tambien cubre el caso de ARGOS vacio. */
+  const b = bcraProbado || (cuit ? await consultarBcra(cuit) : null);
+
   if (!a || !a.nombreCompleto) {
-    L.push('DNI ' + dni + ' - ARGOS SIN DATOS (dni inexistente o falla temporal)');
+    /* ARGOS mudo: si el BCRA nos dio la denominacion, la mostramos. Es un dato
+     * OFICIAL del BCRA para ese CUIL, no una conjetura, asi que se puede
+     * afirmar. Sin esto el usuario veia "ARGOS SIN DATOS" con el BCRA
+     * contestando perfectamente. */
+    L.push('DNI ' + dni + (b && b.denominacion ? '  ' + b.denominacion + ' (BCRA)' : ' - ARGOS SIN DATOS (dni inexistente o falla temporal)'));
   } else if (completo) {
     L.push('=== IDENTIDAD (ARGOS) ===');
     L.push(F('NOMBRE', a.nombreCompleto));
@@ -847,7 +880,6 @@ async function armarScoring(dni, completo) {
   }
 
   // Consultamos BCRA antes de imprimir para poder dar el veredicto arriba.
-  const b = bcraProbado || ((a && a.nombreCompleto && cuit) ? await consultarBcra(cuit) : null);
   /* El veredicto NOSIS sirve como respaldo SIEMPRE que el BCRA no haya podido
    * responder (no figura, 503 de mantenimiento, timeout): el informe trae la
    * situacion BCRA real, asi que es mejor que un gris ciego. */
@@ -860,15 +892,19 @@ async function armarScoring(dni, completo) {
      * segun si hay informe cacheado o no. */
     : (b && b.estado === 'SIN_DATOS') ? '\u{1F7E9} EN REGLA (sin historial en el BCRA)'
     : (infT && esperadoDeNosis(infT.situacionBcra) != null) ? veredicto(esperadoDeNosis(infT.situacionBcra))
-    : (!a || !a.nombreCompleto) ? null
-    : '\u{2B1C} SIN CHEQUEAR (BCRA no respondio)';
+    /* Sin el `!a.nombreCompleto` de guarda: si el BCRA contesta, contesta con
+     * o sin ARGOS, y su denominacion alcanza para saber de quien es el DNI. */
+    : cuit ? '\u{2B1C} SIN CHEQUEAR (BCRA no respondio)'
+    : null;
 
   /* El veredicto va aparte (marcador VEREDICTO:) para que el bot lo pueda poner
    * en negrita y con barras de color FUERA del <pre>: adentro no admite HTML. */
   if (ver) L.push('VEREDICTO: ' + ver);
   L.push('', '=== SCORING CREDITICIO (BCRA) ===');
   if (!a || !a.nombreCompleto) {
-    L.push(F('BCRA', 'no consultado'));
+    L.push(F('BCRA', b && b.estado === 'DISPONIBLE' ? ('titular ' + (b.denominacion || '?') + ' - sin nombre en ARGOS')
+      : b && b.estado === 'SIN_DATOS' ? 'consultado en los ' + cuitsProbados.length + ' CUIL posibles: no figura (sin historial)'
+      : b ? b.detalle || b.estado : 'no consultado'));
   } else if (!cuit) {
     /* Ni ARGOS ni ninguna de las variantes de CUIL que probamos existen en el
      * BCRA. No es que "no se consulto": se probaron y no figura. */
