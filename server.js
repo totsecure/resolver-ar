@@ -710,6 +710,9 @@ const esperadoDeNosis = (v) => {
  * el CUIL (se deriva del DNI) y para el veredicto. Si ARGOS no llega, el
  * refresh queda corriendo igual y la proxima consulta lo encuentra cacheado. */
 const TOPE_ARGOS_MS = Number(process.env.SCORING_TOPE_ARGOS_MS || 4000);
+/* NOSIS tarda 45-90s (medido 91s), asi que "~45s" era una mentira util a
+ * medias. Un solo texto para los tres lugares que antes repetian el numero. */
+const ESPERA_NOSIS = 'NOSIS todavia no respondio (tarda 1-2 min). Volve a consultar en un rato.';
 const TOPE_INFORME_MS = Number(process.env.SCORING_TOPE_INFORME_MS || 6000);
 /* Tope para NOSIS dentro de /scoring (ver armarScoring). */
 const NOSIS_TOPE_MS = Number(process.env.SCORING_NOSIS_TOPE_MS || 4000);
@@ -779,6 +782,11 @@ async function armarScoring(dni, completo) {
       const c = p + d8 + v;
       if (!cands.includes(c)) cands.push(c);
     }
+    /* Si ARGOS ya nos dio un CUIL, no es una variante derivada del DNI: es un
+     * dato observado de RENAPER. Se marca como tal para que el aviso de abajo
+     * ("no pudimos confirmar su CUIL") no mienta: ARGOS lo dio en la linea de
+     * arriba y el texto se contradecia solo. */
+    if (cuit && cands[0] === cuit) cuilFuente = 'RENAPER (via ARGOS)';
     for (const p of cands) {
       const r = await consultarBcra(p);
       cuitsProbados.push(p);
@@ -954,10 +962,10 @@ async function armarScoring(dni, completo) {
         if (b.estado === 'SIN_DATOS') L.push(F('BCRA', 'no figura en la Central de Deudores (sin historial)'));
       } else if (b.estado === 'SIN_DATOS') {
         L.push(F('SITUACION', '\u{1F7E9} SIN HISTORIAL - la persona no figura en la Central de Deudores del BCRA (se probaron ' + cuitsProbados.length + ' variantes de CUIL). Nunca tomo deuda bancaria, o no la tomo desde hace mucho.'
-          + (cuilFuente ? '' : '  OJO: no pudimos confirmar su CUIL con ninguna fuente, se probaron variantes derivadas del DNI.')));        L.push(F('NOSIS', 'informe en preparacion (~45s), volve a consultar en un rato'));
+          + (cuilFuente ? '' : '  OJO: no pudimos confirmar su CUIL con ninguna fuente, se probaron variantes derivadas del DNI.')));        L.push(F('NOSIS', ESPERA_NOSIS));
       } else {
         L.push(F('SITUACION', '\u{2B1C} NO DISPONIBLE (' + b.detalle + ')'));
-        L.push(F('NOSIS', 'informe en preparacion (~45s), volve a consultar en un rato'));
+        L.push(F('NOSIS', ESPERA_NOSIS));
       }
     }
     else {
