@@ -21,6 +21,7 @@ const COMANDOS = new Set([
 
 const AYUDA = [
   '<b>Consultas</b> (padron)',
+  '<b>&lt;dni&gt; pelado</b> - lo mismo que /scoring (ej: 30123456)',
   '/scoring &lt;dni&gt; - scoring BCRA + situacion fiscal (corto)',
   '/completo &lt;dni&gt; - identidad + familia + scoring + fiscal',
   '/pdf &lt;dni&gt; - informe NOSIS completo (archivo)',
@@ -136,9 +137,14 @@ export async function atender(msg) {
   const ignorar = filtrarOrigen(msg);
   const enGrupo = Number(chat) < 0;
   const texto = typeof msg.text === 'string' ? msg.text.trim() : '';
-  if (!texto.startsWith('/')) return;
+  /* DNI PELADO: si mandan solo el numero, se asume /scoring. Obligar a escribir
+   * "/scoring 30123456" cuando el 95% de las consultas es eso hacia perder
+   * tiempo y generar typos (y un comando mal escrito contestaba "desconocido"
+   * en vez del dato). El numero es inequivoco: ningun comando es de 7-8 digitos. */
+  const pelado = texto.match(/^(\d{7,8})$/);
+  if (!texto.startsWith('/') && !pelado) return;
 
-  const m = texto.match(/^\/([a-z0-9_]+)(?:@\w+)?\s*([\s\S]*)$/i);
+  const m = pelado ? [texto, 'scoring', pelado[1]] : texto.match(/^\/([a-z0-9_]+)(?:@\w+)?\s*([\s\S]*)$/i);
   if (!m) return;
   const cmd = m[1].toLowerCase();
   const args = m[2].trim() ? m[2].trim().split(/\s+/) : [];
@@ -175,7 +181,7 @@ export async function atender(msg) {
     return;
   }
 
-  log(`chat=${chat} /${cmd} ${args.join(' ')}`);
+  log(`chat=${chat} /${cmd} ${args.join(' ')}${pelado ? ' (dni pelado)' : ''}`);
   const t0 = Date.now();
   enVuelo++;
   try {
