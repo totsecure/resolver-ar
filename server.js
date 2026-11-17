@@ -14,6 +14,7 @@ import * as nosis from './lib/nosis.js';
 import * as informe from './lib/argos-informe.js';
 import * as gordo from './lib/gordo.js';
 import * as persona from './lib/persona.js';
+import * as renaper from './lib/renaper.js';
 import { renderizar } from './lib/informe.js';
 import { consultarBcra, bcraCaido } from './lib/fuentes.js';
 import { dv as dvCuil } from './lib/validar.js';
@@ -687,6 +688,16 @@ const SIT_EMOJI = { 1: '\u{1F7E9}', 2: '\u{1F7E9}', 3: '\u{1F7E8}', 4: '\u{1F7E8
 const semaforo = (situacion) => SIT_EMOJI[String(situacion).charAt(0)] || '\u{2B1C}';
 /* Veredicto de una linea para leer de un golpe: EN REGLA se opera, OJO se duda. */
 const SIT_VEREDICTO = { 1: 'EN REGLA', 2: 'EN REGLA', 3: 'OJO', 4: 'OJO', 5: 'NO USABLE', 6: 'NO USABLE' };
+/* Codigos del padron AFIP. Son letras sueltas: sin traducir no dicen nada.
+ * Los valores salen de contar la tabla real (personas, 5.6M): IVA AC=activo
+ * (el normal), EX=exento, NI=no inscripto, NA=no alcanzado. Monotributo trae
+ * la CATEGORIA (A..K) o NI. Ganancias AC=inscripto. Se muestran solo los que
+ * aportan: "IVA activo" y "no inscripto en ganancias" es informacion; el resto
+ * de los NI es ruido. */
+const IVA_TXT = { AC: 'inscripto (activo)', EX: 'EXENTO', NI: 'no inscripto', NA: 'no alcanzado' };
+const GAN_TXT = { AC: 'inscripto', NI: 'no inscripto' };
+const ACTIVIDAD_TXT = { '00': 'sin actividad declarada', '08': 'relacion de dependencia', '10': 'autonomo / monotributo', '11': 'otras' };
+
 const veredicto = (situacion) => {
   const d = String(situacion).charAt(0);
   return SIT_VEREDICTO[d] ? semaforo(d) + ' ' + SIT_VEREDICTO[d] : null;
@@ -755,6 +766,18 @@ async function armarScoring(dni, completo) {
   const cuitsProbados = [];
   if (/^\d{7,8}$/.test(String(dni))) {
     const cands = [];
+    /* PRIMERO el padron AFIP: es local (0-1ms), es dato oficial, y no depende
+     * de ARGOS ni de NOSIS, que se bloquean por abuso. Medido: 96% de los DNIs
+     * que el bot atiende estan en el padron y el BCRA acepta esos CUIL. Ademas
+     * el padron dice el SEXO, y con el sexo el CUIL es UNO SOLO en vez de 5
+     * prefijos a ciegas: eso es lo que convierte "probable" en "confirmado". */
+    const cuilPadron = renaper.cuilDelPadron(dni);
+    const genPadron = renaper.generoPorCuit(dni);
+    if (cuilPadron) { cands.push(cuilPadron); cuit = cuilPadron; cuilFuente = 'PADRON AFIP'; }
+    /* Con el sexo del padron, el prefijo correcto es uno (20 M / 27 F). Los
+     * demas quedan como respaldo por si el padron se equivoca. */
+    if (genPadron === 'F' && !cands.includes('27')) cands.push('27');
+    if (genPadron === 'M' && !cands.includes('20')) cands.push('20');
     /* NOSIS devuelve el CUIL real (dato observado, no conjetura), pero esta
      * LENTO: consultar() reintenta 2 veces y con timeoutMs 8000 son 16-20s
      * SOLO en este paso, medido. Por eso ahora se lo consulta con un tope
@@ -786,7 +809,7 @@ async function armarScoring(dni, completo) {
      * dato observado de RENAPER. Se marca como tal para que el aviso de abajo
      * ("no pudimos confirmar su CUIL") no mienta: ARGOS lo dio en la linea de
      * arriba y el texto se contradecia solo. */
-    if (cuit && cands[0] === cuit) cuilFuente = 'RENAPER (via ARGOS)';
+    if (!cuilPadron && cuit && cands[0] === cuit) cuilFuente = 'RENAPER (via ARGOS)';
     for (const p of cands) {
       const r = await consultarBcra(p);
       cuitsProbados.push(p);
@@ -855,8 +878,13 @@ async function armarScoring(dni, completo) {
      * Si no, se marca como PRESUNTO: con 5 prefijos matematicamente validos y
      * el BCRA mudo en los 5, mostrarlo pelado hacia creer que era un dato. */
     const cuilTxt = cuit ? cuit.replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3') : null;
+    /* El sello dice DE DONDE sale el CUIL, porque no es lo mismo un dato
+     * oficial que un prefijo tirado a la suerte. El padron AFIP es dato de
+     * AFIP: no es "presunto", es la fuente la que lo declara. Solo lo que
+     * quedo de la derivacion por DV merece el PRESUNTO. */
     const etiquetaCuil = cuilFuente === 'BCRA' ? ' (confirmado por BCRA)'
-      : cuilFuente === 'RENAPER' ? ' (confirmado por RENAPER)'
+      : cuilFuente === 'RENAPER' || cuilFuente === 'RENAPER (via ARGOS)' ? ' (confirmado por RENAPER)'
+      : cuilFuente === 'PADRON AFIP' ? ' (segun padron AFIP)'
       : ' (PRESUNTO, sin confirmar)';
     L.push(F('CUIL', cuilTxt ? cuilTxt + etiquetaCuil : null));
     L.push(F('SEXO', a.sexo));
@@ -876,7 +904,15 @@ async function armarScoring(dni, completo) {
     const firma = (x) => normN(x).split(' ').sort().join(' ');
     if (a.nombreRenaper && firma(a.nombreRenaper) !== firma(a.nombreCompleto)) dif.push('RENAPER dice "' + a.nombreRenaper + '"');
     if (a.fechaNacRenaper && a.fechaNacRenaper !== a.fechaNac) dif.push('RENAPER dice nacimiento ' + a.fechaNacRenaper);
-    if (!a.cuilRenaper && cuit) dif.push(cuitProbado ? 'CUIL derivado del DNI, RENAPER no lo aporto' : 'CUIL de base, RENAPER no lo aporto');
+    /* El aviso dice de donde salio el CUIL cuando NO lo aporto RENAPER. Antes
+     * decia siempre "derivado del DNI", que con el padron AFIP es falso: el
+     * padron lo da, no se deriva. */
+    if (!a.cuilRenaper && cuit) {
+      dif.push(cuilFuente === 'PADRON AFIP' ? 'CUIL del padron AFIP (RENAPER no lo aporto)'
+        : cuilFuente === 'BCRA' ? 'CUIL confirmado por el BCRA (RENAPER no lo aporto)'
+        : cuitProbado ? 'CUIL derivado del DNI, RENAPER no lo aporto'
+        : 'CUIL de base, RENAPER no lo aporto');
+    }
     if (dif.length) L.push('', F('*** AVISO', 'datos NO confirmados por RENAPER: ' + dif.join(' | ')));
     if (Array.isArray(a.familia) && a.familia.length) {
       L.push('', '=== FAMILIA (' + a.familia.length + ') ===');
@@ -885,6 +921,23 @@ async function armarScoring(dni, completo) {
   } else {
     L.push(a.nombreCompleto);
     L.push('DNI ' + (a.dni || dni) + (cuit ? '  CUIL ' + cuit.replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3') : '') + (a.fallecido ? '  *** FALLECIDO ***' : ''));
+  }
+
+  /* ---- IMPOSITIVO (padron AFIP) ----
+   * Dato oficial y local (0-1ms). Va solo en el informe COMPLETO: en el light
+   * ya hay veredicto + BCRA y esto lo haria ruido. */
+  if (completo) {
+    const imp = renaper.padronFiscal(dni);
+    if (imp) {
+      L.push('', '=== IMPOSITIVO (padron AFIP) ===');
+      L.push(F('IVA', IVA_TXT[imp.iva] || imp.iva));
+      if (imp.monotributo && imp.monotributo !== 'NI') L.push(F('MONOTRIBUTO', 'categoria ' + imp.monotributo));
+      else L.push(F('MONOTRIBUTO', 'no inscripto'));
+      L.push(F('GANANCIAS', GAN_TXT[imp.ganancias] || imp.ganancias));
+      if (imp.actividad) L.push(F('ACTIVIDAD', ACTIVIDAD_TXT[imp.actividad] || ('codigo ' + imp.actividad)));
+      if (imp.empleador === 'S') L.push(F('EMPLEADOR', 'si (registra empleados)'));
+      if (String(imp.sucesion) === '1') L.push(F('SUCESION', 'si (persona fallecida, sucesion en curso)'));
+    }
   }
 
   // Consultamos BCRA antes de imprimir para poder dar el veredicto arriba.
@@ -898,7 +951,12 @@ async function armarScoring(dni, completo) {
      * se le da veredicto verde explicito en vez de un gris mudo. Va ANTES del
      * informe NOSIS para que el mismo caso no salga con dos textos distintos
      * segun si hay informe cacheado o no. */
+    /* El verde "sin historial" solo vale pleno si el CUIL es DATO. Si se probo
+     * a ciegas y los 5 prefijos dieron 404, el BCRA no encontro deuda... en un
+     * CUIL que puede no ser el de la persona: eso es un verde con asterisco, no
+     * un verde firme. Se los distingue para que el scoring no mienta. */
     : (b && b.estado === 'SIN_DATOS') ? '\u{1F7E9} EN REGLA (sin historial en el BCRA)'
+      + (cuilFuente ? '' : '  OJO: CUIL sin confirmar, probado a ciegas')
     : (infT && esperadoDeNosis(infT.situacionBcra) != null) ? veredicto(esperadoDeNosis(infT.situacionBcra))
     /* Sin el `!a.nombreCompleto` de guarda: si el BCRA contesta, contesta con
      * o sin ARGOS, y su denominacion alcanza para saber de quien es el DNI. */
