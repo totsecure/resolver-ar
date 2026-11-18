@@ -741,6 +741,16 @@ async function armarVehiculo(dom, forzar) {
   const L = [];
   L.push('DOMINIO ' + dom);
   if (d.fuente === 'AUSENTE') {
+    /* Distinguir "no existe" de "no se pudo preguntar" es CRITICO: con ARGOS
+     * castigado (rate limit) el dominio puede existir perfectamente, pero si el
+     * mensaje dice "SIN DATOS" el usuario cree que la patente no esta cargada.
+     * Medido: pasa en cuanto se consultan varios dominios seguidos. */
+    if (/rate limit|progresivo|reintente|en espera/i.test(String(d.motivo || ''))) {
+      L.push('PAUSADO: ARGOS nos esta frenando, no se pudo preguntar.');
+      L.push('Esto NO significa que el dominio no exista: hay que reintentar');
+      L.push('en unos minutos. Probar de nuevo con: /vehiculo ' + dom);
+      return L.join('\n') + '\n';
+    }
     L.push('SIN DATOS: ' + (d.motivo || 'no esta en el registro'));
     return L.join('\n') + '\n';
   }
@@ -1160,7 +1170,10 @@ app.get('/local/:dni', soloLectura, async (q, s) => {
     const d = String(q.params.dni || '').replace(/\D/g, '');
     if (d.length < 7) return s.type('text/plain').send('DNI invalido: ' + q.params.dni + '\n');
     const r = await argos.datos('local', d, { forzar: /^(1|true|si)$/i.test(String(q.query.forzar || '')) });
-    if (r.fuente === 'AUSENTE') return s.type('text/plain').send('SIN DATOS: ' + (r.motivo || 'sin datos') + '\n');
+    if (r.fuente === 'AUSENTE') {
+      const pausado = /rate limit|progresivo|reintente|en espera/i.test(String(r.motivo || ''));
+      return s.type('text/plain').send((pausado ? 'PAUSADO: ' : 'SIN DATOS: ') + (r.motivo || 'sin datos') + '\n');
+    }
     s.type('text/plain').send(JSON.stringify(r, null, 1));
   } catch (e) {
     s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
