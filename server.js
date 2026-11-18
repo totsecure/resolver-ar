@@ -15,6 +15,8 @@ import * as informe from './lib/argos-informe.js';
 import * as gordo from './lib/gordo.js';
 import * as persona from './lib/persona.js';
 import * as renaper from './lib/renaper.js';
+import * as padron from './lib/padron.js';
+import * as vehiculos from './lib/vehiculos.js';
 import { renderizar } from './lib/informe.js';
 import { consultarBcra, bcraCaido } from './lib/fuentes.js';
 import { dv as dvCuil } from './lib/validar.js';
@@ -731,6 +733,86 @@ const semaforoTxt = (v) => { const n = esperadoDeNosis(v); return n == null ? '\
 const SI_NO = (v) => (String(v || '').trim().toUpperCase() === 'S' ? 'SI' : String(v || '').trim().toUpperCase() === 'N' ? 'NO' : (v || 'NO INFORMADO'));
 const normN = (x) => String(x || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
 
+/* Ficha de un vehiculo por dominio, en texto plano para el bot.
+ * El corte registral de DNRPA que sirve ARGOS llega hasta 2024-2025: si no hay
+ * titulares se dice explicitamente, para no dejar la duda de si fallo. */
+async function armarVehiculo(dom, forzar) {
+  const d = await vehiculos.datosDeDominio(dom, { forzar });
+  const L = [];
+  L.push('DOMINIO ' + dom);
+  if (d.fuente === 'AUSENTE') {
+    L.push('SIN DATOS: ' + (d.motivo || 'no esta en el registro'));
+    return L.join('\n') + '\n';
+  }
+  const v = d.vehiculo || {};
+  /* Hay dominios (placas viejas o especiales) donde ARGOS solo tiene los
+   * permisos y no la ficha del vehiculo. Si no hay NINGUN dato de marca/modelo/
+   * anio, no se imprime el bloque VEHICULO en vez de decir NO INFORMADO 3 veces. */
+  const hayFicha = !!(v.marca || v.modelo || v.anio || v.fabrica);
+  if (hayFicha) {
+    L.push('');
+    L.push('=== VEHICULO ===');
+    L.push('MARCA        ' + (v.marca || 'NO INFORMADO'));
+    L.push('MODELO       ' + (v.modelo || 'NO INFORMADO'));
+    if (v.fabrica) L.push('FABRICA      ' + v.fabrica);
+    L.push('ANIO         ' + (v.anio || 'NO INFORMADO'));
+    if (v.fecha_patentamiento) L.push('PATENTADO    ' + v.fecha_patentamiento);
+    if (v.dominio_anterior) L.push('DOMINIO ANT. ' + v.dominio_anterior);
+  } else {
+    L.push('');
+    L.push('=== VEHICULO ===');
+    L.push('Sin ficha de marca/modelo cargada para este dominio.');
+  }
+
+  /* titulares_y_operaciones es la lista COMPLETA (con CUIT, domicilio y
+   * provincia); titulares es un subconjunto que puede venir vacio. Se usa la
+   * primera y se cae a la segunda. */
+  const tit = (Array.isArray(d.titulares_y_operaciones) && d.titulares_y_operaciones.length)
+    ? d.titulares_y_operaciones
+    : (Array.isArray(d.titulares) ? d.titulares : []);
+  L.push('');
+  L.push('=== TITULARES (' + tit.length + ') ===');
+  if (!tit.length) L.push('Sin operaciones registrales en el corte 2024-2025.');
+  for (const t of tit) {
+    L.push('');
+    L.push('-' + (t.titular || 'TITULAR SIN NOMBRE'));
+    const ids = [t.dni ? 'DNI ' + t.dni : '', t.cuit ? 'CUIT ' + t.cuit : ''].filter(Boolean).join('  ');
+    if (ids) L.push('  ' + ids);
+    if (t.porcentual) L.push('  TITULARIDAD: ' + t.porcentual);
+    if (t.fecha_operacion) L.push('  OPERACION: ' + t.fecha_operacion);
+    const domi = [t.domicilio, t.localidad, t.provincia].filter(Boolean).join(', ');
+    if (domi) L.push('  DOMICILIO: ' + domi);
+  }
+
+  const per = Array.isArray(d.permisos_dnrpa) ? d.permisos_dnrpa : [];
+  if (per.length) {
+    L.push('');
+    L.push('=== PERMISOS DE CONDUCIR (' + per.length + ') ===');
+    for (const p of per) {
+      L.push('');
+      L.push('-' + (p.autorizados || 'AUTORIZADO SIN NOMBRE'));
+      if (p.fecha_expedicion) L.push('  EXPEDIDO: ' + p.fecha_expedicion);
+      if (p.escribano) L.push('  ESCRIBANO: ' + p.escribano);
+      if (p.observaciones) L.push('  OBS: ' + p.observaciones);
+      const dnis = Array.isArray(p.autorizados_dnis) ? p.autorizados_dnis : [];
+      if (dnis.length) L.push('  DNI AUTORIZADOS: ' + dnis.join(', '));
+    }
+  }
+  /* dnis_vinculados: todos los DNI que aparecen en el registro del dominio
+   * (titulares + autorizados + historicos). Sirve para cruzar sin tener que
+   * leer los blques de arriba. */
+  const vinc = Array.isArray(d.dnis_vinculados) ? d.dnis_vinculados : [];
+  if (vinc.length) {
+    L.push('');
+    L.push('=== DNI VINCULADOS (' + vinc.length + ') ===');
+    L.push(vinc.join(', '));
+  }
+
+  L.push('');
+  L.push('Fuente: DNRPA via ARGOS. Titularidad y permisos al corte 2024-2025.');
+  return L.join('\n') + '\n';
+}
+
 async function armarScoring(dni, completo) {
   const F = (k, v) => k.padEnd(13) + (v == null || v === '' ? 'NO INFORMADO' : v);
   /* El informe NOSIS se ENCOLA ACA, lo primero de todo, para que corra en
@@ -1066,6 +1148,66 @@ app.get('/scoring/:dni', soloLectura, async (q, s) => {
     s.type('text/plain').send(await armarScoring(dni, false));
   } catch (e) {
     s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
+  }
+});
+
+/* GET /buscar?q=<apellido nombre> -> candidatos con CUIL.
+ * El padron AFIP local responde en ~2ms pero le faltan los DNI nuevos, y NOSIS
+ * cubre esos pero tarda 2-4s. Se prueba el padron y solo si no hay nada se cae
+ * a NOSIS. NO se usa el telefono: NOSIS interpreta el numero como DNI, no como
+ * celular (verificado con telefonos reales: da 0 resultados). */
+app.get('/buscar', soloLectura, async (q, s) => {
+  try {
+    const texto = String(q.query.q || '').trim();
+    if (texto.length < 3) return s.json({ filas: [], fuente: '', error: 'texto muy corto' });
+    const db = abrirPadron();
+    if (!db) return s.json({ filas: [], fuente: '', error: 'padron no disponible' });
+    const r = padron.buscarPorPrefijo(db, texto, 0, 10);
+    const filas = (r.filas || []).map((f) => ({
+      cuit: f.cuit,
+      nombre: [f.apellido, f.nombre].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
+      dni: f.dni,
+    }));
+    if (filas.length) return s.json({ filas, fuente: 'padron AFIP' });
+
+    /* Sin match en el padron: NOSIS (acepta apellido). Nunca lanza. */
+    try {
+      const j = await nosis.consultar(texto, { timeoutMs: 15000 });
+      const deN = (j.EntidadesEncontradas || []).map((x) => ({
+        cuit: x.Documento,
+        nombre: x.RazonSocial,
+        dni: String(x.Documento || '').replace(/\D/g, '').slice(2, 10),
+      }));
+      return s.json({ filas: deN.slice(0, 10), fuente: 'NOSIS' });
+    } catch (_) {
+      return s.json({ filas: [], fuente: '', error: 'sin resultados' });
+    }
+  } catch (e) {
+    s.json({ filas: [], fuente: '', error: String(e?.message || e) });
+  }
+});
+
+/* GET /vehiculo/<DOMINIO> -> ficha del auto por patente (ARGOS/DNRPA):
+ * titulares registrales, transferencias, porcentuales y permisos de conduccion.
+ * Texto plano: el bot lo manda tal cual en un <pre>. */
+app.get('/vehiculo/:dom', soloLectura, async (q, s) => {
+  try {
+    const dom = vehiculos.normalizarDominio(q.params.dom);
+    if (!dom) return s.type('text/plain').send('Dominio invalido: ' + q.params.dom + '\nUso: /vehiculo AB123CD\n');
+    s.type('text/plain').send(await armarVehiculo(dom, q.query.forzar === '1'));
+  } catch (e) {
+    s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
+  }
+});
+
+/* GET /vehiculo-json/<DOMINIO> -> lo mismo pero crudo, para el panel. */
+app.get('/vehiculo-json/:dom', soloLectura, async (q, s) => {
+  try {
+    const dom = vehiculos.normalizarDominio(q.params.dom);
+    if (!dom) return s.json({ ok: false, error: 'dominio invalido' });
+    s.json(await vehiculos.datosDeDominio(dom, { forzar: q.query.forzar === '1' }));
+  } catch (e) {
+    s.json({ ok: false, error: String(e?.message || e) });
   }
 });
 

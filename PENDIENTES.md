@@ -200,3 +200,75 @@ Pendiente:
   link de registro a un tercero.
 - `scripts/migrar-daemons.sh`: ya incluye `consultas` en `SERVICIOS`.
 
+
+## ARGOS — REGLAS A RAJATABLA (2026-11-18)
+
+ARGOS pausa por DOS motivos y el segundo es el que nos venia matando. La doc
+oficial del proveedor y el texto literal del castigo:
+
+1. **VOLUMEN** — cupos del POOL de 10 IPs SUMADAS (no por IP):
+   `15/min`, `100/hora`, `500/dia`. Ademas nosis (PDF) tiene `3/min` propio y
+   UNA descarga a la vez.
+2. **BARRIDO** — la doc lo prohibe explicito y el 429 lo dice con estas
+   palabras: `Timeout progresivo nivel N (Barrido secuencial/ascendente de DNIs
+   detectado)`. Mandar DNIs correlativos (`X, X+1, X+2...`) delata scraper.
+   Medido en vivo 2026-11-18: `32000000..32000012` con 5s de separacion (7/min,
+   la mitad del tope) comio Nivel 2 igual.
+
+**REGLA DE ORO: no nos pueden pausar NUNCA, ni siquiera al Nivel 1.**
+
+Castigo al pasarse (progresivo, no se resetea solo): Nivel 1 = 5m, 2 = 15m,
+3 = 30m, 4 = 1h, 5 = 3h, 6+ = 6h. El texto del 429 dice el tiempo exacto
+("Reintente en 14m 36s") y **hay que creerle**: reintentar antes de tiempo sube
+el nivel. La pausa es POR RUTA (`/patente` castigado no afecta `/renaper`).
+
+**Para que un barrido NO parezca barrido:** saltear de a 7 DNIs
+(`10000001, 10000008, 10000015...`). Asi no paga pausa anti-scrap y solo lo
+limita el cupo (4s/pedido = 15/min). Un barrido correlativo paga ademas ~2.5s
+por pedido con un corte mas largo cada 4.
+
+Reglas de implementacion (todas en `lib/argos.js`, no romperlas):
+
+- **`/api/v1/local/<dni>` es ILIMITADO (dato del proveedor 2026-11-18).** Sin
+  tope por minuto, hora ni dia, y sin timeouts. Los 15/min - 100/h - 500/dia
+  aplican SOLO a los endpoints externos (RENAPER vivo, Nosis, IA, patente).
+  Implementado en `pagaCupo(ruta)` / `RUTAS_LIBRES`: las rutas libres no
+  consumen cupo NI pagan pausa anti-scrap. Importa porque antes TODO compartia
+  contador y barrer la base local (que es gratis) te comia el cupo que necesita
+  RENAPER. Y `refrescar()` YA NO saltea el `local` cuando renaper esta
+  bloqueado: es la unica fuente que sigue viva durante un castigo (medido: un
+  `/scoring` completo cae de 20-45s colgado a 1.8s durante un Nivel 2).
+- **Un request = un cupo.** El descuento vive en `pedir()` y en NINGUN otro lado.
+  Estuvo duplicado en `datos()`, `pedirPatente()`, `cuilDeRenaper()` y
+  `turnoNosis()`, y los reintentos salian gratis: 3 intentos gastaban 1 cupo
+  mientras ARGOS contaba 3 → hasta 45/min con un tope de 15.
+- **EL CASTIGO ES GLOBAL, NO POR RUTA (corregido 2026-11-18).** Se creia lo
+  contrario y era auto-engan~o. Probado en vivo con el Nivel 2 activo:
+  `/patente`, `/telefono`, `/nosis`, `/renaper` y `/dni_completo` devolvieron
+  TODAS "Nivel 2. Reintente en 10m 20s" — el mismo segundo exacto. El castigo
+  cubre todo lo que sea "endpoint externo"; la UNICA excepcion es `/local`.
+  La clave del bloqueo es UNA: `externo` (antes eran 5, y eso dejaba que un
+  pedido a `/renaper` saliera mientras `/patente` estaba castigado, comiera
+  otro 429 y SUBIERA el nivel: nos auto-escalabamos solos).
+- **Los bloqueos se persisten** en `cache_kv` (tabla del `padron.db`): si el
+  proceso se reinicia, la pausa sigue valiendo. Se borran al vencer y al primer
+  200 de esa ruta.
+- **La tabla se crea ANTES de `cargarBloqueos()`** en `abrir()`. Si se invierte
+  el orden, el `catch` silencioso se come el error y los bloqueos nunca cargan.
+- **Contador de 3 ventanas** (minuto/hora/dia) se podan juntas. El de dia es el
+  que menos se usa, pero es el que deja el bot muerto mas tiempo.
+- `ARGOS_RPM`, `ARGOS_RPH`, `ARGOS_RPD`, `ARGOS_RPM_NOSIS`,
+  `ARGOS_PAUSA_SCRAP_MS`, `ARGOS_BLOQUEO_MIN` se pueden pisar por entorno.
+
+- **Corte previo en `pedir()`**: si la ruta ya esta castigada, contesta en 0ms
+  sin tocar ARGOS (`motivo:'rate limit (en espera)', tocado:false`). Sin esto,
+  cada llamada nueva igual salia a pegarle al servidor para recibir otro 429.
+  En `cuilDeRenaper()` ademas se saltea la espera de 1.2s cuando el intento no
+  toco la red (`if (r && r.tocado === false) continue`).
+- **La pausa anti-scrap se SUMA al freno del cupo.** Con 2.5s el total se
+  pasaba del tope de 15/min y ARGOS devolvia "Timeout progresivo (Limite por
+  minuto)". Bajada a 1.2s (`ARGOS_PAUSA_SCRAP_MS`). El anti-scrap NO aplica a
+  `/local` (base ilimitada, no se "barre" a sus ojos).
+
+Numeros VIEJOS que ya no valen (si aparecen, corregirlos): ~~28/min~~,
+~~30/min por IP~~, ~~2/min nosis~~, ~~castigo por ruta~~, ~~pausa anti-scrap de 2.5s~~.

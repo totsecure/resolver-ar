@@ -419,14 +419,22 @@ async function cmdCache(chat, args) {
   await enviarPre(chat, L.join(String.fromCharCode(10)));
 }
 
+/* Estado de los cupos de ARGOS. Los numeros salen del server (que es el que
+ * realmente cuenta), no de una copia local. Reglas: pool de 10 IPs, 15/min,
+ * 100/h, 500/dia, nosis 3/min. */
 async function cmdLimites(chat) {
   const j = await pedir('/argos/limites');
-  const L = ['LIMITES'];
-  for (const t of ['local', 'renaper', 'nosis']) {
-    const x = j && j[t];
-    if (x) L.push(t + ': ' + x.usados + '/' + x.max + ' por ' + x.ventana);
+  const L = ['CUPOS ARGOS (pool 10 IPs)'];
+  const fila = (n, x) => { if (x) L.push(n + ': ' + x.usados + '/' + x.max); };
+  fila('por minuto ', j && j.minuto);
+  fila('por hora   ', j && j.hora);
+  fila('por dia    ', j && j.dia);
+  fila('nosis/min  ', j && j.nosis);
+  if (j && j.bloqueados && j.bloqueados.length) {
+    for (const b of j.bloqueados) L.push('PAUSADO ' + b.ruta + ' ' + b.minutos + 'm');
+  } else {
+    L.push('sin pausas activas');
   }
-  L.push('bot: ' + usoMinuto() + '/28 este minuto');
   await enviarPre(chat, L.join(String.fromCharCode(10)));
 }
 
@@ -572,6 +580,54 @@ async function cmdCompleto(chat, args) {
   await enviarPre(chat, t);
 }
 
+/* Buscar por APELLIDO Y/O NOMBRE cuando no se tiene el DNI.
+ * Dos fuentes en cascada: el padron AFIP local (2ms, indice por apellido_norm)
+ * y si no aparece, NOSIS (2-4s, acepta apellido). Se muestran los candidatos
+ * con su CUIL para que el usuario elija y despues consulte el DNI que salga. */
+async function cmdBuscar(chat, args) {
+  const q = String(args.join(' ') || '').trim();
+  if (q.length < 3) { await enviar(chat, 'Uso: /buscar <apellido nombre>\nEj: /buscar PAPA CLAUDIO'); return; }
+
+  /* Todo el trabajo pesado lo hace el server (tiene la DB); el bot solo pinta. */
+  let filas = [];
+  let fuente = '';
+  try {
+    const j = await pedir('/buscar', { q });
+    if (j && Array.isArray(j.filas)) { filas = j.filas; fuente = j.fuente || 'padron'; }
+    if (j && j.error && !filas.length) await enviar(chat, 'Error: ' + esc(j.error));
+  } catch (e) {
+    await enviar(chat, 'Error buscando: ' + esc(e.message || e));
+    return;
+  }
+
+  if (!filas.length) {
+    await enviar(chat, 'Sin resultados para "' + esc(q) + '"\n\nProba con solo el apellido, o apellido y nombre.');
+    return;
+  }
+
+  const L = ['<b>' + filas.length + ' resultado(s)</b> - fuente: ' + esc(fuente), ''];
+  for (const f of filas.slice(0, 10)) {
+    const c = String(f.cuit || '').replace(/^(\d{2})(\d{8})(\d)$/, '$1-$2-$3');
+    L.push(c + '  ' + esc(f.nombre || ''));
+  }
+  L.push('');
+  L.push('Consulta ese DNI con /scoring');
+  await enviar(chat, L.join('\n'));
+}
+
+/* Ficha de un vehiculo por patente/dominio, contra DNRPA via ARGOS.
+ * Devuelve titularidad registral, transferencias 2024-2025 y permisos de
+ * conducir. El server arma el texto; el bot lo manda pelado en un <pre>. */
+async function cmdVehiculo(chat, args) {
+  const dom = String(args.join('') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (dom.length < 5) {
+    await enviar(chat, 'Uso: /vehiculo <dominio>\nEj: /vehiculo AB123CD\n\nTambien sirve /patente AB123CD y /auto AB123CD');
+    return;
+  }
+  const t = await pedirTexto('/vehiculo/' + dom);
+  await enviarPre(chat, t);
+}
+
 /* El informe NOSIS crudo, en PDF. Si no esta cacheado (~45s la primera vez)
  * se encola y se avisa, en vez de dejar al usuario esperando a ciegas. */
 async function cmdPdf(chat, args) {
@@ -632,7 +688,7 @@ async function cmdNosis(chat, args) {
 
 /* Igual que pedirFirme pero devolviendo texto: sin esto un fetch colgado
  * dejaba mudo al bot para siempre, porque el loop de updates es secuencial. */
-async function pedirTextoFirme(ruta, intentos = 2) {
+async function pedirTextoFirme(ruta, intentos = 1) {
   let ultimo = null;
   for (let i = 1; i <= intentos; i++) {
     try {
@@ -642,10 +698,14 @@ async function pedirTextoFirme(ruta, intentos = 2) {
         const r = await fetch(baseUrl() + ruta + sep + q, { signal });
         if (!r.ok) throw new Error('server ' + r.status);
         return await r.text();
-      }, 12000);
+      /* 12s quedaba CORTO: con ARGOS en rate limit sostenido, un DNI nuevo paga
+       * los reintentos de ARGOS + el fallback a NOSIS y pasaba de 20s. Los dos
+       * intentos morian por AbortError y el usuario veia "This operation was
+       * aborted". 25s cubre el peor caso medido (22-25s) con margen. */
+      }, 25000);
     } catch (e) { ultimo = e; if (i < intentos) await new Promise((r) => setTimeout(r, 1000)); }
   }
-  throw ultimo || new Error('el server no respondio, proba de nuevo');
+  throw ultimo || new Error('el server tardo demasiado, proba de nuevo');
 }
 export async function pedirTexto(ruta) { return pedirTextoFirme(ruta); }
 /* === fin informes === */
@@ -658,10 +718,12 @@ async function cmdBinInfo(chat, args) {
   await enviarPre(chat, lineas.join('\n'));
 }
 
-/* Limites de ARGOS (doc seccion 2): 28/min para el resto y 2/min para nosis,
- * con UNA sola nosis a la vez. El tope real es 30/min por IP y ARGOS responde 429.
+/* Limites de ARGOS: los cupos son del POOL DE 10 IPs SUMADAS, no por IP.
+ * 15/min, 100/h, 500/dia. nosis 3/min y UNA a la vez. Prohibido el barrido de
+ * DNIs correlativos en rafaga. Pasarse = pausa progresiva (5m a 6h).
+ * El server (lib/argos.js) es el que manda; esto es un segundo cinturon.
  */
-const ARGOS_CMDS = new Set(['random','info','ar','familia','domicilios','cuit','fallecido','argos','estado','prewarm','local','renaper','cache','limites']);
+const ARGOS_CMDS = new Set(['random','info','ar','familia','domicilios','cuit','fallecido','argos','estado','prewarm','local','renaper','cache','limites','vehiculo']);
 const marcaBot = new Map();
 let nosisBotOcupado = false;
 
@@ -686,7 +748,7 @@ async function conNosis(fn) {
   try { return await fn(); } finally { nosisBotOcupado = false; }
 }
 
-export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'dame', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'scoring', 'completo', 'pdf', 'todo', 'fiscal', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'estado', 'prewarm', 'local', 'renaper', 'cache', 'limites']);
+export const COMANDOS = new Set(['cargar', 'stock', 'bins', 'resumen', 'bin', 'full', 'cc', 'movs', 'vender', 'entrega', 'dame', 'reentrega', 'devolver', 'baja', 'reservar', 'expirar', 'saldo', 'etiqueta', 'precio', 'precios', 'exportar', 'alertas', 'stats', 'backup', 'purgar', 'bininfo', 'saldeadas', 'pedir', 'revisar', 'random', 'info', 'scoring', 'completo', 'pdf', 'todo', 'fiscal', 'nosis', 'familia', 'ar', 'domicilios', 'cuit', 'randomargos', 'fallecido', 'argos', 'estado', 'prewarm', 'local', 'renaper', 'cache', 'limites', 'buscar', 'bus', 'vehiculo', 'patente', 'auto']);
 
 /* === atajos === */
 export const ALIAS = {
@@ -700,6 +762,7 @@ export const ALIAS = {
   dom: 'domicilios', fal: 'fallecido', ag: 'estado', argos: 'estado', pw: 'prewarm',
   loc: 'local', ren: 'renaper', ch: 'cache', lim: 'limites',
   sal: 'saldeadas', sd: 'saldeadas',
+  patente: 'vehiculo', auto: 'vehiculo', pp: 'vehiculo',
   q: 'pedir', pd: 'pedir', rv: 'revisar', dead: 'revisar', queja: 'revisar',
   anular: 'devolver', cancelar: 'cancel',
 };
@@ -746,7 +809,7 @@ const ENCURSO = new Set();
 /* Tope del comando: DEBE quedar por encima del timeout interno de los fetch
  * (12s x2 intentos = 24s), si no el race vence primero y deja corriendo en
  * segundo plano un zombie que sigue mandando mensajes al chat. */
-const TOPE_MS = Number(process.env.BOT_TOPE_MS || 45000);
+const TOPE_MS = Number(process.env.BOT_TOPE_MS || 55000);
 export async function manejarStock(chatId, cmd, args = [], payload = '') {
   const _raw = String(cmd || '').toLowerCase();
   const c = ALIAS[_raw] || _raw;
@@ -763,7 +826,7 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
 
   try {
     const correr = async () => {
-    if (ARGOS_CMDS.has(c) && c !== 'nosis') await turnoBot(28);
+    if (ARGOS_CMDS.has(c) && c !== 'nosis') await turnoBot(15);
     if (c === 'cargar') await cmdCargar(chatId, args, payload, quien);
     else if (c === 'stock' || c === 'bins' || c === 'resumen') await cmdStock(chatId);
     else if (c === 'bin') await cmdBin(chatId, args);
@@ -799,6 +862,8 @@ export async function manejarStock(chatId, cmd, args = [], payload = '') {
     else if (c === 'info') await cmdInfo(chatId, args);
     else if (c === 'scoring') await cmdScoring(chatId, args);
     else if (c === 'completo') await cmdCompleto(chatId, args);
+    else if (c === 'buscar' || c === 'bus') await cmdBuscar(chatId, args);
+    else if (c === 'vehiculo') await cmdVehiculo(chatId, args);
     else if (c === 'pdf') await cmdPdf(chatId, args);
     else if (c === 'nosis') await conNosis(() => cmdNosis(chatId, args));
     else if (c === 'familia') await cmdFamilia(chatId, args);

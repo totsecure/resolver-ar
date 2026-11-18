@@ -17,6 +17,8 @@ const COMANDOS = new Set([
   'randomargos', 'random', 'info', 'cuit', 'ar', 'familia', 'domicilios',
   'fallecido', 'nosis', 'local', 'renaper', 'argos', 'estado', 'prewarm',
   'scoring', 'todo', 'fisc', 'fiscal', 'completo', 'score', 'bcra', 'situacion', 'pdf',
+  'buscar', 'bus',
+  'vehiculo', 'patente', 'auto', 'dom',
 ]);
 
 /* La ayuda dice QUE ES cada cosa y DE DONDE SALE el dato. Sin lo segundo, un
@@ -25,6 +27,7 @@ const COMANDOS = new Set([
 const AYUDA = [
   '<b>COMO SE USA</b>',
   'Manda el DNI solo, o con /scoring adelante. Ej: <code>30123456</code>',
+  'Si no tenes el DNI, manda <b>apellido y nombre</b>: <code>PAPA CLAUDIO</code>',
   '',
   '<b>LO PRINCIPAL</b>',
   '/scoring &lt;dni&gt; - veredicto + situacion crediticia. <b>Lo mas usado</b>',
@@ -34,12 +37,19 @@ const AYUDA = [
   '/pdf &lt;dni&gt; - igual que /completo pero llega como <b>archivo</b>',
   '',
   '<b>IDENTIDAD</b> (fuente: RENAPER; si falla, padron AFIP)',
+  '/buscar &lt;apellido nombre&gt; - busca el DNI de alguien (padron + NOSIS)',
   '/info &lt;dni&gt; - nombre, domicilio, nacimiento (padron)',
   '/renaper &lt;dni&gt; - datos crudos de RENAPER',
   '/cuit &lt;dni&gt; - CUIL de la persona',
   '/domicilios &lt;dni&gt; - todos los domicilios conocidos',
   '/familia &lt;dni&gt; - grupo familiar',
   '/fallecido &lt;dni&gt; - si figura fallecido',
+  '',
+  '<b>VEHICULOS</b> (fuente: DNRPA via ARGOS)',
+  '/vehiculo &lt;patente&gt; - ficha del auto por dominio. Ej: <code>AB123CD</code>',
+  '  → Marca, modelo, anio, titular/es con DNI y %, transferencias 2024-2025',
+  '  → Permisos notariales de conducir (quien esta autorizado a manejarlo)',
+  '  Tambien: /patente y /auto',
   '',
   '<b>PLATA Y CREDITO</b>',
   '/scoring / /completo - situacion y deuda (<b>BCRA</b>, oficial)',
@@ -162,9 +172,21 @@ export async function atender(msg) {
    * tiempo y generar typos (y un comando mal escrito contestaba "desconocido"
    * en vez del dato). El numero es inequivoco: ningun comando es de 7-8 digitos. */
   const pelado = texto.match(/^(\d{7,8})$/);
-  if (!texto.startsWith('/') && !pelado) return;
+  /* Texto libre: puede ser "PAPA CLAUDIO" o un celular. Antes se ignoraba en
+   * silencio y el usuario no sabia si el bot estaba vivo. Ahora se rutea a
+   * /buscar; si no hay resultados, /buscar explica que NOSIS busca por DNI y
+   * apellido (no por telefono, que es la confusion tipica al pasar un celular). */
+  /* PATENTE PELADA: los dominios son 3 letras + 3 digitos (ABC123) o
+   * 2 letras + 3 digitos + 2 letras (AB123CD). Ningun apellido tiene esa forma
+   * (a lo sumo 6 letras), asi que mandar "AB123CD" solo es inequivoco. */
+  const patente = texto.match(/^([A-Za-z]{2,3}\d{3}[A-Za-z]{0,3})$/);
+  const libre = !texto.startsWith('/') && !pelado && !patente && texto.length >= 4;
+  if (!texto.startsWith('/') && !pelado && !patente && !libre) return;
 
-  const m = pelado ? [texto, 'scoring', pelado[1]] : texto.match(/^\/([a-z0-9_]+)(?:@\w+)?\s*([\s\S]*)$/i);
+  const m = pelado ? [texto, 'scoring', pelado[1]]
+    : patente ? [texto, 'vehiculo', patente[1]]
+    : libre ? [texto, 'buscar', texto]
+    : texto.match(/^\/([a-z0-9_]+)(?:@\w+)?\s*([\s\S]*)$/i);
   if (!m) return;
   const cmd = m[1].toLowerCase();
   const args = m[2].trim() ? m[2].trim().split(/\s+/) : [];
@@ -201,7 +223,7 @@ export async function atender(msg) {
     return;
   }
 
-  log(`chat=${chat} /${cmd} ${args.join(' ')}${pelado ? ' (dni pelado)' : ''}`);
+  log(`chat=${chat} /${cmd} ${args.join(' ')}${pelado ? ' (dni pelado)' : patente ? ' (patente pelada)' : libre ? ' (texto libre)' : ''}`);
   const t0 = Date.now();
   enVuelo++;
   try {
