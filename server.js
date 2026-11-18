@@ -751,7 +751,17 @@ async function armarVehiculo(dom, forzar) {
       L.push('en unos minutos. Probar de nuevo con: /vehiculo ' + dom);
       return L.join('\n') + '\n';
     }
-    L.push('SIN DATOS: ' + (d.motivo || 'no esta en el registro'));
+    L.push('SIN DATOS: la base del DNRPA no tiene ficha para este dominio.');
+    L.push('');
+    /* Medido 2026-11-18: la base tiene cobertura PARCIAL y sesgada. Los
+     * dominios viejos (AAA000, AA000AA) y los AA0/AA1 aparecen, pero los AB/AC
+     * dan 404 aunque existan. Y de los que aparecen, la mayoria solo trae
+     * permisos de conducir, sin ficha de marca/modelo/titular. Decirlo evita
+     * que el usuario concluya "el auto no existe". */
+    L.push('OJO: la base esta INCOMPLETA. Hay dominios reales que todavia no');
+    L.push('estan cargados (sobre todo los nuevos y los de seccionales que no');
+    L.push('volcaron). Que no aparezca NO significa que el auto no exista.');
+    L.push('Con la cedula o el titulo se completa la ficha a mano.');
     return L.join('\n') + '\n';
   }
   const v = d.vehiculo || {};
