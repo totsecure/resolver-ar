@@ -18,7 +18,7 @@ const COMANDOS = new Set([
   'fallecido', 'nosis', 'local', 'renaper', 'argos', 'estado', 'prewarm',
   'scoring', 'todo', 'fisc', 'fiscal', 'completo', 'score', 'bcra', 'situacion', 'pdf',
   'buscar', 'bus',
-  'vehiculo', 'patente', 'auto', 'dom',
+  'vehiculo', 'patente', 'auto', 'dom', 'limites', 'lim',
 ]);
 
 /* La ayuda dice QUE ES cada cosa y DE DONDE SALE el dato. Sin lo segundo, un
@@ -50,6 +50,8 @@ const AYUDA = [
   '  → Marca, modelo, anio, titular/es con DNI y %, transferencias 2024-2025',
   '  → Permisos notariales de conducir (quien esta autorizado a manejarlo)',
   '  Tambien: /patente y /auto',
+  '  OJO: la base esta INCOMPLETA. Que un dominio no aparezca NO',
+  '  significa que el auto no exista. Con cedula o titulo se completa.',
   '',
   '<b>PLATA Y CREDITO</b>',
   '/scoring / /completo - situacion y deuda (<b>BCRA</b>, oficial)',
@@ -63,10 +65,12 @@ const AYUDA = [
   '⬜ SIN CHEQUEAR - la fuente no respondio',
   '',
   '<b>EXTRAS</b>',
-  '/local &lt;dni&gt; - lo que hay guardado en el cache',
+  '/local &lt;dni&gt; - base local de ARGOS (GRATIS, siempre responde)',
+  '  → No gasta cupo ni se pausa. Sirve cuando el resto esta frenado',
   '/randomargos [n] - N personas al azar de ARGOS (para probar)',
   '/random [n] - N personas al azar del padron',
   '/estado - estado del cache y las fuentes',
+  '/limites - cupo de ARGOS que queda (minuto/hora/dia)',
 ].join('\n');
 
 function log(msg) {

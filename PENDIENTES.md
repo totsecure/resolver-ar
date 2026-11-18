@@ -1,6 +1,6 @@
 # PENDIENTES — resolver-ar
 
-Actualizado: 2026-10-21. Lo que sigue espera a un tercero o a una acción humana;
+Actualizado: 2026-11-18. Lo que sigue espera a un tercero o a una acción humana;
 el código ya degrada solo.
 
 ## 0. Plan de escalado (números reales)
@@ -220,12 +220,83 @@ oficial del proveedor y el texto literal del castigo:
 Castigo al pasarse (progresivo, no se resetea solo): Nivel 1 = 5m, 2 = 15m,
 3 = 30m, 4 = 1h, 5 = 3h, 6+ = 6h. El texto del 429 dice el tiempo exacto
 ("Reintente en 14m 36s") y **hay que creerle**: reintentar antes de tiempo sube
-el nivel. La pausa es POR RUTA (`/patente` castigado no afecta `/renaper`).
+el nivel.
+
+**EL CASTIGO ES GLOBAL PARA TODAS LAS RUTAS EXTERNAS (corregido 2026-11-18).**
+Se creia que era por ruta y era auto-engan~o. Verificado en vivo con Nivel 2
+activo: `/patente`, `/telefono`, `/nosis`, `/renaper` y `/dni_completo`
+devolvieron TODAS "Nivel 2. Reintente en 10m 20s" — el mismo segundo exacto.
+La UNICA excepcion es `/local` (ver abajo). La clave interna del bloqueo es una
+sola: `externo`. Antes eran 5 claves distintas y eso dejaba que un pedido a
+`/renaper` saliera mientras `/patente` estaba castigado, comiera otro 429 y
+SUBIERA el nivel: nos auto-escalabamos el castigo solos.
 
 **Para que un barrido NO parezca barrido:** saltear de a 7 DNIs
 (`10000001, 10000008, 10000015...`). Asi no paga pausa anti-scrap y solo lo
-limita el cupo (4s/pedido = 15/min). Un barrido correlativo paga ademas ~2.5s
-por pedido con un corte mas largo cada 4.
+limita el cupo (4s/pedido = 15/min). Un barrido correlativo paga ademas ~1.2s
+por pedido con un corte mas largo cada 6.
+
+---
+
+## ARGOS — /api/v1/local ES ILIMITADO (2026-11-18)
+
+Dato del proveedor, textual: *"Te habilitamos el endpoint de Base de Datos Local
+de forma 100% ILIMITADA (sin tope por minuto, hora ni dia, y sin timeouts) en
+tus 10 IPs autorizadas. Los limites de 15 req/min - 100 req/hora - 500 req/dia
+aplican UNICAMENTE a los endpoints externos (RENAPER en vivo, Nosis, IA, etc.).
+El endpoint /api/v1/local/<dni> queda totalmente libre e ilimitado."*
+
+Acceso (autenticacion automatica por whitelist de las 10 IPs, sin headers ni
+tokens):
+- `GET https://argosbot.info/api/v1/local/{dni}`
+- `GET http://45.76.3.140:5100/api/v1/local/{dni}` (IP directa)
+- `GET http://104.234.7.128:5100/api/v1/local/{dni}` (la que usa el server hoy)
+
+Parametro: DNI de 7 a 9 digitos. HTTP 200 = encontrado, 400 = DNI mal formado,
+403 = IP fuera de whitelist, 404 = sin datos.
+
+Respuesta (200): `{ok, fuente:"db_local", dni, tokens_descontados:0, data:{...}}`
+con `data` trayendo `dni, nombre_completo, apellido, nombre, sexo, cuil,
+fecha_nacimiento, edad, fallecido, domicilio, piso_dpto, localidad, partido,
+provincia, codigo_postal, profesion, cobertura_medica, telefonos[], emails[],
+vehiculos[{dominio,marca,modelo,anio,porcentaje}], licencia_conducir{clases,
+vigencia,municipio}, posibles_familiares[{dni,nombre,edad,vinculo}]`.
+
+⚠️ La respuesta REAL que devuelve hoy trae un subconjunto distinto del de la doc:
+`correo_electronico, cuil, direccion_actual, dni, domicilios_padron_o_historicos,
+edad_actual, fecha_nacimiento, grupo_familiar_detectado, localidad,
+nombre_completo, provincia, sexo, signo_zodiacal, telefonos_asociados`. O sea
+**`vehiculos` y `licencia_conducir` TODAVIA NO VIENEN** (la doc va adelantada).
+Cuando aparezcan, hay que mapearlos en `interpretar()` de `lib/argos.js` y
+mostrarlos en el informe; hoy no estan.
+
+### Por que importa (esto es el hallazgo grande)
+
+- **Barrer la base local es gratis.** No gasta el cupo que necesitan RENAPER ni
+  nosis. Antes TODO compartia el mismo contador, asi que barrer 500 DNIs de
+  `/local` te dejaba sin cupo para el resto.
+- **Es la UNICA fuente que sigue viva durante un castigo.** Como el castigo es
+  global para las externas, cuando nos pausan `/local` sigue respondiendo.
+  Medido: un `/scoring` completo durante un Nivel 2 paso de 20-45s colgado a
+  **1.8s**, porque ahora `refrescar()` NO lo saltea cuando renaper rebota (antes
+  lo salteaba creyendo que "es el mismo servidor y el mismo castigo").
+- **No paga pausa anti-scrap:** su base no se "barre" a los ojos de ARGOS.
+- Ritmo real medido en el VPS (64 DNIs frescos, sin cache): **3.2/s** secuencial
+  y sin un solo 429; en lotes de 8 a 16 sube a 3.5-3.9/s. Con el cupo general en
+  **0** despues de 50 pedidos. La latencia de ~1s por pedido es de ARGOS, no
+  nuestra.
+
+### Implementacion
+
+- `pagaCupo(ruta)` + `RUTAS_LIBRES = [/^\/api\/v1\/local\//, /^\/api\/v1\/health/]`
+  en `lib/argos.js`. Las rutas libres no consumen cupo NI pausa.
+- `turno(tipo, ruta)` sale enseguida si la ruta es libre; `antiScrap(d, ruta)`
+  idem. `pedir()` le pasa la ruta.
+- Ruta del server: `GET /local/<dni>?forzar=1` — solo base local, sin tocar las
+  fuentes con cupo. Sirve para rafagas y para cuando renaper/nosis estan
+  castigados.
+- `ARGOS_LOCAL` es la `fuente` que se guarda en la tabla `argos` (clave
+  `local:<dni>`).
 
 Reglas de implementacion (todas en `lib/argos.js`, no romperlas):
 
