@@ -1151,6 +1151,22 @@ app.get('/scoring/:dni', soloLectura, async (q, s) => {
   }
 });
 
+/* GET /local/<dni> -> solo la base local de ARGOS, SIN tocar las fuentes con
+ * cupo. Es el unico endpoint de ARGOS que el proveedor dejo ILIMITADO (sin
+ * tope por minuto/hora/dia y sin timeout), asi que sirve para barrer en rafaga
+ * o para cuando RENAPER/nosis estan castigados y hay que sacar algo igual. */
+app.get('/local/:dni', soloLectura, async (q, s) => {
+  try {
+    const d = String(q.params.dni || '').replace(/\D/g, '');
+    if (d.length < 7) return s.type('text/plain').send('DNI invalido: ' + q.params.dni + '\n');
+    const r = await argos.datos('local', d, { forzar: /^(1|true|si)$/i.test(String(q.query.forzar || '')) });
+    if (r.fuente === 'AUSENTE') return s.type('text/plain').send('SIN DATOS: ' + (r.motivo || 'sin datos') + '\n');
+    s.type('text/plain').send(JSON.stringify(r, null, 1));
+  } catch (e) {
+    s.status(500).type('text/plain').send('ERROR: ' + String(e?.message || e) + '\n');
+  }
+});
+
 /* GET /buscar?q=<apellido nombre> -> candidatos con CUIL.
  * El padron AFIP local responde en ~2ms pero le faltan los DNI nuevos, y NOSIS
  * cubre esos pero tarda 2-4s. Se prueba el padron y solo si no hay nada se cae
